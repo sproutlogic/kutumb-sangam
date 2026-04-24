@@ -413,7 +413,7 @@ const overrides: Record<string, TranslationEntry> = {
   sendRequest: { en: "Send Request", hi: "अनुरोध भेजें" },
   offerCreated: { en: "Offer published!", hi: "प्रस्ताव प्रकाशित हो गया!" },
   requestSent: { en: "Request sent!", hi: "अनुरोध भेज दिया गया!" },
-  updated: { en: "Updated!", hi: "अपडेट हो गया!" },
+  samayUpdated: { en: "Updated!", hi: "अपडेट हो गया!" },
 
   /* ── Samay Bank UI keys ── */
   selectBranch: { en: "Select Branch", hi: "शाखा चुनें" },
