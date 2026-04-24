@@ -44,7 +44,6 @@ const overrides: Record<string, TranslationEntry> = {
   onboardStep3Subtitle: { en: "Add close family members to build your tree", hi: "अपना वृक्ष बनाने के लिए परिवार के सदस्य जोड़ें" },
   familyTreeName: { en: "Family tree name", hi: "वंश वृक्ष का नाम" },
   familyTreeNamePlaceholder: { en: "e.g. Sharma Vansh, Gupta Khandaan", hi: "जैसे शर्मा वंश, गुप्ता खानदान" },
-  yourProfile: { en: "Your profile", hi: "आपकी प्रोफ़ाइल" },
   givenName: { en: "First name", hi: "पहला नाम" },
   surname: { en: "Surname", hi: "उपनाम / कुलनाम" },
   dateOfBirth: { en: "Date of birth", hi: "जन्म तिथि" },
@@ -504,6 +503,12 @@ const overrides: Record<string, TranslationEntry> = {
   create: { en: "Create", hi: "बनाएं" },
   loading: { en: "Loading…", hi: "लोड हो रहा है…" },
   cancelled: { en: "Cancelled", hi: "रद्द किया गया" },
+
+  /* ── Sign In / Sign Up ── */
+  signInTitle: { en: "Welcome to Kutumb Map", hi: "कुटुंब मैप में आपका स्वागत है" },
+  signInSubtitle: { en: "Sign in to access your family tree", hi: "अपने वंश वृक्ष तक पहुँचने के लिए साइन इन करें" },
+  noAccount: { en: "Don't have an account?", hi: "खाता नहीं है?" },
+  signUp: { en: "Sign Up", hi: "साइन अप करें" },
 
   /* ── Common ── */
   getStarted: { en: "Get Started", hi: "शुरू करें" },
