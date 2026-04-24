@@ -27,6 +27,9 @@ dist-ssr
 # Claude project memory (local only)
 .claude/
 
+# Lovable editor internals (not needed in production)
+.lovable/
+
 # Environment files — NEVER commit real keys
 .env
 .env.local
