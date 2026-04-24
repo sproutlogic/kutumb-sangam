@@ -84,7 +84,7 @@ const SignIn = () => {
         <button
           onClick={handleGoogle}
           disabled={googleLoading}
-          className="w-full py-3.5 rounded-lg bg-white dark:bg-zinc-900 border border-border text-foreground font-semibold font-body shadow-sm hover:shadow-md transition-shadow flex items-center justify-center gap-3 disabled:opacity-60"
+          className="w-full py-3.5 rounded-lg bg-white border border-gray-300 text-gray-800 font-semibold font-body shadow-sm hover:shadow-md hover:bg-gray-50 transition-all flex items-center justify-center gap-3 disabled:opacity-60"
         >
           {googleLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <GoogleIcon />}
           {googleLoading ? 'Redirecting…' : 'Continue with Google'}
