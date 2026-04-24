@@ -1,11 +1,11 @@
 -- ═══════════════════════════════════════════════════════════════════════════
 -- KUTUMB SANGAM — MASTER MIGRATION
--- Paste this entire file into Supabase SQL Editor and click Run.
 -- Safe to re-run (IF NOT EXISTS / ON CONFLICT DO NOTHING everywhere).
+-- All FK columns referencing users.id use UUID type.
 -- ═══════════════════════════════════════════════════════════════════════════
 
 
--- ── 001: persons & unions (core tree tables) ─────────────────────────────────
+-- ── 001: persons & unions ────────────────────────────────────────────────────
 
 CREATE TABLE IF NOT EXISTS public.persons (
     node_id              UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -66,9 +66,9 @@ END $$;
 -- ── 002: matrimony_profiles ───────────────────────────────────────────────────
 
 CREATE TABLE IF NOT EXISTS public.matrimony_profiles (
-  vansha_id UUID PRIMARY KEY,
-  profile   JSONB        NOT NULL DEFAULT '{}'::jsonb,
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    vansha_id  UUID        PRIMARY KEY,
+    profile    JSONB       NOT NULL DEFAULT '{}'::jsonb,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 CREATE INDEX IF NOT EXISTS idx_matrimony_profiles_updated
@@ -78,13 +78,13 @@ CREATE INDEX IF NOT EXISTS idx_matrimony_profiles_updated
 -- ── 003: verification_requests ───────────────────────────────────────────────
 
 CREATE TABLE IF NOT EXISTS public.verification_requests (
-  id          UUID        PRIMARY KEY,
-  vansha_id   UUID        NOT NULL,
-  node_id     UUID        NOT NULL,
-  requested_by UUID,
-  status      TEXT        NOT NULL DEFAULT 'pending',
-  created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
-  updated_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+    id           UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+    vansha_id    UUID        NOT NULL,
+    node_id      UUID        NOT NULL,
+    requested_by UUID,
+    status       TEXT        NOT NULL DEFAULT 'pending',
+    created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at   TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 CREATE INDEX IF NOT EXISTS idx_verification_requests_vansha_status
@@ -96,7 +96,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS ux_verification_requests_pending_per_node
     WHERE status = 'pending';
 
 
--- ── 004: users, verification_audit, notifications ─────────────────────────────
+-- ── 004: users, verification_audit, notifications ────────────────────────────
 
 CREATE OR REPLACE FUNCTION public.set_updated_at()
 RETURNS TRIGGER LANGUAGE plpgsql AS $$
@@ -153,7 +153,7 @@ CREATE INDEX IF NOT EXISTS idx_notifications_user_unread
 -- ── 005: sales_settings + sales_performance ───────────────────────────────────
 
 CREATE TABLE IF NOT EXISTS public.sales_settings (
-    id                  TEXT        PRIMARY KEY,
+    id                  TEXT          PRIMARY KEY,
     product_price       NUMERIC(12,2) NOT NULL DEFAULT 999,
     se_direct_incentive NUMERIC(12,2) NOT NULL DEFAULT 200,
     cp_override         NUMERIC(12,2) NOT NULL DEFAULT 100,
@@ -173,10 +173,10 @@ CREATE TRIGGER trg_sales_settings_updated_at
     FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
 
 CREATE TABLE IF NOT EXISTS public.sales_performance (
-    user_id               UUID    PRIMARY KEY REFERENCES public.users(id) ON DELETE CASCADE,
-    personal_sales        INTEGER NOT NULL DEFAULT 0 CHECK (personal_sales >= 0),
-    team_sales            INTEGER NOT NULL DEFAULT 0 CHECK (team_sales >= 0),
-    pending_support_cases INTEGER NOT NULL DEFAULT 0 CHECK (pending_support_cases >= 0),
+    user_id               UUID        PRIMARY KEY REFERENCES public.users(id) ON DELETE CASCADE,
+    personal_sales        INTEGER     NOT NULL DEFAULT 0 CHECK (personal_sales >= 0),
+    team_sales            INTEGER     NOT NULL DEFAULT 0 CHECK (team_sales >= 0),
+    pending_support_cases INTEGER     NOT NULL DEFAULT 0 CHECK (pending_support_cases >= 0),
     updated_at            TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
@@ -188,13 +188,13 @@ CREATE TRIGGER trg_sales_performance_updated_at
 CREATE INDEX IF NOT EXISTS idx_sales_performance_updated_at ON public.sales_performance(updated_at DESC);
 
 
--- ── 006: platform_config (pricing, features) ──────────────────────────────────
+-- ── 006: platform_config ──────────────────────────────────────────────────────
 
 CREATE TABLE IF NOT EXISTS public.platform_config (
     id         TEXT        PRIMARY KEY,
     config     JSONB       NOT NULL,
     updated_at TIMESTAMPTZ DEFAULT now(),
-    updated_by TEXT        REFERENCES public.users(id) ON DELETE SET NULL
+    updated_by UUID        REFERENCES public.users(id) ON DELETE SET NULL
 );
 
 CREATE OR REPLACE FUNCTION public.set_platform_config_updated_at()
@@ -253,9 +253,9 @@ ON CONFLICT (id) DO NOTHING;
 
 CREATE TABLE IF NOT EXISTS public.se_applications (
     id               UUID        DEFAULT gen_random_uuid() PRIMARY KEY,
-    user_id          TEXT        NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+    user_id          UUID        NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
     referral_code    TEXT        NOT NULL,
-    referred_by_id   TEXT        REFERENCES public.users(id) ON DELETE SET NULL,
+    referred_by_id   UUID        REFERENCES public.users(id) ON DELETE SET NULL,
     aadhaar_last4    TEXT        NOT NULL CHECK (aadhaar_last4 ~ '^\d{4}$'),
     aadhaar_name     TEXT        NOT NULL,
     aadhaar_dob      DATE,
@@ -270,7 +270,7 @@ CREATE TABLE IF NOT EXISTS public.se_applications (
     status           TEXT        NOT NULL DEFAULT 'pending'
                                  CHECK (status IN ('pending','approved','rejected')),
     rejected_reason  TEXT,
-    reviewed_by      TEXT        REFERENCES public.users(id) ON DELETE SET NULL,
+    reviewed_by      UUID        REFERENCES public.users(id) ON DELETE SET NULL,
     reviewed_at      TIMESTAMPTZ,
     created_at       TIMESTAMPTZ DEFAULT now(),
     updated_at       TIMESTAMPTZ DEFAULT now(),
@@ -291,7 +291,7 @@ ALTER TABLE public.se_applications ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "se_app_self_read" ON public.se_applications;
 CREATE POLICY "se_app_self_read"
     ON public.se_applications FOR SELECT
-    USING (auth.uid()::text = user_id);
+    USING (auth.uid() = user_id);
 
 
 -- ── 008: calendar_events ─────────────────────────────────────────────────────
@@ -299,7 +299,7 @@ CREATE POLICY "se_app_self_read"
 CREATE TABLE IF NOT EXISTS public.calendar_events (
     id              UUID        DEFAULT gen_random_uuid() PRIMARY KEY,
     vansha_id       TEXT        NOT NULL,
-    created_by      TEXT        NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+    created_by      UUID        NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
     title           TEXT        NOT NULL,
     event_date      DATE        NOT NULL,
     event_type      TEXT        NOT NULL DEFAULT 'event'
@@ -321,25 +321,25 @@ CREATE POLICY "calendar_self_read"
 -- ── 009: legacy_messages ─────────────────────────────────────────────────────
 
 CREATE TABLE IF NOT EXISTS public.legacy_messages (
-    id                 UUID        DEFAULT gen_random_uuid() PRIMARY KEY,
-    sender_id          TEXT        NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
-    vansha_id          TEXT        NOT NULL,
-    recipient_node_id  TEXT        NOT NULL,
-    recipient_name     TEXT        NOT NULL,
-    message_type       TEXT        NOT NULL CHECK (message_type IN ('text','voice')),
+    id                 UUID             DEFAULT gen_random_uuid() PRIMARY KEY,
+    sender_id          UUID             NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+    vansha_id          TEXT             NOT NULL,
+    recipient_node_id  TEXT             NOT NULL,
+    recipient_name     TEXT             NOT NULL,
+    message_type       TEXT             NOT NULL CHECK (message_type IN ('text','voice')),
     text_content       TEXT,
     voice_url          TEXT,
     voice_duration_sec INTEGER,
-    trigger_type       TEXT        NOT NULL CHECK (trigger_type IN ('time','location')),
+    trigger_type       TEXT             NOT NULL CHECK (trigger_type IN ('time','location')),
     trigger_time       TIMESTAMPTZ,
     trigger_lat        DOUBLE PRECISION,
     trigger_lon        DOUBLE PRECISION,
-    trigger_radius_m   INTEGER     DEFAULT 100,
+    trigger_radius_m   INTEGER          DEFAULT 100,
     trigger_place_name TEXT,
-    status             TEXT        NOT NULL DEFAULT 'pending'
-                                   CHECK (status IN ('pending','delivered','expired')),
+    status             TEXT             NOT NULL DEFAULT 'pending'
+                                        CHECK (status IN ('pending','delivered','expired')),
     delivered_at       TIMESTAMPTZ,
-    created_at         TIMESTAMPTZ DEFAULT now()
+    created_at         TIMESTAMPTZ      DEFAULT now()
 );
 
 CREATE INDEX IF NOT EXISTS idx_legacy_sender  ON public.legacy_messages (sender_id);
@@ -350,13 +350,13 @@ ALTER TABLE public.legacy_messages ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "legacy_self_read" ON public.legacy_messages;
 CREATE POLICY "legacy_self_read"
     ON public.legacy_messages FOR SELECT
-    USING (auth.uid()::text = sender_id);
+    USING (auth.uid() = sender_id);
 
 
--- ── 010: member_locations (Kutumb Radar) ──────────────────────────────────────
+-- ── 010: member_locations (Kutumb Radar) ─────────────────────────────────────
 
 CREATE TABLE IF NOT EXISTS public.member_locations (
-    user_id         TEXT             NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+    user_id         UUID             NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
     vansha_id       TEXT             NOT NULL,
     latitude        DOUBLE PRECISION NOT NULL,
     longitude       DOUBLE PRECISION NOT NULL,
@@ -373,10 +373,10 @@ ALTER TABLE public.member_locations ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "radar_self_read" ON public.member_locations;
 CREATE POLICY "radar_self_read"
     ON public.member_locations FOR SELECT
-    USING (auth.uid()::text = user_id);
+    USING (auth.uid() = user_id);
 
 
--- ── 011: Samay Bank v2 (drops old time_bank tables, creates samay_*) ──────────
+-- ── 011: Samay Bank v2 ────────────────────────────────────────────────────────
 
 DROP TABLE IF EXISTS public.time_bank_transactions CASCADE;
 DROP TABLE IF EXISTS public.time_bank_offers        CASCADE;
@@ -384,7 +384,7 @@ DROP TABLE IF EXISTS public.time_bank_offers        CASCADE;
 CREATE TABLE IF NOT EXISTS public.samay_branches (
     id                        UUID          DEFAULT gen_random_uuid() PRIMARY KEY,
     name                      TEXT          NOT NULL,
-    manager_id                TEXT          NOT NULL REFERENCES public.users(id),
+    manager_id                UUID          NOT NULL REFERENCES public.users(id),
     vansha_id                 TEXT          UNIQUE,
     description               TEXT,
     is_private_ledger         BOOLEAN       NOT NULL DEFAULT false,
@@ -397,7 +397,7 @@ CREATE TABLE IF NOT EXISTS public.samay_branches (
 
 CREATE TABLE IF NOT EXISTS public.samay_branch_members (
     branch_id     UUID          NOT NULL REFERENCES public.samay_branches(id) ON DELETE CASCADE,
-    user_id       TEXT          NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+    user_id       UUID          NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
     node_id       TEXT,
     display_name  TEXT,
     role          TEXT          NOT NULL DEFAULT 'member' CHECK (role IN ('manager','member')),
@@ -408,7 +408,7 @@ CREATE TABLE IF NOT EXISTS public.samay_branch_members (
 
 CREATE TABLE IF NOT EXISTS public.samay_requests (
     id             UUID          DEFAULT gen_random_uuid() PRIMARY KEY,
-    requester_id   TEXT          NOT NULL REFERENCES public.users(id),
+    requester_id   UUID          NOT NULL REFERENCES public.users(id),
     branch_id      UUID          REFERENCES public.samay_branches(id),
     request_type   TEXT          NOT NULL CHECK (request_type IN ('offer','need')),
     scope          TEXT          NOT NULL DEFAULT 'local' CHECK (scope IN ('local','global')),
@@ -418,7 +418,7 @@ CREATE TABLE IF NOT EXISTS public.samay_requests (
     hours_estimate NUMERIC(6,2),
     status         TEXT          NOT NULL DEFAULT 'open'
                                  CHECK (status IN ('open','assigned','completed','closed')),
-    helper_id      TEXT          REFERENCES public.users(id),
+    helper_id      UUID          REFERENCES public.users(id),
     visible_from   TIMESTAMPTZ   NOT NULL DEFAULT now(),
     created_at     TIMESTAMPTZ   DEFAULT now()
 );
@@ -426,8 +426,8 @@ CREATE TABLE IF NOT EXISTS public.samay_requests (
 CREATE TABLE IF NOT EXISTS public.samay_transactions (
     id                        UUID          DEFAULT gen_random_uuid() PRIMARY KEY,
     request_id                UUID          REFERENCES public.samay_requests(id),
-    helper_id                 TEXT          NOT NULL REFERENCES public.users(id),
-    requester_id              TEXT          NOT NULL REFERENCES public.users(id),
+    helper_id                 UUID          NOT NULL REFERENCES public.users(id),
+    requester_id              UUID          NOT NULL REFERENCES public.users(id),
     branch_id                 UUID          REFERENCES public.samay_branches(id),
     hours                     NUMERIC(6,2)  NOT NULL CHECK (hours > 0),
     credit_type               TEXT          NOT NULL DEFAULT 'local' CHECK (credit_type IN ('local','global')),
@@ -446,19 +446,19 @@ CREATE TABLE IF NOT EXISTS public.samay_transactions (
 );
 
 CREATE TABLE IF NOT EXISTS public.samay_ratings (
-    id              UUID    DEFAULT gen_random_uuid() PRIMARY KEY,
-    transaction_id  UUID    NOT NULL REFERENCES public.samay_transactions(id),
-    from_user_id    TEXT    NOT NULL REFERENCES public.users(id),
-    to_user_id      TEXT    NOT NULL REFERENCES public.users(id),
-    quality_rating  INTEGER NOT NULL CHECK (quality_rating  BETWEEN 1 AND 5),
-    behavior_rating INTEGER NOT NULL CHECK (behavior_rating BETWEEN 1 AND 5),
+    id              UUID        DEFAULT gen_random_uuid() PRIMARY KEY,
+    transaction_id  UUID        NOT NULL REFERENCES public.samay_transactions(id),
+    from_user_id    UUID        NOT NULL REFERENCES public.users(id),
+    to_user_id      UUID        NOT NULL REFERENCES public.users(id),
+    quality_rating  INTEGER     NOT NULL CHECK (quality_rating  BETWEEN 1 AND 5),
+    behavior_rating INTEGER     NOT NULL CHECK (behavior_rating BETWEEN 1 AND 5),
     comment         TEXT,
     created_at      TIMESTAMPTZ DEFAULT now(),
     UNIQUE (transaction_id, from_user_id)
 );
 
 CREATE TABLE IF NOT EXISTS public.samay_profiles (
-    user_id              TEXT          NOT NULL REFERENCES public.users(id) PRIMARY KEY,
+    user_id              UUID          NOT NULL REFERENCES public.users(id) PRIMARY KEY,
     node_id              TEXT,
     display_name         TEXT,
     total_global_credits NUMERIC(10,4) NOT NULL DEFAULT 0,
@@ -499,12 +499,6 @@ CREATE POLICY "samay_requests_pub_read"
 
 
 -- ═══════════════════════════════════════════════════════════════════════════
--- VERIFY: run this after the migration to confirm all tables exist.
+-- VERIFY after running:
 -- SELECT tablename FROM pg_tables WHERE schemaname = 'public' ORDER BY tablename;
---
--- Expected: calendar_events, legacy_messages, matrimony_profiles,
---   member_locations, notifications, persons, platform_config,
---   sales_performance, sales_settings, samay_branch_members, samay_branches,
---   samay_profiles, samay_ratings, samay_requests, samay_transactions,
---   se_applications, unions, users, verification_audit, verification_requests
 -- ═══════════════════════════════════════════════════════════════════════════
