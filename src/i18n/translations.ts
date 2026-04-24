@@ -504,6 +504,23 @@ const overrides: Record<string, TranslationEntry> = {
   loading: { en: "Loading…", hi: "लोड हो रहा है…" },
   cancelled: { en: "Cancelled", hi: "रद्द किया गया" },
 
+  /* ── Dashboard ── */
+  dashboardFamilyLabel: { en: "Your Family", hi: "आपका परिवार" },
+  dashboardTitle: { en: "Start Your Journey", hi: "अपनी यात्रा शुरू करें" },
+  treeEmpty: { en: "No Family Tree Yet", hi: "अभी कोई वंश वृक्ष नहीं" },
+  treeCompletion: { en: "Tree Completion", hi: "वृक्ष पूर्णता" },
+  treeCompletionDesc: { en: "Members + generations filled", hi: "सदस्य + पीढ़ियाँ" },
+  members: { en: "Members", hi: "सदस्य" },
+  generations: { en: "Generations", hi: "पीढ़ियाँ" },
+  pendingInvites: { en: "Pending Invites", hi: "लंबित आमंत्रण" },
+  viewTree: { en: "View Tree", hi: "वृक्ष देखें" },
+  addMember: { en: "Add Member", hi: "सदस्य जोड़ें" },
+  pendingReviews: { en: "Pending Reviews", hi: "समीक्षा लंबित" },
+  correctionProposed: { en: "Correction proposed", hi: "सुधार प्रस्तावित" },
+  activeDisputes: { en: "active dispute(s)", hi: "सक्रिय विवाद" },
+  disputeForkDesc: { en: "Members have raised disputes on proposed changes. Review them in the tree.", hi: "सदस्यों ने प्रस्तावित परिवर्तनों पर विवाद उठाए हैं। वृक्ष में देखें।" },
+  justNow: { en: "just now", hi: "अभी" },
+
   /* ── Sign In / Sign Up ── */
   signInTitle: { en: "Welcome to Kutumb Map", hi: "कुटुंब मैप में आपका स्वागत है" },
   signInSubtitle: { en: "Sign in to access your family tree", hi: "अपने वंश वृक्ष तक पहुँचने के लिए साइन इन करें" },
