@@ -1,0 +1,23 @@
+# CORE ARCHITECTURE RULES: VAMSHAVALI (INDIAN FAMILY TREE)
+Always adhere strictly to these rules when modifying database schemas or UI components.
+
+1. DATABASE & IDs (Two-Tier System):
+- Never use mutable data (names, gotras) in Primary Keys.
+- `Vansha_ID`: A random, immutable UUID representing a family cluster.
+- `Node_ID`: A unique UUID for an individual person.
+- `Union_ID`: A wrapper containing `male_node_id` and `female_node_id`. Children link to a `Union_ID`, NEVER directly to a person.
+
+2. GENERATION MAPPING (Relative Integer Axis):
+- The anchor user is Generation 0.
+- Ancestors are mapped on a negative number line (-1 for father, -2 for grandfather).
+- Progenies are mapped on a positive number line (+1 for son).
+
+3. FRONTEND RENDERING (Bottom-to-Top):
+- The tree must ALWAYS render bottom-to-top.
+- The highest negative generation (e.g., -4) is anchored at the bottom-center as the Root.
+- Successive generations branch upwards.
+- Siblings sit horizontally on the same Y-axis.
+
+4. MATRIMONIAL BRIDGE LOGIC:
+- A female node inside a Union maintains a hidden pointer (`origin_vansha_id`) to her father's tree. 
+- When clicked, unmount the current tree and load the new `Vansha_ID` from scratch. Only one tree is loaded at a time.

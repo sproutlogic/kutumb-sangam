@@ -1,0 +1,682 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Kutumb Sangam — Color Preview</title>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Inter', sans-serif; background: #f0ebe4; color: #1a1208; }
+
+    /* ── Page Shell ── */
+    .page { display: flex; flex-direction: column; }
+
+    .page-hero {
+      text-align: center;
+      padding: 36px 24px 20px;
+      background: linear-gradient(180deg, #f7f2ea 0%, #f0ebe4 100%);
+      border-bottom: 1px solid #ddd5c8;
+    }
+    .page-hero h1 {
+      font-family: 'Playfair Display', serif;
+      font-size: 30px; font-weight: 700;
+      color: #1a1208; letter-spacing: -0.5px;
+    }
+    .page-hero p { font-size: 13px; color: #888; margin-top: 6px; }
+
+    /* ── Saffron Stays ── */
+    .saffron-note {
+      background: linear-gradient(135deg, hsl(20 85% 38%), hsl(24 90% 50%), hsl(36 80% 58%));
+      color: #fff;
+      text-align: center;
+      padding: 10px 24px;
+      font-size: 13px;
+      font-weight: 500;
+      letter-spacing: 0.3px;
+    }
+    .saffron-note strong { font-weight: 700; }
+
+    /* ── Section Header ── */
+    .section-head {
+      background: #e8e1d8;
+      padding: 10px 24px;
+      font-size: 10.5px;
+      font-weight: 700;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: #888;
+      border-top: 1px solid #d5ccbf;
+      border-bottom: 1px solid #d5ccbf;
+    }
+
+    /* ── Three-Column Layout ── */
+    .trio { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0; }
+    .col { border-right: 1px solid #d5ccbf; }
+    .col:last-child { border-right: none; }
+
+    /* ── Color Theme Variables ── */
+    /* A: Deep Wine */
+    .wine {
+      --p:       hsl(340 50% 28%);
+      --p-light: hsl(340 42% 42%);
+      --p-dark:  hsl(340 55% 18%);
+      --p-bg:    hsl(340 30% 97%);
+      --p-muted: hsl(340 18% 91%);
+      --p-badge-bg:   hsl(340 55% 95%);
+      --p-badge-text: hsl(340 55% 25%);
+      --grad: linear-gradient(135deg, hsl(340 55% 18%) 0%, hsl(340 50% 28%) 55%, hsl(350 42% 40%) 100%);
+      --shadow: 0 4px 20px -4px hsl(340 50% 28% / 0.25);
+    }
+    /* B: Royal Plum */
+    .plum {
+      --p:       hsl(285 45% 30%);
+      --p-light: hsl(285 38% 46%);
+      --p-dark:  hsl(285 52% 20%);
+      --p-bg:    hsl(285 25% 97%);
+      --p-muted: hsl(285 15% 91%);
+      --p-badge-bg:   hsl(285 48% 95%);
+      --p-badge-text: hsl(285 48% 26%);
+      --grad: linear-gradient(135deg, hsl(285 52% 20%) 0%, hsl(285 45% 30%) 55%, hsl(300 38% 42%) 100%);
+      --shadow: 0 4px 20px -4px hsl(285 45% 30% / 0.25);
+    }
+    /* C: Deep Cognac */
+    .cognac {
+      --p:       hsl(22 62% 34%);
+      --p-light: hsl(22 55% 48%);
+      --p-dark:  hsl(22 68% 22%);
+      --p-bg:    hsl(22 40% 97%);
+      --p-muted: hsl(22 22% 91%);
+      --p-badge-bg:   hsl(22 62% 94%);
+      --p-badge-text: hsl(22 65% 28%);
+      --grad: linear-gradient(135deg, hsl(22 68% 22%) 0%, hsl(22 62% 34%) 55%, hsl(30 55% 46%) 100%);
+      --shadow: 0 4px 20px -4px hsl(22 62% 34% / 0.25);
+    }
+    /* Saffron */
+    .saffron {
+      --p:       hsl(24 90% 50%);
+      --p-light: hsl(30 85% 60%);
+      --p-dark:  hsl(20 85% 38%);
+      --p-bg:    hsl(30 60% 97%);
+      --p-muted: hsl(28 38% 91%);
+      --p-badge-bg:   hsl(28 90% 95%);
+      --p-badge-text: hsl(20 85% 34%);
+      --grad: linear-gradient(135deg, hsl(20 85% 38%) 0%, hsl(24 90% 50%) 55%, hsl(36 80% 58%) 100%);
+      --shadow: 0 4px 20px -4px hsl(24 90% 50% / 0.25);
+    }
+
+    /* ── Option Label Bar ── */
+    .option-label {
+      padding: 14px 20px 12px;
+      background: var(--p-bg);
+      border-bottom: 2px solid var(--p-muted);
+    }
+    .option-name {
+      font-family: 'Playfair Display', serif;
+      font-size: 17px; font-weight: 700;
+      color: var(--p);
+    }
+    .option-tag {
+      display: inline-flex; gap: 6px; margin-top: 5px; flex-wrap: wrap;
+    }
+    .tag {
+      font-size: 10px; font-weight: 600; letter-spacing: 0.8px;
+      padding: 2px 8px; border-radius: 20px;
+      background: var(--p-muted); color: var(--p);
+      text-transform: uppercase;
+    }
+    .tag.gold-tag {
+      background: hsl(42 80% 50%); color: #fff;
+    }
+
+    /* ── Topbar ── */
+    .topbar {
+      background: var(--grad);
+      padding: 0 18px;
+      height: 52px;
+      display: flex; align-items: center; justify-content: space-between;
+      box-shadow: var(--shadow);
+    }
+    .topbar-logo {
+      font-family: 'Playfair Display', serif;
+      font-size: 18px; font-weight: 700; color: #fff;
+    }
+    .topbar-logo small { opacity: 0.7; font-size: 11px; font-weight: 400; margin-left: 6px; font-family: 'Inter', sans-serif; }
+    .topbar-right { display: flex; gap: 8px; align-items: center; }
+    .tb-pill {
+      background: rgba(255,255,255,0.18);
+      border: 1px solid rgba(255,255,255,0.3);
+      color: #fff; border-radius: 20px;
+      padding: 3px 10px; font-size: 11px; font-weight: 600;
+    }
+    .tb-avatar {
+      width: 30px; height: 30px; border-radius: 50%;
+      background: rgba(255,255,255,0.22);
+      border: 2px solid rgba(255,255,255,0.45);
+      display: flex; align-items: center; justify-content: center;
+      color: #fff; font-size: 11px; font-weight: 700;
+    }
+
+    /* ── Hero Banner ── */
+    .hero {
+      background: var(--grad);
+      padding: 20px 20px 18px;
+      color: #fff;
+      position: relative; overflow: hidden;
+    }
+    .hero::before {
+      content: ''; position: absolute;
+      right: -10px; top: -16px;
+      width: 110px; height: 110px; border-radius: 50%;
+      background: rgba(255,255,255,0.07);
+    }
+    .hero-title { font-family: 'Playfair Display', serif; font-size: 18px; font-weight: 700; margin-bottom: 3px; }
+    .hero-sub { font-size: 11.5px; opacity: 0.8; margin-bottom: 12px; }
+    .hero-num { font-family: 'Playfair Display', serif; font-size: 34px; font-weight: 700; opacity: 0.95; text-align: right; }
+    .hero-num-label { font-size: 9px; opacity: 0.65; letter-spacing: 1.2px; text-transform: uppercase; text-align: right; }
+    .hero-row { display: flex; justify-content: space-between; align-items: flex-end; }
+    .hero-btn {
+      background: rgba(255,255,255,0.18);
+      border: 1px solid rgba(255,255,255,0.32);
+      color: #fff; padding: 6px 14px; border-radius: 6px;
+      font-size: 12px; font-weight: 600; cursor: pointer;
+      font-family: 'Inter', sans-serif; backdrop-filter: blur(4px);
+    }
+
+    /* ── Stat Cards ── */
+    .cards { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; padding: 14px; background: var(--p-bg); }
+    .card {
+      background: #fff; border-radius: 8px; padding: 14px 12px;
+      border: 1px solid var(--p-muted);
+      box-shadow: 0 1px 6px rgba(0,0,0,0.05);
+    }
+    .card-icon { font-size: 18px; margin-bottom: 8px; }
+    .card-val { font-family: 'Playfair Display', serif; font-size: 20px; font-weight: 700; color: #1a1208; }
+    .card-lbl { font-size: 10px; color: #999; margin-top: 2px; }
+    .card-badge {
+      display: inline-block; margin-top: 6px;
+      background: var(--p-badge-bg); color: var(--p-badge-text);
+      font-size: 10px; font-weight: 600; padding: 2px 7px; border-radius: 20px;
+    }
+
+    /* ── Buttons ── */
+    .btn-block { padding: 14px; background: var(--p-bg); display: flex; gap: 8px; flex-wrap: wrap; border-top: 1px solid var(--p-muted); }
+    .btn-primary {
+      background: var(--grad); color: #fff; border: none;
+      padding: 9px 16px; border-radius: 7px; font-size: 12.5px; font-weight: 600;
+      cursor: pointer; box-shadow: var(--shadow); font-family: 'Inter', sans-serif;
+    }
+    .btn-outline {
+      background: transparent; color: var(--p);
+      border: 1.5px solid var(--p);
+      padding: 8px 14px; border-radius: 7px; font-size: 12.5px; font-weight: 600;
+      cursor: pointer; font-family: 'Inter', sans-serif;
+    }
+    .btn-ghost {
+      background: var(--p-muted); color: var(--p-dark);
+      border: none; padding: 8px 14px; border-radius: 7px;
+      font-size: 12.5px; font-weight: 600; cursor: pointer; font-family: 'Inter', sans-serif;
+    }
+
+    /* ── List Rows ── */
+    .list-card { background: #fff; margin: 0 14px 14px; border-radius: 8px; overflow: hidden; border: 1px solid var(--p-muted); }
+    .list-head { display: flex; justify-content: space-between; align-items: center; padding: 11px 14px; border-bottom: 1px solid var(--p-muted); }
+    .list-title { font-family: 'Playfair Display', serif; font-size: 13px; font-weight: 600; color: #1a1208; }
+    .list-link { font-size: 11px; font-weight: 600; color: var(--p); }
+    .row { display: flex; align-items: center; gap: 10px; padding: 9px 14px; border-bottom: 1px solid hsl(30 15% 94%); }
+    .row:last-child { border-bottom: none; }
+    .ava {
+      width: 30px; height: 30px; border-radius: 50%;
+      background: var(--p-muted); border: 2px solid var(--p-bg);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 10px; font-weight: 700; color: var(--p); flex-shrink: 0;
+    }
+    .row-name { font-size: 12.5px; font-weight: 600; color: #1a1208; }
+    .row-sub { font-size: 10.5px; color: #999; }
+    .rbadge { margin-left: auto; padding: 2px 8px; border-radius: 20px; font-size: 10px; font-weight: 600; white-space: nowrap; }
+    .rbadge-v { background: hsl(138 45% 93%); color: hsl(138 55% 28%); }
+    .rbadge-p { background: hsl(42 80% 92%); color: hsl(35 75% 32%); }
+    .rbadge-s { background: var(--p-badge-bg); color: var(--p-badge-text); }
+
+    /* ── Divider ── */
+    .divider { height: 2px; background: linear-gradient(90deg, var(--p-dark), var(--p-light), hsl(42 80% 50%)); opacity: 0.25; }
+
+    /* ── Swatch Row ── */
+    .swatch-row { display: flex; }
+    .sw { flex: 1; height: 32px; }
+    .sw-labels { display: flex; background: #e8e1d8; }
+    .sw-lbl { flex: 1; text-align: center; font-size: 9px; color: #888; padding: 4px 2px 6px; font-weight: 500; }
+
+    /* ── Side Nav Preview ── */
+    .mini-nav { background: #fff; border-right: 1px solid var(--p-muted); padding: 12px 0; min-width: 110px; }
+    .mini-nav-sec { font-size: 8.5px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; color: #bbb; padding: 6px 12px 3px; }
+    .mini-nav-item {
+      display: flex; align-items: center; gap: 7px;
+      padding: 7px 12px; font-size: 11.5px; font-weight: 500; color: #888;
+      border-left: 2px solid transparent;
+    }
+    .mini-nav-item.active {
+      color: var(--p); background: var(--p-bg);
+      border-left-color: var(--p); font-weight: 600;
+    }
+    .mini-nav-dot { width: 14px; height: 14px; border-radius: 3px; background: var(--p-muted); font-size: 8px; display:flex; align-items:center; justify-content:center; }
+    .mini-nav-item.active .mini-nav-dot { background: var(--p); color: #fff; }
+
+    /* ── App Shell Row ── */
+    .shell { display: flex; border-top: 1px solid var(--p-muted); }
+    .shell-main { flex: 1; }
+
+    /* ── Gold Accent ── */
+    .gold-pill {
+      display: inline-flex; align-items: center; gap: 4px;
+      background: hsl(42 80% 50%); color: #fff;
+      padding: 3px 10px; border-radius: 20px;
+      font-size: 10.5px; font-weight: 700;
+    }
+
+    /* ── Appeal Tags ── */
+    .appeal-bar {
+      display: flex; gap: 6px; padding: 10px 14px;
+      background: var(--p-bg); border-top: 1px solid var(--p-muted);
+      flex-wrap: wrap;
+    }
+    .appeal-tag {
+      font-size: 10px; padding: 3px 9px; border-radius: 20px; font-weight: 600;
+    }
+    .at-genz { background: #f3e8ff; color: #7c3aed; }
+    .at-parent { background: #fef3e2; color: #b45309; }
+    .at-luxury { background: #fdf2f8; color: #be185d; }
+    .at-trust { background: #ecfdf5; color: #065f46; }
+
+    /* ── Section Separator ── */
+    .sep { height: 28px; background: #e8e1d8; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: #aaa; border-top: 1px solid #d5ccbf; border-bottom: 1px solid #d5ccbf; }
+
+    /* ── Saffron Full Preview ── */
+    .full-preview { padding: 0; }
+
+    /* ── Rec Banner ── */
+    .rec-banner {
+      background: linear-gradient(135deg, hsl(340 55% 18%), hsl(340 50% 28%), hsl(42 80% 50%));
+      color: #fff; padding: 18px 28px;
+      display: flex; align-items: center; gap: 18px;
+    }
+    .rec-star { font-size: 32px; }
+    .rec-title { font-family: 'Playfair Display', serif; font-size: 18px; font-weight: 700; }
+    .rec-sub { font-size: 12px; opacity: 0.85; margin-top: 3px; }
+
+    /* ── Footer ── */
+    .footer { text-align: center; padding: 16px; background: #e8e1d8; color: #aaa; font-size: 10.5px; letter-spacing: 1px; border-top: 1px solid #d5ccbf; }
+  </style>
+</head>
+<body>
+<div class="page">
+
+  <!-- Page Title -->
+  <div class="page-hero">
+    <h1>Kutumb Sangam — Color Preview</h1>
+    <p>Balanced for Gen Z aesthetics &amp; Parent sensibilities · Premium · Warm · Indian</p>
+  </div>
+
+  <!-- Saffron lock notice -->
+  <div class="saffron-note">
+    🕉 &nbsp;<strong>Saffron stays</strong> for Pandit Ji Dashboard — it is sacred, earned, and non-negotiable.
+    &nbsp;·&nbsp; Below: 3 candidates for all other pages.
+  </div>
+
+  <!-- ─── SWATCHES ─── -->
+  <div class="section-head">Palette Candidates — Pick One</div>
+
+  <div class="trio">
+    <!-- Wine swatches -->
+    <div class="col wine">
+      <div class="swatch-row">
+        <div class="sw" style="background:hsl(340 55% 18%)"></div>
+        <div class="sw" style="background:hsl(340 50% 28%)"></div>
+        <div class="sw" style="background:hsl(340 42% 42%)"></div>
+        <div class="sw" style="background:hsl(350 42% 55%)"></div>
+        <div class="sw" style="background:hsl(42 80% 50%)"></div>
+        <div class="sw" style="background:hsl(340 18% 91%)"></div>
+      </div>
+      <div class="sw-labels">
+        <div class="sw-lbl">Dark</div><div class="sw-lbl">Main</div>
+        <div class="sw-lbl">Light</div><div class="sw-lbl">Blush</div>
+        <div class="sw-lbl">Gold</div><div class="sw-lbl">Bg</div>
+      </div>
+    </div>
+    <!-- Plum swatches -->
+    <div class="col plum">
+      <div class="swatch-row">
+        <div class="sw" style="background:hsl(285 52% 20%)"></div>
+        <div class="sw" style="background:hsl(285 45% 30%)"></div>
+        <div class="sw" style="background:hsl(285 38% 46%)"></div>
+        <div class="sw" style="background:hsl(300 32% 60%)"></div>
+        <div class="sw" style="background:hsl(42 80% 50%)"></div>
+        <div class="sw" style="background:hsl(285 15% 91%)"></div>
+      </div>
+      <div class="sw-labels">
+        <div class="sw-lbl">Dark</div><div class="sw-lbl">Main</div>
+        <div class="sw-lbl">Light</div><div class="sw-lbl">Blush</div>
+        <div class="sw-lbl">Gold</div><div class="sw-lbl">Bg</div>
+      </div>
+    </div>
+    <!-- Cognac swatches -->
+    <div class="col cognac">
+      <div class="swatch-row">
+        <div class="sw" style="background:hsl(22 68% 22%)"></div>
+        <div class="sw" style="background:hsl(22 62% 34%)"></div>
+        <div class="sw" style="background:hsl(22 55% 48%)"></div>
+        <div class="sw" style="background:hsl(30 50% 62%)"></div>
+        <div class="sw" style="background:hsl(42 80% 50%)"></div>
+        <div class="sw" style="background:hsl(22 22% 91%)"></div>
+      </div>
+      <div class="sw-labels">
+        <div class="sw-lbl">Dark</div><div class="sw-lbl">Main</div>
+        <div class="sw-lbl">Light</div><div class="sw-lbl">Warm</div>
+        <div class="sw-lbl">Gold</div><div class="sw-lbl">Bg</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─── OPTION LABELS ─── -->
+  <div class="trio">
+    <div class="col wine">
+      <div class="option-label">
+        <div class="option-name">A · Deep Wine</div>
+        <div class="option-tag">
+          <span class="tag">Timeless</span>
+          <span class="tag">Royal</span>
+          <span class="tag gold-tag">Recommended</span>
+        </div>
+      </div>
+    </div>
+    <div class="col plum">
+      <div class="option-label">
+        <div class="option-name">B · Royal Plum</div>
+        <div class="option-tag">
+          <span class="tag">Mystical</span>
+          <span class="tag">Spiritual</span>
+        </div>
+      </div>
+    </div>
+    <div class="col cognac">
+      <div class="option-label">
+        <div class="option-name">C · Rich Cognac</div>
+        <div class="option-tag">
+          <span class="tag">Earthy</span>
+          <span class="tag">Warm</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─── TOP BARS ─── -->
+  <div class="section-head">Top Navigation Bar</div>
+  <div class="trio">
+    <div class="col wine">
+      <div class="topbar">
+        <div class="topbar-logo">Kutumb Sangam <small>वंश-वृक्ष</small></div>
+        <div class="topbar-right">
+          <span class="gold-pill">✦ Vansh</span>
+          <div class="tb-pill">Sharma</div>
+          <div class="tb-avatar">RS</div>
+        </div>
+      </div>
+    </div>
+    <div class="col plum">
+      <div class="topbar">
+        <div class="topbar-logo">Kutumb Sangam <small>वंश-वृक्ष</small></div>
+        <div class="topbar-right">
+          <span class="gold-pill">✦ Vansh</span>
+          <div class="tb-pill">Sharma</div>
+          <div class="tb-avatar">RS</div>
+        </div>
+      </div>
+    </div>
+    <div class="col cognac">
+      <div class="topbar">
+        <div class="topbar-logo">Kutumb Sangam <small>वंश-वृक्ष</small></div>
+        <div class="topbar-right">
+          <span class="gold-pill">✦ Vansh</span>
+          <div class="tb-pill">Sharma</div>
+          <div class="tb-avatar">RS</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─── HERO BANNERS ─── -->
+  <div class="section-head">Hero Banner</div>
+  <div class="trio">
+    <div class="col wine">
+      <div class="hero">
+        <div class="hero-row">
+          <div>
+            <div class="hero-title">Sharma Vansha Tree</div>
+            <div class="hero-sub">6 generations · 48 members · Jaipur</div>
+            <div style="display:flex;gap:7px;margin-top:10px;">
+              <button class="hero-btn">＋ Add Member</button>
+              <button class="hero-btn">⇪ Share</button>
+            </div>
+          </div>
+          <div>
+            <div class="hero-num">48</div>
+            <div class="hero-num-label">Members</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="col plum">
+      <div class="hero">
+        <div class="hero-row">
+          <div>
+            <div class="hero-title">Sharma Vansha Tree</div>
+            <div class="hero-sub">6 generations · 48 members · Jaipur</div>
+            <div style="display:flex;gap:7px;margin-top:10px;">
+              <button class="hero-btn">＋ Add Member</button>
+              <button class="hero-btn">⇪ Share</button>
+            </div>
+          </div>
+          <div>
+            <div class="hero-num">48</div>
+            <div class="hero-num-label">Members</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="col cognac">
+      <div class="hero">
+        <div class="hero-row">
+          <div>
+            <div class="hero-title">Sharma Vansha Tree</div>
+            <div class="hero-sub">6 generations · 48 members · Jaipur</div>
+            <div style="display:flex;gap:7px;margin-top:10px;">
+              <button class="hero-btn">＋ Add Member</button>
+              <button class="hero-btn">⇪ Share</button>
+            </div>
+          </div>
+          <div>
+            <div class="hero-num">48</div>
+            <div class="hero-num-label">Members</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─── STAT CARDS ─── -->
+  <div class="section-head">Stat Cards</div>
+  <div class="trio">
+    <div class="col wine">
+      <div class="cards">
+        <div class="card"><div class="card-icon">👨‍👩‍👧‍👦</div><div class="card-val">48</div><div class="card-lbl">Members</div><div class="card-badge">+3 this mo</div></div>
+        <div class="card"><div class="card-icon">🔗</div><div class="card-val">6</div><div class="card-lbl">Generations</div><div class="card-badge">Vriksh</div></div>
+        <div class="card"><div class="card-icon">💑</div><div class="card-val">2</div><div class="card-lbl">Matches</div><div class="card-badge">View</div></div>
+      </div>
+    </div>
+    <div class="col plum">
+      <div class="cards">
+        <div class="card"><div class="card-icon">👨‍👩‍👧‍👦</div><div class="card-val">48</div><div class="card-lbl">Members</div><div class="card-badge">+3 this mo</div></div>
+        <div class="card"><div class="card-icon">🔗</div><div class="card-val">6</div><div class="card-lbl">Generations</div><div class="card-badge">Vriksh</div></div>
+        <div class="card"><div class="card-icon">💑</div><div class="card-val">2</div><div class="card-lbl">Matches</div><div class="card-badge">View</div></div>
+      </div>
+    </div>
+    <div class="col cognac">
+      <div class="cards">
+        <div class="card"><div class="card-icon">👨‍👩‍👧‍👦</div><div class="card-val">48</div><div class="card-lbl">Members</div><div class="card-badge">+3 this mo</div></div>
+        <div class="card"><div class="card-icon">🔗</div><div class="card-val">6</div><div class="card-lbl">Generations</div><div class="card-badge">Vriksh</div></div>
+        <div class="card"><div class="card-icon">💑</div><div class="card-val">2</div><div class="card-lbl">Matches</div><div class="card-badge">View</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─── SIDEBAR + LIST ─── -->
+  <div class="section-head">Sidebar Navigation &amp; Member List</div>
+  <div class="trio">
+    <!-- Wine -->
+    <div class="col wine">
+      <div class="shell">
+        <div class="mini-nav wine">
+          <div class="mini-nav-sec">Main</div>
+          <div class="mini-nav-item active wine"><div class="mini-nav-dot wine">🌳</div>Family Tree</div>
+          <div class="mini-nav-item wine"><div class="mini-nav-dot wine">💑</div>Matrimony</div>
+          <div class="mini-nav-item wine"><div class="mini-nav-dot wine">🔍</div>Discovery</div>
+          <div class="mini-nav-sec">Manage</div>
+          <div class="mini-nav-item wine"><div class="mini-nav-dot wine">✓</div>Verification</div>
+          <div class="mini-nav-item wine"><div class="mini-nav-dot wine">★</div>Upgrade</div>
+        </div>
+        <div class="shell-main wine">
+          <div class="list-card wine">
+            <div class="list-head wine"><div class="list-title">Recent Members</div><div class="list-link wine">View All →</div></div>
+            <div class="row"><div class="ava wine">RS</div><div><div class="row-name">Rajesh Sharma</div><div class="row-sub">Self · Gen 0</div></div><span class="rbadge rbadge-s wine">Self</span></div>
+            <div class="row"><div class="ava wine">PS</div><div><div class="row-name">Priya Sharma</div><div class="row-sub">Spouse · Gen 0</div></div><span class="rbadge rbadge-v">✓ Verified</span></div>
+            <div class="row"><div class="ava wine">MS</div><div><div class="row-name">Mohan Sharma</div><div class="row-sub">Father · Gen −1</div></div><span class="rbadge rbadge-p">⏳ Pending</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <!-- Plum -->
+    <div class="col plum">
+      <div class="shell">
+        <div class="mini-nav plum">
+          <div class="mini-nav-sec">Main</div>
+          <div class="mini-nav-item active plum"><div class="mini-nav-dot plum">🌳</div>Family Tree</div>
+          <div class="mini-nav-item plum"><div class="mini-nav-dot plum">💑</div>Matrimony</div>
+          <div class="mini-nav-item plum"><div class="mini-nav-dot plum">🔍</div>Discovery</div>
+          <div class="mini-nav-sec">Manage</div>
+          <div class="mini-nav-item plum"><div class="mini-nav-dot plum">✓</div>Verification</div>
+          <div class="mini-nav-item plum"><div class="mini-nav-dot plum">★</div>Upgrade</div>
+        </div>
+        <div class="shell-main plum">
+          <div class="list-card plum">
+            <div class="list-head plum"><div class="list-title">Recent Members</div><div class="list-link plum">View All →</div></div>
+            <div class="row"><div class="ava plum">RS</div><div><div class="row-name">Rajesh Sharma</div><div class="row-sub">Self · Gen 0</div></div><span class="rbadge rbadge-s plum">Self</span></div>
+            <div class="row"><div class="ava plum">PS</div><div><div class="row-name">Priya Sharma</div><div class="row-sub">Spouse · Gen 0</div></div><span class="rbadge rbadge-v">✓ Verified</span></div>
+            <div class="row"><div class="ava plum">MS</div><div><div class="row-name">Mohan Sharma</div><div class="row-sub">Father · Gen −1</div></div><span class="rbadge rbadge-p">⏳ Pending</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <!-- Cognac -->
+    <div class="col cognac">
+      <div class="shell">
+        <div class="mini-nav cognac">
+          <div class="mini-nav-sec">Main</div>
+          <div class="mini-nav-item active cognac"><div class="mini-nav-dot cognac">🌳</div>Family Tree</div>
+          <div class="mini-nav-item cognac"><div class="mini-nav-dot cognac">💑</div>Matrimony</div>
+          <div class="mini-nav-item cognac"><div class="mini-nav-dot cognac">🔍</div>Discovery</div>
+          <div class="mini-nav-sec">Manage</div>
+          <div class="mini-nav-item cognac"><div class="mini-nav-dot cognac">✓</div>Verification</div>
+          <div class="mini-nav-item cognac"><div class="mini-nav-dot cognac">★</div>Upgrade</div>
+        </div>
+        <div class="shell-main cognac">
+          <div class="list-card cognac">
+            <div class="list-head cognac"><div class="list-title">Recent Members</div><div class="list-link cognac">View All →</div></div>
+            <div class="row"><div class="ava cognac">RS</div><div><div class="row-name">Rajesh Sharma</div><div class="row-sub">Self · Gen 0</div></div><span class="rbadge rbadge-s cognac">Self</span></div>
+            <div class="row"><div class="ava cognac">PS</div><div><div class="row-name">Priya Sharma</div><div class="row-sub">Spouse · Gen 0</div></div><span class="rbadge rbadge-v">✓ Verified</span></div>
+            <div class="row"><div class="ava cognac">MS</div><div><div class="row-name">Mohan Sharma</div><div class="row-sub">Father · Gen −1</div></div><span class="rbadge rbadge-p">⏳ Pending</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─── BUTTONS ─── -->
+  <div class="section-head">Buttons</div>
+  <div class="trio">
+    <div class="col wine"><div class="btn-block wine"><button class="btn-primary wine">＋ Add Member</button><button class="btn-outline wine">Verify</button><button class="btn-ghost wine">View Tree</button></div></div>
+    <div class="col plum"><div class="btn-block plum"><button class="btn-primary plum">＋ Add Member</button><button class="btn-outline plum">Verify</button><button class="btn-ghost plum">View Tree</button></div></div>
+    <div class="col cognac"><div class="btn-block cognac"><button class="btn-primary cognac">＋ Add Member</button><button class="btn-outline cognac">Verify</button><button class="btn-ghost cognac">View Tree</button></div></div>
+  </div>
+
+  <!-- ─── AUDIENCE APPEAL ─── -->
+  <div class="section-head">Who It Appeals To</div>
+  <div class="trio">
+    <div class="col wine">
+      <div class="appeal-bar wine">
+        <span class="appeal-tag at-genz">Gen Z ✓ Dark Academia</span>
+        <span class="appeal-tag at-parent">Parents ✓ Royal Bridal</span>
+        <span class="appeal-tag at-luxury">Luxury ✓ Wine Bar Chic</span>
+        <span class="appeal-tag at-trust">Trust ✓ Deep & Credible</span>
+      </div>
+    </div>
+    <div class="col plum">
+      <div class="appeal-bar plum">
+        <span class="appeal-tag at-genz">Gen Z ✓ Purple Trending</span>
+        <span class="appeal-tag at-parent">Parents ✓ Spiritual</span>
+        <span class="appeal-tag at-luxury">Luxury ✓ Mystique</span>
+        <span class="appeal-tag at-trust">Distinct ✓ Stands Out</span>
+      </div>
+    </div>
+    <div class="col cognac">
+      <div class="appeal-bar cognac">
+        <span class="appeal-tag at-genz">Gen Z ✓ Earthy Aesthetic</span>
+        <span class="appeal-tag at-parent">Parents ✓ Warm Indian</span>
+        <span class="appeal-tag at-luxury">Luxury ✓ Artisan Feel</span>
+        <span class="appeal-tag at-trust">Warmth ✓ Approachable</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─── SAFFRON SIDE BY SIDE ─── -->
+  <div class="sep">Saffron (Pandit Ji) paired with each option</div>
+  <div class="trio">
+    <!-- Wine + Saffron -->
+    <div class="col">
+      <div class="wine"><div class="topbar"><div class="topbar-logo">Family Tree</div><div class="topbar-right"><div class="tb-avatar">RS</div></div></div></div>
+      <div style="height:8px;background:#e8e1d8;display:flex;align-items:center;justify-content:center;font-size:9px;color:#bbb;">transition</div>
+      <div class="saffron"><div class="topbar"><div class="topbar-logo">पंडित डैशबोर्ड <small>Pandit Ji</small></div><div class="topbar-right"><div class="tb-avatar">PJ</div></div></div></div>
+      <div style="padding:10px 14px;background:#f7f2ea;font-size:11px;color:#888;font-style:italic;">Wine ↔ Saffron — clearly distinct, no clash</div>
+    </div>
+    <!-- Plum + Saffron -->
+    <div class="col">
+      <div class="plum"><div class="topbar"><div class="topbar-logo">Family Tree</div><div class="topbar-right"><div class="tb-avatar">RS</div></div></div></div>
+      <div style="height:8px;background:#e8e1d8;display:flex;align-items:center;justify-content:center;font-size:9px;color:#bbb;">transition</div>
+      <div class="saffron"><div class="topbar"><div class="topbar-logo">पंडित डैशबोर्ड <small>Pandit Ji</small></div><div class="topbar-right"><div class="tb-avatar">PJ</div></div></div></div>
+      <div style="padding:10px 14px;background:#f7f2ea;font-size:11px;color:#888;font-style:italic;">Plum ↔ Saffron — high contrast, very distinct</div>
+    </div>
+    <!-- Cognac + Saffron -->
+    <div class="col">
+      <div class="cognac"><div class="topbar"><div class="topbar-logo">Family Tree</div><div class="topbar-right"><div class="tb-avatar">RS</div></div></div></div>
+      <div style="height:8px;background:#e8e1d8;display:flex;align-items:center;justify-content:center;font-size:9px;color:#bbb;">transition</div>
+      <div class="saffron"><div class="topbar"><div class="topbar-logo">पंडित डैशबोर्ड <small>Pandit Ji</small></div><div class="topbar-right"><div class="tb-avatar">PJ</div></div></div></div>
+      <div style="padding:10px 14px;background:#f7f2ea;font-size:11px;color:#888;font-style:italic;">Cognac ↔ Saffron — warm siblings, subtle shift</div>
+    </div>
+  </div>
+
+  <!-- ─── RECOMMENDATION ─── -->
+  <div class="rec-banner">
+    <div class="rec-star">★</div>
+    <div>
+      <div class="rec-title">Recommendation: Option A — Deep Wine</div>
+      <div class="rec-sub">
+        HSL(340 50% 28%) · Pairs with Gold hsl(42 80% 50%) · Saffron stays for Pandit Ji ·
+        Best cross-generational overlap: Dark Academia (Gen Z) + Royal Bridal (Parents)
+      </div>
+    </div>
+  </div>
+
+  <div class="footer">KUTUMB SANGAM · COLOR PREVIEW · APRIL 2026 · 3 OPTIONS COMPARED</div>
+
+</div>
+</body>
+</html>

@@ -1,0 +1,733 @@
+import { useState, useEffect } from 'react';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
+import { useLang } from '@/i18n/LanguageContext';
+import { usePlan } from '@/contexts/PlanContext';
+import { useTree } from '@/contexts/TreeContext';
+import AppShell from '@/components/shells/AppShell';
+import LockedBanner from '@/components/states/LockedBanner';
+import NodeSovereigntyBadge from '@/components/ui/NodeSovereigntyBadge';
+import ConsentToggle from '@/components/ui/ConsentToggle';
+import DisputeForkIndicator from '@/components/ui/DisputeForkIndicator';
+import TrustBadge from '@/components/ui/TrustBadge';
+import { toast } from '@/hooks/use-toast';
+import { createPerson, fetchVanshaTree, linkExistingSpouses, resolveVanshaIdForApi } from '@/services/api';
+import { backendPayloadToTreeState } from '@/services/mapVanshaPayload';
+import {
+  ALL_VRUKSHA_RELATIONS,
+  ANCESTRAL_ADD_RELATION_OPTIONS,
+  computeVrukshaGeneration,
+  isChildRelation,
+  isSpouseRelation,
+  normalizeRelationToKutumb,
+} from '@/constants/vrukshaRelations';
+import { RelationDropdown } from '@/components/members/RelationDropdown';
+import { migrateLegacyVisibility, privacyLevelsForPlan } from '@/engine/privacy';
+import type { NodePrivacyLevel } from '@/engine/types';
+
+function splitLegacyDisplayName(name: string): { given: string; sur: string } {
+  const t = name.trim();
+  const i = t.indexOf(' ');
+  if (i === -1) return { given: t, sur: '' };
+  return { given: t.slice(0, i), sur: t.slice(i + 1).trim() };
+}
+
+const NodePage = () => {
+  const { id } = useParams<{ id: string }>();
+  const isEdit = !!id;
+  const { tr } = useLang();
+  const { hasEntitlement, planId } = usePlan();
+  const { state, addNode, editNode, setNodePrivacy, loadTreeState, linkSpousePair } = useTree();
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const [saving, setSaving] = useState(false);
+  const [spouseLinkTargetId, setSpouseLinkTargetId] = useState('');
+  const [linkingSpouse, setLinkingSpouse] = useState(false);
+  const hasCultural = hasEntitlement('culturalFields');
+
+  const existingNode = isEdit ? state.nodes.find(n => n.id === id) : null;
+
+  const allowedPrivacy = new Set<NodePrivacyLevel>(privacyLevelsForPlan(planId));
+  const [customPrivacyNodes, setCustomPrivacyNodes] = useState<string[]>([]);
+
+  useEffect(() => {
+    if (existingNode?.privacyNodeIds?.length) {
+      setCustomPrivacyNodes(existingNode.privacyNodeIds);
+    } else {
+      setCustomPrivacyNodes([]);
+    }
+  }, [existingNode?.id, existingNode?.privacyNodeIds]);
+
+  const [form, setForm] = useState({
+    givenName: '',
+    surname: '',
+    dateOfBirth: '',
+    ancestralPlace: '',
+    currentResidence: '',
+    relation: '',
+    gender: 'male' as 'male' | 'female' | 'other',
+    branch: '',
+    gotra: '',
+    moolNiwas: '',
+    parentId: '',
+    fatherName: '',
+    motherName: '',
+  });
+
+  const identityComplete =
+    form.givenName.trim() &&
+    form.surname.trim() &&
+    form.dateOfBirth.trim() &&
+    form.ancestralPlace.trim() &&
+    form.currentResidence.trim();
+
+  const displayName = [form.givenName, form.surname].filter(Boolean).join(' ').trim();
+
+  const anchorNodeId = (searchParams.get('anchor_node_id') ?? '').trim();
+  const effectiveVanshaId = resolveVanshaIdForApi(searchParams.get('vansha_id'));
+  const anchorNode =
+    !isEdit && anchorNodeId ? state.nodes.find((n) => n.id === anchorNodeId) : null;
+  /** Anchor from tree selection (Add Member after tapping a node). */
+  const hasKutumbAnchor = !isEdit && Boolean(anchorNodeId) && Boolean(anchorNode);
+  const parentAsAnchor =
+    !isEdit && !hasKutumbAnchor && form.parentId
+      ? state.nodes.find((n) => n.id === form.parentId)
+      : null;
+  const lineageReferenceNode = anchorNode ?? parentAsAnchor;
+
+  // Pre-fill form for edit mode (same fields as Add Member; relation uses Kutumb dropdown + legacy mapping)
+  useEffect(() => {
+    if (existingNode) {
+      const sp = splitLegacyDisplayName(existingNode.name);
+      setForm({
+        givenName: existingNode.givenName ?? sp.given,
+        surname: existingNode.surname ?? sp.sur,
+        dateOfBirth: existingNode.dateOfBirth ?? '',
+        ancestralPlace: existingNode.ancestralPlace ?? existingNode.moolNiwas ?? '',
+        currentResidence: existingNode.currentResidence ?? '',
+        relation: normalizeRelationToKutumb(existingNode.relation),
+        gender: existingNode.gender,
+        branch: existingNode.branch,
+        gotra: existingNode.gotra,
+        moolNiwas: existingNode.moolNiwas,
+        parentId: '',
+        fatherName: '',
+        motherName: '',
+      });
+    }
+  }, [existingNode]);
+
+  const set = (k: string, v: string) => setForm(p => ({ ...p, [k]: v }));
+
+  const handleLinkSpouse = async () => {
+    if (!existingNode || !spouseLinkTargetId) return;
+    if (effectiveVanshaId) {
+      setLinkingSpouse(true);
+      try {
+        const result = await linkExistingSpouses({
+          vansha_id: effectiveVanshaId,
+          anchor_node_id: existingNode.id,
+          spouse_node_id: spouseLinkTargetId,
+        });
+        const data = await fetchVanshaTree(effectiveVanshaId);
+        loadTreeState(backendPayloadToTreeState(data));
+        toast({
+          title: tr('linkSpouseSuccess'),
+          description: result.already_linked ? tr('linkSpouseAlreadyLinked') : tr('linkSpouseSuccessDesc'),
+        });
+        setSpouseLinkTargetId('');
+      } catch (e) {
+        toast({
+          title: tr('errorGeneric'),
+          description: e instanceof Error ? e.message : 'Request failed',
+          variant: 'destructive',
+        });
+      } finally {
+        setLinkingSpouse(false);
+      }
+      return;
+    }
+    const r = linkSpousePair(existingNode.id, spouseLinkTargetId);
+    if (!r.ok) {
+      toast({
+        title: tr('errorGeneric'),
+        description: r.message ?? '',
+        variant: 'destructive',
+      });
+      return;
+    }
+    toast({
+      title: tr('linkSpouseSuccess'),
+      description: tr('linkSpouseSuccessDesc'),
+    });
+    setSpouseLinkTargetId('');
+  };
+
+  const handleSave = async () => {
+    if (isEdit && existingNode) {
+      if (!identityComplete) {
+        toast({
+          title: tr('errorGeneric'),
+          description: tr('fillRequiredIdentity'),
+          variant: 'destructive',
+        });
+        return;
+      }
+      // Edit mode — run each changed field through the decision engine
+      const fields = [
+        'givenName',
+        'surname',
+        'dateOfBirth',
+        'ancestralPlace',
+        'currentResidence',
+        'relation',
+        'gender',
+        'branch',
+        'gotra',
+        'moolNiwas',
+      ] as const;
+      let anyPending = false;
+
+      fields.forEach((field) => {
+        const newVal = String((form as Record<string, string>)[field] ?? '');
+        const oldVal = String((existingNode as Record<string, string>)[field] ?? '');
+        if (newVal !== oldVal && newVal.trim()) {
+          const result = editNode(existingNode.id, field, newVal);
+          if (!result.applied) anyPending = true;
+        }
+      });
+
+      if (displayName !== existingNode.name.trim()) {
+        const result = editNode(existingNode.id, 'name', displayName);
+        if (!result.applied) anyPending = true;
+      }
+
+      if (anyPending) {
+        toast({
+          title: tr('correctionSubmitted'),
+          description: tr('correctionSubmittedDesc'),
+        });
+      } else {
+        toast({
+          title: tr('saveMember'),
+          description: tr('changesSaved'),
+        });
+      }
+      navigate(-1);
+      return;
+    }
+
+    // Add mode
+    if (!identityComplete) {
+      toast({
+        title: tr('errorGeneric'),
+        description: tr('fillRequiredIdentity'),
+        variant: 'destructive',
+      });
+      return;
+    }
+    if (!form.relation.trim()) {
+      toast({
+        title: tr('errorGeneric'),
+        description: tr('selectRelation'),
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (anchorNodeId && !anchorNode) {
+      toast({
+        title: tr('errorGeneric'),
+        description: tr('anchorNotLoaded'),
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    const relationLabel = form.relation.trim();
+    const first_name = form.givenName.trim();
+    const last_name = form.surname.trim();
+
+    const canUseRemoteApi = Boolean(effectiveVanshaId);
+
+    if (canUseRemoteApi) {
+      if (!hasKutumbAnchor && state.nodes.length > 0 && !form.parentId.trim()) {
+        toast({
+          title: tr('errorGeneric'),
+          description: tr('selectParent'),
+          variant: 'destructive',
+        });
+        return;
+      }
+      setSaving(true);
+      try {
+        let relative_gen_index = 0;
+        if (lineageReferenceNode) {
+          relative_gen_index = computeVrukshaGeneration(lineageReferenceNode.generation, relationLabel);
+        }
+
+        await createPerson({
+          vansha_id: effectiveVanshaId,
+          first_name,
+          last_name,
+          date_of_birth: form.dateOfBirth.trim(),
+          ancestral_place: form.ancestralPlace.trim(),
+          current_residence: form.currentResidence.trim(),
+          gender: form.gender,
+          relation: relationLabel,
+          relative_gen_index,
+          branch: form.branch || 'main',
+          gotra: form.gotra,
+          mool_niwas: form.moolNiwas.trim() || form.ancestralPlace.trim(),
+          parent_node_id: hasKutumbAnchor ? undefined : form.parentId || undefined,
+          anchor_node_id: hasKutumbAnchor ? anchorNodeId : null,
+          father_name: isChildRelation(relationLabel) ? form.fatherName.trim() || null : null,
+          mother_name: isChildRelation(relationLabel) ? form.motherName.trim() || null : null,
+        });
+        const data = await fetchVanshaTree(effectiveVanshaId);
+        loadTreeState(backendPayloadToTreeState(data));
+        toast({
+          title: tr('activityAddedMember'),
+          description: displayName,
+        });
+        navigate(-1);
+      } catch (e) {
+        toast({
+          title: tr('errorGeneric'),
+          description: e instanceof Error ? e.message : 'Request failed',
+          variant: 'destructive',
+        });
+      } finally {
+        setSaving(false);
+      }
+      return;
+    }
+
+    // Local-only tree (no resolved vansha_id)
+    if (hasKutumbAnchor && anchorNode) {
+      const gen = computeVrukshaGeneration(anchorNode.generation, relationLabel);
+      if (['Father', 'Mother'].includes(relationLabel)) {
+        toast({
+          title: tr('errorGeneric'),
+          description: tr('parentAddRequiresVansha'),
+          variant: 'destructive',
+        });
+        return;
+      }
+      if (isChildRelation(relationLabel)) {
+        addNode(displayName, relationLabel, form.gender, anchorNode.id, {
+          branch: form.branch,
+          gotra: form.gotra,
+          moolNiwas: form.moolNiwas || form.ancestralPlace,
+          generation: gen,
+          givenName: form.givenName.trim(),
+          surname: form.surname.trim(),
+          dateOfBirth: form.dateOfBirth.trim(),
+          ancestralPlace: form.ancestralPlace.trim(),
+          currentResidence: form.currentResidence.trim(),
+        });
+      } else if (isSpouseRelation(relationLabel)) {
+        addNode(displayName, relationLabel, form.gender, anchorNode.id, {
+          branch: form.branch,
+          gotra: form.gotra,
+          moolNiwas: form.moolNiwas || form.ancestralPlace,
+          generation: gen,
+          link: 'spouse',
+          givenName: form.givenName.trim(),
+          surname: form.surname.trim(),
+          dateOfBirth: form.dateOfBirth.trim(),
+          ancestralPlace: form.ancestralPlace.trim(),
+          currentResidence: form.currentResidence.trim(),
+        });
+      } else {
+        addNode(displayName, relationLabel, form.gender, anchorNode.id, {
+          branch: form.branch,
+          gotra: form.gotra,
+          moolNiwas: form.moolNiwas || form.ancestralPlace,
+          generation: gen,
+          givenName: form.givenName.trim(),
+          surname: form.surname.trim(),
+          dateOfBirth: form.dateOfBirth.trim(),
+          ancestralPlace: form.ancestralPlace.trim(),
+          currentResidence: form.currentResidence.trim(),
+        });
+      }
+      toast({
+        title: tr('activityAddedMember'),
+        description: displayName,
+      });
+      navigate(-1);
+      return;
+    }
+
+    const parentId = form.parentId || state.currentUserId;
+    const parent = state.nodes.find((n) => n.id === parentId);
+    const parentGen = parent?.generation ?? 0;
+    const relLower = relationLabel.toLowerCase();
+    const isParentRel = ['father', 'mother', 'grandfather', 'grandmother'].includes(relLower);
+    const isChildRel = ['son', 'daughter', 'adopted son', 'adopted daughter'].includes(relLower);
+    let generation: number | undefined;
+    if (isParentRel) generation = parentGen - 1;
+    else if (isChildRel) generation = parentGen + 1;
+    else generation = parentGen;
+
+    addNode(displayName, relationLabel, form.gender, parentId, {
+      branch: form.branch,
+      gotra: form.gotra,
+      moolNiwas: form.moolNiwas || form.ancestralPlace,
+      generation,
+      givenName: form.givenName.trim(),
+      surname: form.surname.trim(),
+      dateOfBirth: form.dateOfBirth.trim(),
+      ancestralPlace: form.ancestralPlace.trim(),
+      currentResidence: form.currentResidence.trim(),
+    });
+
+    toast({
+      title: tr('activityAddedMember'),
+      description: displayName,
+    });
+    navigate(-1);
+  };
+
+  // Get disputes for this node
+  const nodeDisputes = isEdit
+    ? state.disputes.filter(d => d.nodeId === id && d.status === 'active')
+    : [];
+
+  // Get change log for this node
+  const nodeChanges = isEdit
+    ? state.changeLog.filter(c => c.nodeId === id).slice(-5).reverse()
+    : [];
+
+  const isOwnNode = existingNode?.ownerId === state.currentUserId;
+
+  const inputClass = "w-full px-4 py-2.5 rounded-lg border border-input bg-background font-body text-sm focus:outline-none focus:ring-2 focus:ring-ring/30";
+
+  return (
+    <AppShell>
+      <div className="container py-8 max-w-lg">
+        <h1 className="font-heading text-2xl font-bold mb-6">{isEdit ? tr('nodeEditTitle') : tr('nodeAddTitle')}</h1>
+
+        {isEdit && isOwnNode && <NodeSovereigntyBadge />}
+
+        <div className="bg-card rounded-xl p-8 shadow-card border border-border/50 space-y-5">
+          <div>
+            <label className="block text-sm font-medium font-body mb-1.5">{tr('givenName')}</label>
+            <input value={form.givenName} onChange={(e) => set('givenName', e.target.value)} className={inputClass} />
+          </div>
+          <div>
+            <label className="block text-sm font-medium font-body mb-1.5">{tr('surname')}</label>
+            <input value={form.surname} onChange={(e) => set('surname', e.target.value)} className={inputClass} />
+          </div>
+          <div>
+            <label className="block text-sm font-medium font-body mb-1.5">{tr('dateOfBirth')}</label>
+            <input
+              type="date"
+              value={form.dateOfBirth}
+              onChange={(e) => set('dateOfBirth', e.target.value)}
+              className={inputClass}
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium font-body mb-1.5">{tr('ancestralPlace')}</label>
+            <input value={form.ancestralPlace} onChange={(e) => set('ancestralPlace', e.target.value)} className={inputClass} />
+          </div>
+          <div>
+            <label className="block text-sm font-medium font-body mb-1.5">{tr('currentResidence')}</label>
+            <input value={form.currentResidence} onChange={(e) => set('currentResidence', e.target.value)} className={inputClass} />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium font-body mb-1.5">{tr('relation')}</label>
+            <RelationDropdown
+              value={form.relation}
+              onChange={(v) => set('relation', v)}
+              options={isEdit ? undefined : ANCESTRAL_ADD_RELATION_OPTIONS}
+              placeholder={tr('selectRelation')}
+            />
+            {!isEdit &&
+              lineageReferenceNode &&
+              form.relation &&
+              ANCESTRAL_ADD_RELATION_OPTIONS.includes(form.relation) && (
+                <p className="text-xs text-muted-foreground font-body mt-2">
+                  {tr('vrukshaLineageIndex')}:{' '}
+                  <span className="font-medium text-foreground">
+                    {computeVrukshaGeneration(lineageReferenceNode.generation, form.relation)}
+                  </span>
+                  {hasKutumbAnchor && anchorNode && (
+                    <>
+                      {' '}
+                      ({tr('anchorLabel')}: {anchorNode.name}, {tr('generation')}: {anchorNode.generation})
+                    </>
+                  )}
+                </p>
+              )}
+            {isEdit && existingNode && (
+              <p className="text-xs text-muted-foreground font-body mt-2">
+                {tr('generation')}:{' '}
+                <span className="font-medium text-foreground">{existingNode.generation}</span>
+              </p>
+            )}
+          </div>
+
+          {isEdit && existingNode && state.nodes.length > 1 && (
+            <div className="space-y-3 rounded-lg border border-border/60 bg-muted/15 p-4">
+              <p className="text-sm font-medium font-body">{tr('linkSpouseTitle')}</p>
+              <p className="text-xs text-muted-foreground font-body leading-relaxed">{tr('linkSpouseHint')}</p>
+              <div>
+                <label className="block text-sm font-medium font-body mb-1.5">{tr('linkSpouseSelect')}</label>
+                <select
+                  value={spouseLinkTargetId}
+                  onChange={(e) => setSpouseLinkTargetId(e.target.value)}
+                  className={inputClass}
+                >
+                  <option value="">{tr('linkSpouseSelectPlaceholder')}</option>
+                  {state.nodes
+                    .filter((n) => n.id !== existingNode.id)
+                    .map((n) => (
+                      <option key={n.id} value={n.id}>
+                        {n.name} ({n.relation})
+                      </option>
+                    ))}
+                </select>
+              </div>
+              <button
+                type="button"
+                onClick={() => void handleLinkSpouse()}
+                disabled={!spouseLinkTargetId || linkingSpouse}
+                className="w-full py-2.5 rounded-lg border border-primary bg-primary/10 text-primary font-semibold font-body text-sm hover:bg-primary/15 transition-colors disabled:opacity-50"
+              >
+                {linkingSpouse ? '…' : tr('linkSpouseButton')}
+              </button>
+            </div>
+          )}
+
+          {!isEdit && isChildRelation(form.relation) && (
+            <div className="space-y-3 rounded-lg border border-border/60 bg-muted/15 p-4">
+              <p className="text-xs text-muted-foreground font-body leading-relaxed">
+                {tr('parentNamesHint')}
+              </p>
+              <div>
+                <label className="block text-sm font-medium font-body mb-1.5">
+                  {tr('fatherNameOptional')}
+                </label>
+                <input
+                  value={form.fatherName}
+                  onChange={(e) => set('fatherName', e.target.value)}
+                  className={inputClass}
+                  autoComplete="off"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium font-body mb-1.5">
+                  {tr('motherNameOptional')}
+                </label>
+                <input
+                  value={form.motherName}
+                  onChange={(e) => set('motherName', e.target.value)}
+                  className={inputClass}
+                  autoComplete="off"
+                />
+              </div>
+            </div>
+          )}
+
+          <div>
+            <label className="block text-sm font-medium font-body mb-1.5">{tr('gender')}</label>
+            <div className="flex gap-3">
+              {(['male', 'female', 'other'] as const).map(g => (
+                <button
+                  key={g}
+                  type="button"
+                  onClick={() => set('gender', g)}
+                  className={`flex-1 py-2 rounded-lg text-sm font-body border transition-colors ${form.gender === g ? 'border-primary bg-primary/10 text-primary font-medium' : 'border-input text-muted-foreground hover:bg-secondary'}`}
+                >
+                  {tr(g)}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Parent selector when no anchor from tree (connect new member to an existing node) */}
+          {!isEdit && !hasKutumbAnchor && state.nodes.length > 0 && (
+            <div>
+              <label className="block text-sm font-medium font-body mb-1.5">{tr('connectTo')}</label>
+              <select value={form.parentId} onChange={(e) => set('parentId', e.target.value)} className={inputClass}>
+                <option value="">{tr('selectParent')}</option>
+                {state.nodes.map((n) => (
+                  <option key={n.id} value={n.id}>
+                    {n.name} ({n.relation})
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {!isEdit && effectiveVanshaId && anchorNodeId && !anchorNode && (
+            <p className="text-sm text-amber-700 dark:text-amber-400 font-body">{tr('anchorNotLoaded')}</p>
+          )}
+
+          {!isEdit && hasKutumbAnchor && anchorNode && (
+            <p className="text-sm text-muted-foreground font-body">
+              {tr('anchorLabel')}: <span className="font-medium text-foreground">{anchorNode.name}</span>
+            </p>
+          )}
+
+          <div>
+            <label className="block text-sm font-medium font-body mb-1.5">{tr('branch')}</label>
+            <input value={form.branch} onChange={e => set('branch', e.target.value)} className={inputClass} />
+          </div>
+
+          {/* Cultural fields — plan gated */}
+          {hasCultural ? (
+            <>
+              <div className="border-t border-border pt-5 space-y-4">
+                <div className="flex items-center justify-between mb-2">
+                  <TrustBadge variant="consent-active" compact />
+                  <span className="text-[10px] text-muted-foreground font-body">{tr('zeroKnowledgeDesc')}</span>
+                </div>
+                <ConsentToggle fieldLabel={tr('gotraField')} />
+                <div>
+                  <label className="block text-sm font-medium font-body mb-1.5">{tr('gotraField')}</label>
+                  <input value={form.gotra} onChange={e => set('gotra', e.target.value)} className={inputClass} />
+                </div>
+                <ConsentToggle fieldLabel={tr('moolNiwas')} />
+                <div>
+                  <label className="block text-sm font-medium font-body mb-1.5">{tr('moolNiwas')}</label>
+                  <input value={form.moolNiwas} onChange={e => set('moolNiwas', e.target.value)} className={inputClass} />
+                </div>
+              </div>
+            </>
+          ) : (
+            <div className="border-t border-border pt-5">
+              <LockedBanner featureKey="culturalFields" />
+            </div>
+          )}
+
+          {/* Active Disputes for this node */}
+          {nodeDisputes.length > 0 && (
+            <div className="border-t border-border pt-5 space-y-3">
+              <p className="text-sm font-medium font-body mb-3">{tr('disputedField')}</p>
+              {nodeDisputes.map(d => (
+                <DisputeForkIndicator
+                  key={d.id}
+                  fieldName={d.field}
+                  valueA={d.versionA}
+                  valueB={d.versionB}
+                />
+              ))}
+            </div>
+          )}
+
+          {/* Change history */}
+          {nodeChanges.length > 0 && (
+            <div className="border-t border-border pt-5">
+              <p className="text-sm font-medium font-body mb-3">{tr('changeHistory')}</p>
+              <div className="space-y-2">
+                {nodeChanges.map(c => (
+                  <div key={c.id} className="text-xs font-body text-muted-foreground bg-secondary/50 rounded-lg px-3 py-2">
+                    <span className="font-medium text-foreground">{c.field}</span>
+                    {c.oldValue && <> : {c.oldValue} → </>}{c.newValue}
+                    <span className="ml-2 text-[10px]">{new Date(c.timestamp).toLocaleDateString()}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Privacy scope for owned nodes (plan-gated; free tier = public only) */}
+          {isEdit && isOwnNode && existingNode && (
+            <div className="space-y-3">
+              <label className="block text-sm font-medium font-body mb-1.5">{tr('privacyLevelLabel')}</label>
+              <select
+                value={migrateLegacyVisibility(existingNode.visibility as string)}
+                onChange={(e) => {
+                  const level = e.target.value as NodePrivacyLevel;
+                  if (!allowedPrivacy.has(level)) {
+                    toast({
+                      title: tr('privacyLockedTitle'),
+                      description: tr('privacyLockedDesc'),
+                      variant: 'destructive',
+                    });
+                    navigate('/upgrade');
+                    return;
+                  }
+                  setNodePrivacy(
+                    existingNode.id,
+                    level,
+                    level === 'custom_five_nodes' ? customPrivacyNodes.slice(0, 5) : undefined,
+                  );
+                }}
+                className={inputClass}
+              >
+                {(['private', 'parents', 'grandparents', 'tree_all_generations', 'custom_five_nodes', 'public'] as const).map(
+                  (lev) => (
+                    <option key={lev} value={lev} disabled={!allowedPrivacy.has(lev)}>
+                      {tr(`privacyLevel_${lev}`)}
+                    </option>
+                  ),
+                )}
+              </select>
+              {planId === 'beej' && (
+                <p className="text-xs text-amber-800 dark:text-amber-300 font-body">{tr('privacyFreePublicOnly')}</p>
+              )}
+              {migrateLegacyVisibility(existingNode.visibility as string) === 'custom_five_nodes' &&
+                allowedPrivacy.has('custom_five_nodes') && (
+                  <div className="rounded-lg border border-border/60 bg-muted/20 p-3 space-y-2">
+                    <p className="text-xs font-medium font-body">{tr('privacyPickFive')}</p>
+                    <div className="max-h-40 space-y-1.5 overflow-y-auto">
+                      {state.nodes
+                        .filter((n) => n.id !== existingNode.id)
+                        .map((n) => (
+                          <label
+                            key={n.id}
+                            className="flex cursor-pointer items-center gap-2 text-xs font-body"
+                          >
+                            <input
+                              type="checkbox"
+                              checked={customPrivacyNodes.includes(n.id)}
+                              disabled={
+                                !customPrivacyNodes.includes(n.id) && customPrivacyNodes.length >= 5
+                              }
+                              onChange={() => {
+                                let next = customPrivacyNodes.includes(n.id)
+                                  ? customPrivacyNodes.filter((x) => x !== n.id)
+                                  : [...customPrivacyNodes, n.id].slice(0, 5);
+                                setCustomPrivacyNodes(next);
+                                setNodePrivacy(existingNode.id, 'custom_five_nodes', next);
+                              }}
+                            />
+                            <span>{n.name}</span>
+                          </label>
+                        ))}
+                    </div>
+                  </div>
+                )}
+              <p className="text-xs text-muted-foreground font-body">{tr('nodePrivacyDesc')}</p>
+            </div>
+          )}
+
+          {/* Sovereignty reminder */}
+          {isEdit && isOwnNode && (
+            <p className="text-xs text-center text-muted-foreground font-body italic">{tr('yourNodeYourRules')}</p>
+          )}
+
+          <button
+            onClick={() => void handleSave()}
+            disabled={
+              !identityComplete ||
+              saving ||
+              !form.relation.trim() ||
+              (!isEdit && Boolean(effectiveVanshaId) && Boolean(anchorNodeId) && !anchorNode)
+            }
+            className="w-full py-3 rounded-lg gradient-hero text-primary-foreground font-semibold font-body shadow-warm hover:opacity-90 transition-opacity disabled:opacity-50"
+          >
+            {saving ? '…' : tr('saveMember')}
+          </button>
+        </div>
+      </div>
+    </AppShell>
+  );
+};
+
+export default NodePage;

@@ -1,0 +1,287 @@
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* ══════════════════════════════════════════
+       ROYAL PLUM — Premium Luxury Theme
+       Warm ivory base · Deep jewel gradient
+       Champagne gold accents · Rich shadows
+    ══════════════════════════════════════════ */
+
+    /* Background: warm ivory with the faintest plum breath — not cold, not flat */
+    --background: 290 22% 97%;
+    --foreground: 272 50% 8%;
+
+    /* Cards: pure white so they lift off the warm bg with depth */
+    --card: 0 0% 100%;
+    --card-foreground: 272 50% 8%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 272 50% 8%;
+
+    /* Primary: deep jewel plum */
+    --primary: 276 62% 19%;
+    --primary-foreground: 0 0% 100%;
+
+    /* Secondary: warm lavender-grey, not cold */
+    --secondary: 290 18% 92%;
+    --secondary-foreground: 276 35% 22%;
+
+    /* Muted: barely-there lavender */
+    --muted: 290 12% 95%;
+    --muted-foreground: 276 12% 46%;
+
+    /* Accent: rich gold — the luxury signal */
+    --accent: 42 88% 46%;
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+
+    /* Border: champagne-warm, not cold grey */
+    --border: 36 28% 87%;
+    --input: 36 28% 87%;
+    --ring: 276 62% 19%;
+
+    --radius: 0.75rem;
+
+    /* ── Plum palette tokens ── */
+    --plum:       276 62% 19%;
+    --plum-light: 278 48% 38%;
+    --plum-dark:  272 70% 11%;
+
+    /* ── Champagne / Gold tokens ── */
+    --champagne:   38 55% 84%;
+    --gold:        42 88% 46%;
+    --gold-light:  42 78% 62%;
+    --gold-dark:   38 80% 34%;
+    --gold-muted:  42 50% 90%;
+
+    /* ── Saffron tokens — Pandit Ji only ── */
+    --saffron:      24 90% 50%;
+    --saffron-light: 30 85% 60%;
+    --saffron-dark:  20 85% 40%;
+
+    --cream:       38 55% 95%;
+    --cream-dark:  35 28% 88%;
+    --terracotta:  14 60% 45%;
+    --warm-gray:   276 8% 44%;
+    --warm-white:  290 20% 98%;
+
+    --font-heading: 'Playfair Display', Georgia, serif;
+    --font-body:    'Inter', system-ui, sans-serif;
+
+    /* ══ GRADIENTS ══
+       Multi-stop: near-black indigo → jewel plum → violet-rose
+       The warm rose tail makes it feel luxurious, not cold/flat */
+    --gradient-plum:
+      linear-gradient(135deg,
+        hsl(268 72% 10%)  0%,
+        hsl(276 65% 17%)  30%,
+        hsl(288 55% 26%)  62%,
+        hsl(318 48% 36%) 100%
+      );
+
+    --gradient-gold:
+      linear-gradient(135deg, hsl(42 88% 46%), hsl(38 82% 60%));
+
+    --gradient-saffron:
+      linear-gradient(135deg,
+        hsl(20 85% 38%) 0%,
+        hsl(24 90% 50%) 55%,
+        hsl(36 80% 58%) 100%
+      );
+
+    --gradient-warm:
+      linear-gradient(180deg, hsl(290 18% 96%), hsl(290 22% 97%));
+
+    --gradient-hero: var(--gradient-plum);
+
+    /* ══ SHADOWS ══
+       Primary shadow has plum depth + champagne glow ring
+       Elevated adds a second warm lift layer */
+    --shadow-warm:
+      0 8px 40px -4px hsl(276 65% 17% / 0.30),
+      0 2px 8px  -2px hsl(276 50% 20% / 0.12),
+      inset 0 1px 0 0 hsl(42 60% 80% / 0.12);
+
+    --shadow-card:
+      0 1px 3px  0px hsl(276 40% 15% / 0.06),
+      0 4px 20px -4px hsl(276 40% 15% / 0.08),
+      0 0  0   1px hsl(36 28% 87%);
+
+    --shadow-elevated:
+      0 4px 16px -4px hsl(276 60% 16% / 0.16),
+      0 12px 48px -8px hsl(276 62% 18% / 0.22),
+      0 0  0   1px hsl(36 28% 87%);
+
+    --shadow-gold:
+      0 4px 20px -4px hsl(42 88% 46% / 0.30),
+      0 0  0   1px hsl(42 60% 80% / 0.35);
+
+    /* ── Sidebar: slightly darker ivory so main content pops ── */
+    --sidebar-background: 290 18% 95%;
+    --sidebar-foreground: 272 50% 8%;
+    --sidebar-primary: 276 62% 19%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 290 18% 91%;
+    --sidebar-accent-foreground: 276 35% 22%;
+    --sidebar-border: 36 22% 85%;
+    --sidebar-ring: 276 62% 19%;
+  }
+
+  /* ── Pandit Ji Dashboard — restore Saffron as primary ── */
+  .pandit-theme {
+    --background: 30 50% 97%;
+    --foreground: 20 30% 12%;
+    --card: 30 40% 99%;
+    --card-foreground: 20 30% 12%;
+    --popover: 30 40% 99%;
+    --popover-foreground: 20 30% 12%;
+    --primary: 24 90% 50%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 30 30% 92%;
+    --secondary-foreground: 20 30% 18%;
+    --muted: 30 20% 94%;
+    --muted-foreground: 20 10% 48%;
+    --accent: 36 80% 55%;
+    --accent-foreground: 0 0% 100%;
+    --border: 30 20% 88%;
+    --input: 30 20% 88%;
+    --ring: 24 90% 50%;
+    --gradient-hero: var(--gradient-saffron);
+    --shadow-warm: 0 4px 24px -4px hsl(24 90% 50% / 0.15);
+    --sidebar-primary: 24 90% 50%;
+    --sidebar-accent: 30 30% 92%;
+    --sidebar-border: 30 20% 88%;
+    --sidebar-ring: 24 90% 50%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground font-body antialiased;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-heading);
+  }
+}
+
+@layer utilities {
+  .font-heading {
+    font-family: var(--font-heading);
+  }
+  .font-body {
+    font-family: var(--font-body);
+  }
+
+  /* ── Gradients ── */
+  .gradient-plum    { background: var(--gradient-plum); }
+  .gradient-gold    { background: var(--gradient-gold); }
+  .gradient-saffron { background: var(--gradient-saffron); }
+  .gradient-hero    { background: var(--gradient-hero); }
+  .gradient-warm    { background: var(--gradient-warm); }
+
+  /* ── Shadows ── */
+  .shadow-warm     { box-shadow: var(--shadow-warm); }
+  .shadow-card     { box-shadow: var(--shadow-card); }
+  .shadow-elevated { box-shadow: var(--shadow-elevated); }
+  .shadow-gold     { box-shadow: var(--shadow-gold); }
+
+  /* ── Premium glass card ── */
+  .glass-card {
+    background: hsl(0 0% 100% / 0.88);
+    backdrop-filter: blur(16px);
+    border: 1px solid hsl(36 35% 85% / 0.6);
+    box-shadow: var(--shadow-card);
+  }
+
+  /* ── Gold accent border — subtle champagne line ── */
+  .gold-border {
+    border-color: hsl(var(--champagne));
+  }
+
+  /* ── Premium card: white + champagne border + plum shadow ── */
+  .premium-card {
+    background: hsl(0 0% 100%);
+    border: 1px solid hsl(36 30% 86%);
+    box-shadow: var(--shadow-card);
+    border-radius: var(--radius);
+  }
+
+  /* ── Gold shimmer line (for dividers, decorative elements) ── */
+  .gold-line {
+    height: 1px;
+    background: linear-gradient(90deg,
+      transparent 0%,
+      hsl(42 70% 70% / 0.6) 30%,
+      hsl(42 88% 50% / 0.8) 50%,
+      hsl(42 70% 70% / 0.6) 70%,
+      transparent 100%
+    );
+  }
+
+  /* ── Shimmer animation for premium loading / highlight ── */
+  .shimmer {
+    position: relative;
+    overflow: hidden;
+  }
+  .shimmer::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+      105deg,
+      transparent 40%,
+      hsl(42 80% 65% / 0.18) 50%,
+      transparent 60%
+    );
+    animation: shimmer-sweep 2.4s ease-in-out infinite;
+  }
+  @keyframes shimmer-sweep {
+    0%   { transform: translateX(-100%); }
+    100% { transform: translateX(200%); }
+  }
+
+  /* ── Plum glow — for active / selected states ── */
+  .plum-glow {
+    box-shadow:
+      0 0 0 3px hsl(276 62% 19% / 0.15),
+      0 0 20px hsl(276 62% 19% / 0.20);
+  }
+
+  /* ── Hover scale ── */
+  .hover-scale {
+    @apply transition-transform duration-200 hover:scale-105;
+  }
+}
+
+/* ── Global premium typography touches ── */
+@layer base {
+  h1, h2 {
+    letter-spacing: -0.02em;
+  }
+  h3, h4 {
+    letter-spacing: -0.01em;
+  }
+
+  /* Scrollbar: match the theme */
+  ::-webkit-scrollbar       { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: hsl(290 12% 95%); }
+  ::-webkit-scrollbar-thumb {
+    background: hsl(276 40% 65%);
+    border-radius: 99px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: hsl(276 62% 19%);
+  }
+}

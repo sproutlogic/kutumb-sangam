@@ -1,0 +1,64 @@
+import type { PositionedTreeNode } from "@/engine/treeLayout";
+
+/** Frame padding around genogram shapes (triangle base can be ~42px for R=18). */
+const PAD_X = 46;
+const PAD_Y = 40;
+
+/** Vertical offset from node center to “+” (must match trunk origin in TreePage). */
+export const SPOUSE_PLUS_Y_OFFSET = 2;
+
+/** Y coordinate of the + between spouses (same row Y for both). */
+export function spousePlusCenterY(nodeY: number): number {
+  return nodeY - SPOUSE_PLUS_Y_OFFSET;
+}
+
+type Pair = { a: PositionedTreeNode; b: PositionedTreeNode };
+
+function orderedPair(na: PositionedTreeNode, nb: PositionedTreeNode): Pair {
+  return na.x <= nb.x ? { a: na, b: nb } : { a: nb, b: na };
+}
+
+/** Rectangle around mother/wife (left) and father/husband (right); drawn behind nodes. */
+export function SpouseCoupleFrame({ left, right }: { left: PositionedTreeNode; right: PositionedTreeNode }) {
+  const { a, b } = orderedPair(left, right);
+  const y = a.y;
+  const x1 = a.x - PAD_X;
+  const x2 = b.x + PAD_X;
+  const y1 = y - PAD_Y;
+  const y2 = y + PAD_Y;
+  const w = x2 - x1;
+  const h = y2 - y1;
+  return (
+    <g className="pointer-events-none animate-fade-in" aria-hidden>
+      <rect
+        x={x1}
+        y={y1}
+        width={w}
+        height={h}
+        rx={4}
+        ry={4}
+        fill="hsl(var(--primary) / 0.06)"
+        stroke="hsl(var(--primary) / 0.5)"
+        strokeWidth={2}
+      />
+    </g>
+  );
+}
+
+/** “+” between the two nodes (centered in the gap; draw on top). */
+export function SpousePlusMark({ left, right }: { left: PositionedTreeNode; right: PositionedTreeNode }) {
+  const { a, b } = orderedPair(left, right);
+  const mx = (a.x + b.x) / 2;
+  const my = spousePlusCenterY(a.y);
+  return (
+    <text
+      x={mx}
+      y={my}
+      textAnchor="middle"
+      className="pointer-events-none fill-primary font-heading text-[15px] font-bold"
+      style={{ textShadow: "0 0 8px hsl(var(--card))" }}
+    >
+      +
+    </text>
+  );
+}

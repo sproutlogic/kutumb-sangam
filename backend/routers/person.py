@@ -1,0 +1,412 @@
+"""
+Create persons in the current vansha (Supabase `persons` table).
+
+Vanshavali model: a Union is the couple (male_node_id + female_node_id). Children link to
+that Union via parent_union_id — not to a single parent person (.cursorrules).
+"""
+
+from __future__ import annotations
+
+import logging
+import uuid
+from typing import Any, Optional
+
+from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel, Field
+
+from constants import (
+    PERSONS_TABLE,
+    PARENT_UNION_ID_COLUMN,
+    UNIONS_TABLE,
+    VANSHA_ID_COLUMN,
+)
+from db import get_supabase
+
+logger = logging.getLogger(__name__)
+
+router = APIRouter(prefix="/api", tags=["person"])
+
+# Exact labels from the Add Member relation dropdown (must match frontend).
+CHILD_RELATIONS = frozenset({"Son", "Daughter", "Adopted Son", "Adopted Daughter"})
+PARENT_RELATIONS = frozenset({"Father", "Mother"})
+SIBLING_RELATIONS = frozenset({"Brother", "Sister"})
+SPOUSE_RELATIONS = frozenset({"Wife", "Husband"})
+
+class PersonCreateBody(BaseModel):
+    """Person row for Postgres `persons` table. Identity fields are required for every new member."""
+
+    vansha_id: uuid.UUID
+    first_name: str = Field(min_length=1, description="Given / first name")
+    last_name: str = Field(min_length=1, description="Surname / family name")
+    date_of_birth: str = Field(
+        min_length=1,
+        description="Date of birth (ISO YYYY-MM-DD)",
+    )
+    ancestral_place: str = Field(min_length=1, description="Ancestral / native place")
+    current_residence: str = Field(min_length=1, description="Current place of residence")
+    gender: str = Field(default="other", description="male | female | other")
+    relation: str = Field(default="member", description="UI relation label (exact dropdown string)")
+    relative_gen_index: int = Field(default=0, description="Signed lineage: used when anchor_node_id is omitted")
+    branch: str = "main"
+    gotra: str = ""
+    mool_niwas: str = ""
+    parent_node_id: Optional[uuid.UUID] = None
+    maiden_vansha_id: Optional[uuid.UUID] = None
+    anchor_node_id: Optional[uuid.UUID] = Field(
+        default=None,
+        description="Selected tree node: enables Vruksha linking (generation + parents / union).",
+    )
+    father_name: Optional[str] = Field(
+        default=None,
+        description="When inferring a missing father placeholder, preferred given name (optional).",
+    )
+    mother_name: Optional[str] = Field(
+        default=None,
+        description="When inferring a missing mother placeholder, preferred given name (optional).",
+    )
+
+
+def _normalize_gender(raw: Any) -> str:
+    s = str(raw or "").lower()
+    if s in ("male", "m"):
+        return "male"
+    if s in ("female", "f"):
+        return "female"
+    return "other"
+
+
+def _anchor_generation(anchor: dict[str, Any]) -> int:
+    v = anchor.get("relative_gen_index")
+    if v is None:
+        v = anchor.get("generation")
+    try:
+        return int(v) if v is not None else 0
+    except (TypeError, ValueError):
+        return 0
+
+
+def _str_id(raw: Any) -> Optional[str]:
+    if raw is None:
+        return None
+    s = str(raw).strip()
+    return s if s else None
+
+
+def _union_row_id(u: dict[str, Any]) -> Optional[str]:
+    return _str_id(u.get("union_id") or u.get("id"))
+
+
+def _list_unions(sb: Any, vid: str) -> list[dict[str, Any]]:
+    resp = sb.table(UNIONS_TABLE).select("*").eq(VANSHA_ID_COLUMN, vid).execute()
+    return list(resp.data or [])
+
+
+def _find_union_containing_node(
+    unions: list[dict[str, Any]], node_id: str
+) -> Optional[dict[str, Any]]:
+    for u in unions:
+        m = _str_id(u.get("male_node_id"))
+        f = _str_id(u.get("female_node_id"))
+        if m == node_id or f == node_id:
+            return u
+    return None
+
+
+def _placeholder_name(raw: Optional[str], fallback: str = "\u2014") -> str:
+    s = (raw or "").strip()
+    return s if s else fallback
+
+
+def _insert_placeholder_parent(
+    sb: Any,
+    vid: str,
+    anchor: dict[str, Any],
+    gender: str,
+    first_name: str,
+    last_name: str,
+    gen_idx: int,
+) -> str:
+    """Minimal person row for an unknown parent so a union can be formed (children link to union, not one person)."""
+    nid = str(uuid.uuid4())
+    ap = str(anchor.get("ancestral_place") or "").strip() or "Unknown"
+    cr = str(anchor.get("current_residence") or "").strip() or "Unknown"
+    dob = str(anchor.get("date_of_birth") or "").strip() or "1900-01-01"
+    row: dict[str, Any] = {
+        "node_id": nid,
+        VANSHA_ID_COLUMN: vid,
+        "first_name": first_name,
+        "last_name": last_name or " ",
+        "date_of_birth": dob,
+        "ancestral_place": ap,
+        "current_residence": cr,
+        "gender": gender,
+        "branch": str(anchor.get("branch") or "main"),
+        "gotra": str(anchor.get("gotra") or ""),
+        "mool_niwas": str(anchor.get("mool_niwas") or "").strip() or ap,
+        "relative_gen_index": gen_idx,
+        "generation": gen_idx,
+        "relation": "member",
+    }
+    sb.table(PERSONS_TABLE).insert(row).execute()
+    return nid
+
+
+def _insert_union(
+    sb: Any, vid: str, male_id: str, female_id: str, relative_gen_index: int
+) -> Optional[str]:
+    row = {
+        VANSHA_ID_COLUMN: vid,
+        "male_node_id": male_id,
+        "female_node_id": female_id,
+        "relative_gen_index": relative_gen_index,
+    }
+    ins = sb.table(UNIONS_TABLE).insert(row).execute()
+    data = ins.data
+    if isinstance(data, list) and data:
+        uid = _union_row_id(data[0])
+        if uid:
+            return uid
+    if isinstance(data, dict):
+        uid = _union_row_id(data)
+        if uid:
+            return uid
+    # PostgREST may omit returning the row; fetch the union we just created.
+    q = (
+        sb.table(UNIONS_TABLE)
+        .select("*")
+        .eq(VANSHA_ID_COLUMN, vid)
+        .eq("male_node_id", male_id)
+        .eq("female_node_id", female_id)
+        .limit(1)
+        .execute()
+    )
+    if q.data:
+        return _union_row_id(q.data[0])
+    return None
+
+
+@router.post("/person")
+def create_person(body: PersonCreateBody) -> dict[str, Any]:
+    """
+    Insert a new person scoped to `vansha_id`.
+
+    Children reference the parental Union (parent_union_id), not a single parent node.
+    """
+    sb = get_supabase()
+    node_id = str(uuid.uuid4())
+    vid = str(body.vansha_id)
+    relation_label = (body.relation or "").strip()
+
+    row: dict[str, Any] = {
+        "node_id": node_id,
+        VANSHA_ID_COLUMN: vid,
+        "first_name": body.first_name.strip(),
+        "last_name": body.last_name.strip(),
+        "date_of_birth": body.date_of_birth.strip(),
+        "ancestral_place": body.ancestral_place.strip(),
+        "current_residence": body.current_residence.strip(),
+        "gender": body.gender.lower() if body.gender else "other",
+        "branch": body.branch or "main",
+        "gotra": body.gotra or "",
+        # Legacy column: keep in sync with ancestral when not set separately.
+        "mool_niwas": (body.mool_niwas or "").strip() or body.ancestral_place.strip(),
+        "maiden_vansha_id": (
+            str(mv)
+            if (mv := getattr(body, "maiden_vansha_id", None)) is not None
+            else None
+        ),
+    }
+
+    anchor_id_str: Optional[str] = None
+    update_anchor: Optional[dict[str, Any]] = None
+    insert_union: Optional[dict[str, Any]] = None
+    unions_cache: Optional[list[dict[str, Any]]] = None
+    # After inserting the new person: pair Father/Mother with the anchor's other parent into a union.
+    post_insert_parental: Optional[tuple[str, str, str, int]] = None
+
+    def unions() -> list[dict[str, Any]]:
+        nonlocal unions_cache
+        if unions_cache is None:
+            unions_cache = _list_unions(sb, vid)
+        return unions_cache
+
+    if body.anchor_node_id is not None:
+        anchor_id_str = str(body.anchor_node_id)
+        res = (
+            sb.table(PERSONS_TABLE)
+            .select("*")
+            .eq("node_id", anchor_id_str)
+            .eq(VANSHA_ID_COLUMN, vid)
+            .limit(1)
+            .execute()
+        )
+        if not res.data:
+            raise HTTPException(
+                status_code=400,
+                detail="Anchor node not found in this vansha",
+            )
+        anchor = res.data[0]
+        anchor_gen = _anchor_generation(anchor)
+
+        if relation_label in PARENT_RELATIONS | SIBLING_RELATIONS:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "Ancestral tree adds only link through parents: use Son, Daughter, Adopted child, "
+                    "or Wife/Husband — not Father, Mother, Brother, or Sister."
+                ),
+            )
+
+        if relation_label in CHILD_RELATIONS:
+            rel_idx = anchor_gen + 1
+            row["relative_gen_index"] = rel_idx
+            row["generation"] = rel_idx
+            row["parent_node_id"] = None
+            row["father_node_id"] = None
+            row["mother_node_id"] = None
+            parental = _find_union_containing_node(unions(), anchor_id_str)
+            if not parental:
+                anc_g = _normalize_gender(anchor.get("gender"))
+                last_sur = str(anchor.get("last_name") or "").strip() or " "
+                if anc_g == "male":
+                    mf = _placeholder_name(getattr(body, "mother_name", None))
+                    ph_id = _insert_placeholder_parent(
+                        sb, vid, anchor, "female", mf, last_sur, anchor_gen
+                    )
+                    u_id = _insert_union(sb, vid, anchor_id_str, ph_id, anchor_gen)
+                    unions_cache = None
+                    if not u_id:
+                        raise HTTPException(
+                            status_code=502,
+                            detail="Failed to create parental union with placeholder parent.",
+                        )
+                    parental = {
+                        "union_id": u_id,
+                        "male_node_id": anchor_id_str,
+                        "female_node_id": ph_id,
+                    }
+                elif anc_g == "female":
+                    ff = _placeholder_name(getattr(body, "father_name", None))
+                    ph_id = _insert_placeholder_parent(
+                        sb, vid, anchor, "male", ff, last_sur, anchor_gen
+                    )
+                    u_id = _insert_union(sb, vid, ph_id, anchor_id_str, anchor_gen)
+                    unions_cache = None
+                    if not u_id:
+                        raise HTTPException(
+                            status_code=502,
+                            detail="Failed to create parental union with placeholder parent.",
+                        )
+                    parental = {
+                        "union_id": u_id,
+                        "male_node_id": ph_id,
+                        "female_node_id": anchor_id_str,
+                    }
+                else:
+                    raise HTTPException(
+                        status_code=400,
+                        detail=(
+                            "Children link to a parental couple. Add a spouse first, or set the anchor "
+                            "person's gender to male or female so a missing parent can be created as a placeholder."
+                        ),
+                    )
+            puid = _union_row_id(parental)
+            if not puid:
+                raise HTTPException(
+                    status_code=502,
+                    detail="Parental union row is missing a union id.",
+                )
+            row[PARENT_UNION_ID_COLUMN] = puid
+        elif relation_label in SPOUSE_RELATIONS:
+            rel_idx = anchor_gen
+            row["relative_gen_index"] = rel_idx
+            row["generation"] = rel_idx
+            row["parent_node_id"] = None
+            row["father_node_id"] = None
+            row["mother_node_id"] = None
+            row[PARENT_UNION_ID_COLUMN] = None
+            ng = _normalize_gender(body.gender)
+            anc_g = _normalize_gender(anchor.get("gender"))
+            if ng == "male" and anc_g == "female":
+                male_id, female_id = node_id, anchor_id_str
+            elif ng == "female" and anc_g == "male":
+                male_id, female_id = anchor_id_str, node_id
+            else:
+                raise HTTPException(
+                    status_code=400,
+                    detail=(
+                        "Marriage union requires one male and one female "
+                        "(set gender on the new member and on the anchor)."
+                    ),
+                )
+            insert_union = {
+                VANSHA_ID_COLUMN: vid,
+                "male_node_id": male_id,
+                "female_node_id": female_id,
+                "relative_gen_index": rel_idx,
+            }
+        else:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Unknown relation for anchored add: {relation_label!r}",
+            )
+    else:
+        parent_str = str(body.parent_node_id) if body.parent_node_id is not None else None
+        row["relative_gen_index"] = int(body.relative_gen_index)
+        row["generation"] = int(body.relative_gen_index)
+        row["parent_node_id"] = parent_str
+        row["father_node_id"] = parent_str
+        row["mother_node_id"] = parent_str
+        row[PARENT_UNION_ID_COLUMN] = None
+
+    if relation_label:
+        row["relation"] = relation_label
+
+    try:
+        sb.table(PERSONS_TABLE).insert(row).execute()
+    except Exception:
+        logger.exception("Failed to insert person into %s", PERSONS_TABLE)
+        raise HTTPException(status_code=502, detail="Failed to insert person") from None
+
+    if body.anchor_node_id is not None and update_anchor is not None and anchor_id_str:
+        try:
+            sb.table(PERSONS_TABLE).update(update_anchor).eq("node_id", anchor_id_str).execute()
+        except Exception:
+            logger.exception(
+                "Person inserted but failed to update anchor %s",
+                anchor_id_str,
+            )
+            raise HTTPException(
+                status_code=502,
+                detail="Person created but failed to link parent to anchor",
+            ) from None
+
+    if post_insert_parental is not None:
+        role, anchor_nid, other_id, rel_idx = post_insert_parental
+        try:
+            if role == "father":
+                u_id = _insert_union(sb, vid, node_id, other_id, rel_idx)
+            else:
+                u_id = _insert_union(sb, vid, other_id, node_id, rel_idx)
+            if u_id:
+                sb.table(PERSONS_TABLE).update({PARENT_UNION_ID_COLUMN: u_id}).eq(
+                    "node_id", anchor_nid
+                ).execute()
+        except Exception:
+            logger.exception("Failed to create parental union after adding Father/Mother")
+            raise HTTPException(
+                status_code=502,
+                detail="Person created but failed to form the parental union (couple) link.",
+            ) from None
+
+    if insert_union is not None:
+        try:
+            sb.table(UNIONS_TABLE).insert(insert_union).execute()
+        except Exception:
+            logger.exception("Failed to insert union row for spouse link")
+            raise HTTPException(
+                status_code=502,
+                detail="Person created but marriage link failed.",
+            ) from None
+
+    return {"ok": True, "node_id": node_id, "vansha_id": vid}
