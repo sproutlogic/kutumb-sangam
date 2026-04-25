@@ -70,6 +70,6 @@ app.include_router(radar.router)
 app.include_router(time_bank.router)
 
 
-@app.get("/health")
+@app.api_route("/health", methods=["GET", "HEAD"])
 def health() -> dict[str, str]:
     return {"status": "ok"}
