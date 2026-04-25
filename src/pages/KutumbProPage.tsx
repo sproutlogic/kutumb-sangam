@@ -14,7 +14,16 @@ import AppShell from '@/components/shells/AppShell';
 import { useAuth } from '@/contexts/AuthContext';
 import { orgApi, type EnquiryPayload } from '@/services/orgApi';
 import { toast } from '@/hooks/use-toast';
-import { ORG_FRAMEWORKS, FRAMEWORK_ORDER } from '@/config/orgFrameworks.config';
+import { ORG_FRAMEWORKS, FRAMEWORK_ORDER, type FrameworkType } from '@/config/orgFrameworks.config';
+
+const FRAMEWORK_BENEFITS: Record<FrameworkType, string[]> = {
+  spiritual:  ['Seva coordination & booking', 'Devotee engagement tools', 'Punya credit system', 'Spiritual event calendar'],
+  political:  ['Booth-level network management', 'Volunteer outreach tracking', 'Grievance mapping', 'Constituency event tools'],
+  ngo:        ['Volunteer hour tracking', 'Beneficiary support workflows', 'Donor engagement layer', 'Impact credit system'],
+  university: ['Alumni mentorship network', 'Merit-based recognition', 'Career & placement tools', 'Student council structure'],
+  rwa:        ['Resident directory & invites', 'Maintenance request tracking', 'Community service board', 'Polls & announcements'],
+  custom:     ['Fully custom role hierarchy', 'Define your own currency', 'Any use case supported', 'Start from scratch or template'],
+};
 import {
   Building2, Users, Layers, Coins, Star, ArrowRight,
   CheckCircle2, Send, Shield, Zap, Network, Award,
@@ -475,28 +484,15 @@ const KutumbProPage = () => {
                       </div>
                     </div>
 
-                    {/* Tier visual */}
-                    <div className="mb-5">
-                      <div className="text-[10px] text-muted-foreground font-body font-semibold uppercase tracking-widest mb-2.5">
-                        Hierarchy
-                      </div>
-                      <div className="flex gap-1.5 flex-wrap">
-                        {fw.tiers.map((tier, i) => (
-                          <div
-                            key={i}
-                            className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-body font-semibold
-                              ${i === 0
-                                ? 'gradient-hero text-white shadow-warm'
-                                : i === 4
-                                ? 'bg-primary/15 text-primary border border-primary/20'
-                                : 'bg-secondary text-muted-foreground border border-border'}`}
-                          >
-                            {i === 0 && <Crown className="w-2.5 h-2.5" />}
-                            {tier}
-                          </div>
-                        ))}
-                      </div>
-                    </div>
+                    {/* Benefits */}
+                    <ul className="mb-5 space-y-2">
+                      {FRAMEWORK_BENEFITS[ft].map((benefit, i) => (
+                        <li key={i} className="flex items-center gap-2 text-sm font-body text-muted-foreground">
+                          <CheckCircle2 className="w-3.5 h-3.5 text-primary flex-shrink-0" />
+                          {benefit}
+                        </li>
+                      ))}
+                    </ul>
 
                     {/* Currency */}
                     <div className="mt-auto pt-4 border-t border-border">

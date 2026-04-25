@@ -125,37 +125,37 @@ export interface EnquiryPayload {
 export const orgApi = {
   /** Submit a Kutumb Pro access enquiry (no auth required but auth is forwarded if present) */
   enquire: (payload: EnquiryPayload) =>
-    apiFetch<{ id: string; message: string }>('/api/orgs/enquire', {
+    apiFetch<{ id: string; message: string }>('/api/org/enquire', {
       method: 'POST',
       body: JSON.stringify(payload),
     }),
 
   /** Create a new org (requires kutumb_pro=true on the user) */
   create: (payload: CreateOrgPayload) =>
-    apiFetch<OrgSummary>('/api/orgs', {
+    apiFetch<OrgSummary>('/api/org', {
       method: 'POST',
       body: JSON.stringify(payload),
     }),
 
   /** List orgs the current user belongs to */
-  myOrgs: () => apiFetch<OrgSummary[]>('/api/orgs/my'),
+  myOrgs: () => apiFetch<OrgSummary[]>('/api/org/my'),
 
   /** Get org details by slug */
-  get: (slug: string) => apiFetch<OrgSummary>(`/api/orgs/${slug}`),
+  get: (slug: string) => apiFetch<OrgSummary>(`/api/org/${slug}`),
 
   /** List members of an org */
-  members: (slug: string) => apiFetch<OrgMember[]>(`/api/orgs/${slug}/members`),
+  members: (slug: string) => apiFetch<OrgMember[]>(`/api/org/${slug}/members`),
 
   /** Create an invite (targeted or open) */
   invite: (slug: string, payload: InvitePayload) =>
-    apiFetch<InviteResult>(`/api/orgs/${slug}/invite`, {
+    apiFetch<InviteResult>(`/api/org/${slug}/invite`, {
       method: 'POST',
       body: JSON.stringify(payload),
     }),
 
   /** Join using an invite code */
   join: (code: string) =>
-    apiFetch<{ message: string; org_slug: string }>(`/api/orgs/join/${code}`, {
+    apiFetch<{ message: string; org_slug: string }>(`/api/org/join/${code}`, {
       method: 'POST',
     }),
 };
