@@ -1,7 +1,8 @@
+import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useLang } from '@/i18n/LanguageContext';
 import { Lock } from 'lucide-react';
-import AuthShell from '@/components/shells/AuthShell';
+import AppShell from '@/components/shells/AppShell';
 
 interface LockedStateProps {
   titleKey: string;
@@ -13,7 +14,8 @@ const LockedState: React.FC<LockedStateProps> = ({ titleKey, descKey }) => {
   const { tr } = useLang();
 
   return (
-    <AuthShell>
+    <AppShell>
+      <div className="container py-16 max-w-md mx-auto">
       <div className="bg-card rounded-xl p-10 shadow-card border border-border/50 text-center">
         <div className="w-16 h-16 rounded-full bg-secondary flex items-center justify-center mx-auto mb-6">
           <Lock className="w-8 h-8 text-muted-foreground" />
@@ -27,7 +29,8 @@ const LockedState: React.FC<LockedStateProps> = ({ titleKey, descKey }) => {
           {tr('upgradePlan')}
         </button>
       </div>
-    </AuthShell>
+      </div>
+    </AppShell>
   );
 };
 

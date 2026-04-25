@@ -1,0 +1,23 @@
+services:
+  - type: web
+    name: kutumb-sangam-backend
+    runtime: python
+    region: singapore
+    plan: free
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    envVars:
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: ALLOWED_ORIGINS
+        sync: false
+      - key: MATCHER_CRON_HOUR
+        value: "2"
+      - key: MATCHER_CRON_MINUTE
+        value: "30"
+      - key: PYTHON_VERSION
+        value: "3.11.0"
