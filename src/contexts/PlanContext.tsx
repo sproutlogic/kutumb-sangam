@@ -9,6 +9,32 @@ import { computeTreeDepth } from '@/engine/scoring';
 import { BETA_ALL_ACCESS, BETA_DEFAULT_PLAN } from '@/config/featureFlags';
 import { getApiBaseUrl } from '@/services/api';
 
+function getAuthToken(): string {
+  try {
+    const keys = Object.keys(localStorage).filter(k => k.endsWith('-auth-token'));
+    for (const k of keys) {
+      const raw = localStorage.getItem(k);
+      if (raw) { const p = JSON.parse(raw); if (p?.access_token) return p.access_token; }
+    }
+  } catch { /* ignore */ }
+  return '';
+}
+
+async function fetchActivePlan(): Promise<PlanId | null> {
+  const token = getAuthToken();
+  if (!token) return null;
+  try {
+    const res = await fetch(`${getApiBaseUrl()}/api/payments/subscriptions/current`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    const planId = data?.current_subscription?.plan_id;
+    if (planId && planId in plans) return planId as PlanId;
+  } catch { /* ignore */ }
+  return null;
+}
+
 interface PlanContextType {
   planId: PlanId;
   setPlanId: (id: PlanId) => void;
@@ -39,6 +65,7 @@ export const PlanProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   useEffect(() => {
     fetchPricingConfig().then(setPricingConfig);
+    fetchActivePlan().then(id => { if (id) setPlanId(id); });
   }, []);
 
   // Outer provider gives a complete (tree-unaware) value immediately so
