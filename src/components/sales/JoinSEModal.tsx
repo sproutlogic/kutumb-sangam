@@ -74,10 +74,7 @@ export function JoinSEModal({ onClose }: Props) {
   // ── Referral step validation ──────────────────────────────────────────────
 
   function nextFromReferral() {
-    if (form.referralCode.trim().length < 6) {
-      setError(tr('seReferralRequired'));
-      return;
-    }
+    // Referral code is optional — blank means admin-approval path
     setError('');
     setStep('kyc');
   }
@@ -121,7 +118,7 @@ export function JoinSEModal({ onClose }: Props) {
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
         body: JSON.stringify({
-          referral_code: form.referralCode.trim(),
+          referral_code: form.referralCode.trim().toUpperCase() || null,
           aadhaar_last4: aadhaarDigits.slice(-4),   // only last 4 sent
           aadhaar_name: form.aadhaarName.trim(),
           aadhaar_dob: form.aadhaarDob,
@@ -195,7 +192,7 @@ export function JoinSEModal({ onClose }: Props) {
 
               <div className="space-y-3">
                 {[
-                  { icon: '💰', label: tr('sePerSale'), sub: tr('sePerSaleSub') },
+                  { icon: '🌿', label: tr('sePerSale'), sub: tr('sePerSaleSub') },
                   { icon: '🌐', label: tr('seNetwork'), sub: tr('seNetworkSub') },
                   { icon: '🏦', label: tr('seWallet'), sub: tr('seWalletSub') },
                 ].map((b, i) => (
@@ -225,7 +222,7 @@ export function JoinSEModal({ onClose }: Props) {
                 <input
                   type="text"
                   value={form.referralCode}
-                  onChange={e => set({ referralCode: e.target.value })}
+                  onChange={e => set({ referralCode: e.target.value.toUpperCase().trim() })}
                   placeholder={tr('seReferralPlaceholder')}
                   className="w-full px-3 py-2.5 rounded-lg border border-border bg-background text-sm font-body focus:outline-none focus:ring-2 focus:ring-primary/40"
                 />

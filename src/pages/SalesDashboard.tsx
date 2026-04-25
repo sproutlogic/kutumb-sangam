@@ -1,4 +1,5 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import AppShell from "@/components/shells/AppShell";
 import { useAuth } from "@/contexts/AuthContext";
 import { getApiBaseUrl } from "@/services/api";
@@ -7,6 +8,7 @@ import { useToast } from "@/hooks/use-toast";
 import {
   AlertCircle, BadgeIndianRupee, Handshake, Settings2, Users,
   Package, IndianRupee, ToggleLeft, ToggleRight, ChevronDown, ChevronUp,
+  ShieldAlert, Tag,
 } from "lucide-react";
 import {
   defaultPricingConfig,
@@ -15,6 +17,8 @@ import {
   type PlanId,
   type EntitlementKey,
 } from "@/config/packages.config";
+
+const SALES_ROLES = new Set(['se', 'cp', 'rp', 'zp', 'np', 'admin', 'superadmin']);
 
 // ─── Sales types ──────────────────────────────────────────────────────────────
 
@@ -58,10 +62,10 @@ const ENTITLEMENT_LABELS: Record<EntitlementKey, string> = {
 };
 
 const PLAN_LABELS: Record<PlanId, string> = {
-  beej: 'Beej (Free)',
-  ankur: 'Ankur',
-  vriksh: 'Vriksh',
-  vansh: 'Vansh',
+  beej:  'Beej (Free)',
+  ankur: 'Ankur  — ₹2,100/yr',
+  vriksh:'Vriksh — ₹4,900/yr',
+  vansh: 'Vansh  — ₹7,900/yr',
 };
 
 // ─── Pricing tab ──────────────────────────────────────────────────────────────
@@ -119,7 +123,7 @@ function PricingTab({
 }) {
   const [expandedPlan, setExpandedPlan] = useState<PlanId | null>('beej');
 
-  const updatePlan = (planId: PlanId, field: string, value: number | boolean) => {
+  const updatePlan = (planId: PlanId, field: string, value: number | boolean | null) => {
     setDraft(prev => ({
       ...prev,
       plans: {
@@ -198,7 +202,12 @@ function PricingTab({
                   <div className="flex items-center gap-4">
                     <span className="font-semibold font-body">{PLAN_LABELS[planId]}</span>
                     <span className="text-sm text-primary font-semibold">
-                      {p.price === 0 ? 'Free' : `₹${p.price.toLocaleString('en-IN')}/mo`}
+                      {p.price === 0 ? 'Free' : `₹${p.price.toLocaleString('en-IN')}/yr`}
+                      {p.isPreLaunch && p.preLaunchPrice !== null && p.preLaunchPrice !== undefined && (
+                        <span className="ml-1.5 text-[10px] px-1.5 py-0.5 rounded-full bg-green-100 dark:bg-green-950/40 text-green-700 font-semibold">
+                          offer ₹{p.preLaunchPrice}
+                        </span>
+                      )}
                     </span>
                     <span className="text-xs text-muted-foreground">
                       {p.maxNodes} nodes · {p.generationCap} gen
@@ -219,12 +228,30 @@ function PricingTab({
                 {/* Expanded editor */}
                 {isOpen && (
                   <div className="px-6 pb-6 bg-secondary/10 border-t border-border/40 space-y-5">
-                    <div className="grid sm:grid-cols-3 gap-4 pt-4">
+                    <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4 pt-4">
                       <NumberField
-                        label="Monthly Price (INR)"
+                        label="Annual Price (INR)"
                         value={p.price}
                         onChange={v => updatePlan(planId, 'price', v)}
                       />
+                      <NumberField
+                        label="Pre-launch Offer Price (INR)"
+                        value={p.preLaunchPrice ?? 0}
+                        onChange={v => updatePlan(planId, 'preLaunchPrice', v === 0 ? null : v)}
+                      />
+                      <div className="flex flex-col gap-1">
+                        <span className="text-sm text-muted-foreground">Pre-launch Offer Active</span>
+                        <div className="mt-1 flex items-center gap-2">
+                          <Toggle
+                            checked={p.isPreLaunch ?? false}
+                            onChange={v => updatePlan(planId, 'isPreLaunch', v)}
+                          />
+                          <span className="text-xs text-muted-foreground flex items-center gap-1">
+                            <Tag className="w-3 h-3" />
+                            {p.isPreLaunch ? 'Offer showing to users' : 'Regular price shown'}
+                          </span>
+                        </div>
+                      </div>
                       <NumberField
                         label="Max Family Members"
                         value={p.maxNodes}
@@ -338,9 +365,18 @@ function PricingTab({
 // ─── Main component ───────────────────────────────────────────────────────────
 
 export default function SalesDashboard() {
-  const { session } = useAuth();
+  const { session, appUser, loading: authLoading } = useAuth();
   const { toast } = useToast();
   const qc = useQueryClient();
+  const navigate = useNavigate();
+
+  // Role guard: only sales/admin roles may view this page
+  useEffect(() => {
+    if (authLoading) return;
+    if (appUser && !SALES_ROLES.has(appUser.role)) {
+      navigate('/time-bank', { replace: true });
+    }
+  }, [appUser, authLoading, navigate]);
 
   const [activeTab, setActiveTab] = useState<Tab>('sales');
   const [draftSettings, setDraftSettings] = useState<SalesSettings | null>(null);
@@ -454,10 +490,23 @@ export default function SalesDashboard() {
     setDraftSettings({ ...base, [field]: numeric });
   };
 
-  if (isLoading) {
+  if (authLoading || isLoading) {
     return (
       <AppShell>
         <div className="container py-8 text-muted-foreground font-body">Loading dashboard…</div>
+      </AppShell>
+    );
+  }
+
+  // Guard: should have already redirected, but show nothing while redirecting
+  if (!appUser || !SALES_ROLES.has(appUser.role)) {
+    return (
+      <AppShell>
+        <div className="container py-20 text-center">
+          <ShieldAlert className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+          <p className="font-heading font-bold text-lg mb-2">Access Restricted</p>
+          <p className="text-sm text-muted-foreground font-body">This page is only available to sales team members and administrators.</p>
+        </div>
       </AppShell>
     );
   }

@@ -13,7 +13,7 @@ PUT  /api/admin/pricing-config
 from __future__ import annotations
 
 import logging
-from typing import Any
+from typing import Any, Optional
 
 from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel, Field
@@ -39,10 +39,13 @@ class EntitlementModel(BaseModel):
 
 
 class PlanLimitsModel(BaseModel):
-    price:         float = Field(ge=0)
-    maxNodes:      int   = Field(ge=1)
-    generationCap: int   = Field(ge=1)
-    entitlements:  EntitlementModel
+    """ Annual pricing + optional pre-launch offer per plan. """
+    price:          float = Field(ge=0, description="Annual price in INR; 0 = free")
+    preLaunchPrice: Optional[float] = Field(None, ge=0, description="Pre-launch offer price in INR")
+    isPreLaunch:    bool  = Field(False, description="Whether the pre-launch offer is currently active")
+    maxNodes:       int   = Field(ge=1)
+    generationCap:  int   = Field(ge=1)
+    entitlements:   EntitlementModel
 
 
 class PlansModel(BaseModel):
@@ -78,28 +81,32 @@ class PricingConfigModel(BaseModel):
 _DEFAULT_CONFIG: dict[str, Any] = {
     "plans": {
         "beej": {
-            "price": 0, "maxNodes": 15, "generationCap": 3,
+            "price": 0, "preLaunchPrice": None, "isPreLaunch": False,
+            "maxNodes": 15, "generationCap": 3,
             "entitlements": {
                 "culturalFields": False, "discovery": False, "connectionChains": False,
                 "panditVerification": False, "matrimony": False, "sosAlerts": False, "treeAnnounce": False,
             },
         },
         "ankur": {
-            "price": 99, "maxNodes": 50, "generationCap": 5,
+            "price": 2100, "preLaunchPrice": 999, "isPreLaunch": True,
+            "maxNodes": 100, "generationCap": 7,
             "entitlements": {
-                "culturalFields": True, "discovery": False, "connectionChains": False,
+                "culturalFields": True, "discovery": True, "connectionChains": False,
                 "panditVerification": False, "matrimony": False, "sosAlerts": False, "treeAnnounce": False,
             },
         },
         "vriksh": {
-            "price": 299, "maxNodes": 200, "generationCap": 10,
+            "price": 4900, "preLaunchPrice": None, "isPreLaunch": False,
+            "maxNodes": 500, "generationCap": 15,
             "entitlements": {
-                "culturalFields": True, "discovery": True, "connectionChains": False,
+                "culturalFields": True, "discovery": True, "connectionChains": True,
                 "panditVerification": True, "matrimony": False, "sosAlerts": True, "treeAnnounce": False,
             },
         },
         "vansh": {
-            "price": 799, "maxNodes": 1000, "generationCap": 25,
+            "price": 7900, "preLaunchPrice": None, "isPreLaunch": False,
+            "maxNodes": 1000, "generationCap": 25,
             "entitlements": {
                 "culturalFields": True, "discovery": True, "connectionChains": True,
                 "panditVerification": True, "matrimony": True, "sosAlerts": True, "treeAnnounce": True,
@@ -169,7 +176,6 @@ def update_pricing_config(body: PricingConfigModel, user: CurrentUser) -> dict[s
             detail="Superadmin or Admin role required to change pricing.",
         )
 
-    # model_dump gives us a plain dict safe for JSON serialization
     config_dict = body.model_dump()
 
     try:

@@ -23,5 +23,26 @@ SAMAY_TRANSACTIONS_TABLE    = "samay_transactions"
 SAMAY_RATINGS_TABLE         = "samay_ratings"
 SAMAY_PROFILES_TABLE        = "samay_profiles"
 
+REFERRAL_EVENTS_TABLE  = "referral_events"
+
+# Kutumb Pro — Community OS
+ORGANIZATIONS_TABLE    = "organizations"
+ORG_MEMBERS_TABLE      = "org_members"
+ORG_INVITES_TABLE      = "org_invites"
+ORG_ENQUIRIES_TABLE    = "org_enquiries"
+
+# Payment infrastructure
+PAYMENTS_TABLE         = "payments"
+SUBSCRIPTIONS_TABLE    = "subscriptions"
+INVOICES_TABLE         = "invoices"
+REFUNDS_TABLE          = "refunds"
+PAYMENT_METHODS_TABLE  = "payment_methods"
+WEBHOOK_EVENTS_TABLE   = "webhook_events"
+
+# GST defaults (India SaaS — 18 % IGST, or 9+9 CGST+SGST intra-state)
+DEFAULT_IGST_RATE      = 18.00   # used unless CGST+SGST split is requested
+DEFAULT_CGST_RATE      =  9.00
+DEFAULT_SGST_RATE      =  9.00
+
 VANSHA_ID_COLUMN = "vansha_id"
 PARENT_UNION_ID_COLUMN = "parent_union_id"

@@ -9,10 +9,13 @@ import TrustBadge from '@/components/ui/TrustBadge';
 import TreeCompletionScore from '@/components/ui/TreeCompletionScore';
 import ClanMilestone from '@/components/ui/ClanMilestone';
 import { useState } from 'react';
-import { Users, Layers, Mail, TreePine, UserPlus, ShieldCheck, Clock, Search, Heart, Check, X, GitFork, ArrowUpCircle, BarChart3, Rocket, Briefcase } from 'lucide-react';
+import { Users, Layers, Mail, TreePine, UserPlus, ShieldCheck, Clock, Search, Heart, Check, X, GitFork, ArrowUpCircle, BarChart3, Rocket, Briefcase, HandHeart } from 'lucide-react';
 import { UPCOMING_SERVICES } from '@/config/upcomingServices.config';
 import { JoinSEModal } from '@/components/sales/JoinSEModal';
 import { EarningsWallet } from '@/components/sales/EarningsWallet';
+import { useAuth } from '@/contexts/AuthContext';
+
+const SALES_ROLES = new Set(['se', 'cp', 'rp', 'zp', 'np', 'admin', 'superadmin']);
 
 const Dashboard = () => {
   const { tr, lang } = useLang();
@@ -20,6 +23,9 @@ const Dashboard = () => {
   const [showJoinSE, setShowJoinSE] = useState(false);
   const { plan, planId, membersUsed, generationsUsed, hasEntitlement } = usePlan();
   const { state, trustScore, isTreeInitialized, approvePending, objectPending } = useTree();
+  const { appUser } = useAuth();
+
+  const isSalesMember = appUser ? SALES_ROLES.has(appUser.role) : false;
 
   const pendingCount = state.pendingActions.filter(a => a.status === 'pending').length;
   const activeDisputes = state.disputes.filter(d => d.status === 'active').length;
@@ -133,15 +139,17 @@ const Dashboard = () => {
               </div>
               <p className="text-sm font-semibold font-body">{tr('addMember')}</p>
             </button>
-            <button
-              onClick={() => navigate('/sales')}
-              className="flex flex-col items-center gap-2 bg-card rounded-xl p-4 shadow-card border border-border/50 hover:shadow-elevated transition-all hover:-translate-y-0.5 text-center animate-fade-in"
-            >
-              <div className="w-10 h-10 rounded-lg gradient-hero flex items-center justify-center">
-                <BarChart3 className="w-5 h-5 text-primary-foreground" />
-              </div>
-              <p className="text-sm font-semibold font-body">Sales</p>
-            </button>
+            {isSalesMember && (
+              <button
+                onClick={() => navigate('/sales')}
+                className="flex flex-col items-center gap-2 bg-card rounded-xl p-4 shadow-card border border-border/50 hover:shadow-elevated transition-all hover:-translate-y-0.5 text-center animate-fade-in"
+              >
+                <div className="w-10 h-10 rounded-lg gradient-hero flex items-center justify-center">
+                  <BarChart3 className="w-5 h-5 text-primary-foreground" />
+                </div>
+                <p className="text-sm font-semibold font-body">Sales</p>
+              </button>
+            )}
           </div>
         </div>
 
@@ -340,22 +348,24 @@ const Dashboard = () => {
         {/* Earnings Wallet — shown to active sales members */}
         <EarningsWallet />
 
-        {/* Join Sales Team CTA */}
-        <div className="bg-gradient-to-r from-accent/8 to-primary/8 rounded-xl p-5 border border-accent/20 flex items-center gap-4 animate-fade-in">
-          <div className="w-10 h-10 rounded-lg bg-accent/15 flex items-center justify-center flex-shrink-0">
-            <Briefcase className="w-5 h-5 text-accent" />
+        {/* Join Sales Team CTA — only shown to non-sales users */}
+        {!isSalesMember && (
+          <div className="bg-gradient-to-r from-accent/8 to-primary/8 rounded-xl p-5 border border-accent/20 flex items-center gap-4 animate-fade-in">
+            <div className="w-10 h-10 rounded-lg bg-accent/15 flex items-center justify-center flex-shrink-0">
+              <HandHeart className="w-5 h-5 text-accent" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="font-semibold font-body text-sm">{tr('joinSalesTeam')}</p>
+              <p className="text-xs text-muted-foreground font-body">{tr('seContributeSub')}</p>
+            </div>
+            <button
+              onClick={() => setShowJoinSE(true)}
+              className="flex-shrink-0 px-4 py-2 rounded-lg gradient-hero text-primary-foreground font-semibold font-body text-xs shadow-warm hover:opacity-90 transition-opacity"
+            >
+              {tr('getStarted')} →
+            </button>
           </div>
-          <div className="flex-1 min-w-0">
-            <p className="font-semibold font-body text-sm">{tr('joinSalesTeam')}</p>
-            <p className="text-xs text-muted-foreground font-body">{tr('sePerSaleSub')}</p>
-          </div>
-          <button
-            onClick={() => setShowJoinSE(true)}
-            className="flex-shrink-0 px-4 py-2 rounded-lg gradient-hero text-primary-foreground font-semibold font-body text-xs shadow-warm hover:opacity-90 transition-opacity"
-          >
-            {tr('getStarted')} →
-          </button>
-        </div>
+        )}
 
         {/* Disclaimer */}
         <div className="text-center text-xs text-muted-foreground font-body py-4 border-t border-border">

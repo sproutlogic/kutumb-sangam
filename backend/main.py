@@ -12,8 +12,8 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from routers import (
-    admin, auth_router, calendar, legacy_box, matrimony,
-    notifications, pandit, person, radar, sales, time_bank, tree, union, verification,
+    admin, auth_router, calendar, kutumb_pro, legacy_box, matrimony,
+    notifications, pandit, payments, person, radar, sales, time_bank, tree, union, verification,
 )
 from workers.matcher import create_matcher_scheduler
 from config import get_settings
@@ -62,6 +62,8 @@ app.include_router(verification.router)
 app.include_router(pandit.router)
 app.include_router(notifications.router)
 app.include_router(sales.router)
+app.include_router(payments.router)
+app.include_router(kutumb_pro.router)
 app.include_router(calendar.router)
 app.include_router(legacy_box.router)
 app.include_router(radar.router)

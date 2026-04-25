@@ -42,7 +42,7 @@ export function EarningsWallet() {
   }, []);
 
   function copyCode() {
-    if (!data) return;
+    if (!data || !data.referral_code) return;
     navigator.clipboard.writeText(data.referral_code).then(() => {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
@@ -61,7 +61,8 @@ export function EarningsWallet() {
   const salesRoles = ['se', 'cp', 'rp', 'zp', 'np', 'admin', 'superadmin'];
   if (!salesRoles.includes(data.role)) return null;
 
-  const shortCode = data.referral_code.slice(0, 8).toUpperCase();
+  // referral_code is now the stored kutumb_id (e.g. KMAB3CD7EF) — display as-is
+  const displayCode = data.referral_code || '—';
 
   return (
     <div className="bg-gradient-to-br from-primary/8 to-accent/8 rounded-xl p-5 shadow-card border border-primary/20 animate-fade-in">
@@ -108,7 +109,7 @@ export function EarningsWallet() {
       <div className="flex items-center gap-2">
         <div className="flex-1 bg-card/80 rounded-lg px-3 py-2 border border-border/40">
           <p className="text-[10px] text-muted-foreground font-body mb-0.5">{tr('seYourReferralCode')}</p>
-          <p className="text-sm font-mono font-bold tracking-widest text-primary">KM-{shortCode}</p>
+          <p className="text-sm font-mono font-bold tracking-widest text-primary">{displayCode}</p>
         </div>
         <button
           onClick={copyCode}

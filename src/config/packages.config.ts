@@ -6,16 +6,19 @@ export type EntitlementKey =
   | 'connectionChains'
   | 'panditVerification'
   | 'matrimony'
-  /** GPS SOS alerts to family per privacy rules (Vriksh+). */
   | 'sosAlerts'
-  /** Centre top-bar broadcast to whole tree (Vansh). */
   | 'treeAnnounce';
 
 export interface PlanConfig {
   id: PlanId;
-  nameKey: string; // i18n key
-  descKey: string; // i18n key
-  price: number; // INR per month, 0 = free
+  nameKey: string;
+  descKey: string;
+  /** Annual price in INR (0 = free) */
+  price: number;
+  /** Pre-launch offer price in INR; null = no offer active */
+  preLaunchPrice: number | null;
+  /** Whether the pre-launch offer is currently active */
+  isPreLaunch: boolean;
   maxNodes: number;
   generationCap: number;
   entitlements: Record<EntitlementKey, boolean>;
@@ -27,6 +30,8 @@ export const plans: Record<PlanId, PlanConfig> = {
     nameKey: 'planBeej',
     descKey: 'planBeejDesc',
     price: 0,
+    preLaunchPrice: null,
+    isPreLaunch: false,
     maxNodes: 15,
     generationCap: 3,
     entitlements: {
@@ -43,12 +48,14 @@ export const plans: Record<PlanId, PlanConfig> = {
     id: 'ankur',
     nameKey: 'planAnkur',
     descKey: 'planAnkurDesc',
-    price: 99,
-    maxNodes: 50,
-    generationCap: 5,
+    price: 2100,
+    preLaunchPrice: 999,
+    isPreLaunch: true,
+    maxNodes: 100,
+    generationCap: 7,
     entitlements: {
       culturalFields: true,
-      discovery: false,
+      discovery: true,
       connectionChains: false,
       panditVerification: false,
       matrimony: false,
@@ -60,13 +67,15 @@ export const plans: Record<PlanId, PlanConfig> = {
     id: 'vriksh',
     nameKey: 'planVriksh',
     descKey: 'planVrikshDesc',
-    price: 299,
-    maxNodes: 200,
-    generationCap: 10,
+    price: 4900,
+    preLaunchPrice: null,
+    isPreLaunch: false,
+    maxNodes: 500,
+    generationCap: 15,
     entitlements: {
       culturalFields: true,
       discovery: true,
-      connectionChains: false,
+      connectionChains: true,
       panditVerification: true,
       matrimony: false,
       sosAlerts: true,
@@ -77,7 +86,9 @@ export const plans: Record<PlanId, PlanConfig> = {
     id: 'vansh',
     nameKey: 'planVansh',
     descKey: 'planVanshDesc',
-    price: 799,
+    price: 7900,
+    preLaunchPrice: null,
+    isPreLaunch: false,
     maxNodes: 1000,
     generationCap: 25,
     entitlements: {
@@ -104,47 +115,60 @@ export function hasEntitlement(planId: PlanId, feature: EntitlementKey): boolean
 // Falls back to `defaultPricingConfig` when the endpoint is unreachable.
 
 export interface PlanLimits {
-  price:         number;  // INR/month; 0 = free
-  maxNodes:      number;
-  generationCap: number;
-  entitlements:  Record<EntitlementKey, boolean>;
+  /** Annual price in INR; 0 = free */
+  price:           number;
+  /** Pre-launch offer price; null = no offer */
+  preLaunchPrice?: number | null;
+  /** Toggle the pre-launch offer on/off */
+  isPreLaunch?:    boolean;
+  maxNodes:        number;
+  generationCap:   number;
+  entitlements:    Record<EntitlementKey, boolean>;
 }
 
-/** Per-transaction fees for the matrimony flow (per matrimony.txt). */
 export interface MatrimonyPrices {
-  /** Stage 2 — compatibility score unlock */
-  compatibilityUnlock:   number;   // ₹101
-  /** Stage 4 — photo visibility unlock */
-  photoUnlock:           number;   // ₹151
-  /** Stage 5 — Kundali review by Pandit */
-  kundaliReview:         number;   // ₹501
-  /** Gotra consultation with Pandit */
-  gotraConsultation:     number;   // ₹251
-  /** Full family onboarding with Pandit */
-  fullFamilyOnboarding:  number;   // ₹2500
-  /** Second Pandit opinion request */
-  secondPanditOpinion:   number;   // ₹251
+  compatibilityUnlock:   number;
+  photoUnlock:           number;
+  kundaliReview:         number;
+  gotraConsultation:     number;
+  fullFamilyOnboarding:  number;
+  secondPanditOpinion:   number;
 }
 
-/** Pandit default fee schedule (shown on Pandit badge; each Pandit can override). */
 export interface PanditDefaultFees {
-  kundaliMilanReview:   number;   // ₹501
-  gotraConsultation:    number;   // ₹251
-  fullFamilyOnboarding: number;   // ₹2500
+  kundaliMilanReview:   number;
+  gotraConsultation:    number;
+  fullFamilyOnboarding: number;
 }
 
 export interface PricingConfig {
-  plans:         Record<PlanId, PlanLimits>;
-  matrimony:     MatrimonyPrices;
+  plans:          Record<PlanId, PlanLimits>;
+  matrimony:      MatrimonyPrices;
   panditDefaults: PanditDefaultFees;
 }
 
 export const defaultPricingConfig: PricingConfig = {
   plans: {
-    beej:  { price: 0,   maxNodes: 15,   generationCap: 3,  entitlements: plans.beej.entitlements },
-    ankur: { price: 99,  maxNodes: 50,   generationCap: 5,  entitlements: plans.ankur.entitlements },
-    vriksh:{ price: 299, maxNodes: 200,  generationCap: 10, entitlements: plans.vriksh.entitlements },
-    vansh: { price: 799, maxNodes: 1000, generationCap: 25, entitlements: plans.vansh.entitlements },
+    beej: {
+      price: 0, preLaunchPrice: null, isPreLaunch: false,
+      maxNodes: 15, generationCap: 3,
+      entitlements: plans.beej.entitlements,
+    },
+    ankur: {
+      price: 2100, preLaunchPrice: 999, isPreLaunch: true,
+      maxNodes: 100, generationCap: 7,
+      entitlements: plans.ankur.entitlements,
+    },
+    vriksh: {
+      price: 4900, preLaunchPrice: null, isPreLaunch: false,
+      maxNodes: 500, generationCap: 15,
+      entitlements: plans.vriksh.entitlements,
+    },
+    vansh: {
+      price: 7900, preLaunchPrice: null, isPreLaunch: false,
+      maxNodes: 1000, generationCap: 25,
+      entitlements: plans.vansh.entitlements,
+    },
   },
   matrimony: {
     compatibilityUnlock:  101,

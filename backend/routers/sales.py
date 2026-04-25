@@ -12,12 +12,12 @@ PUT /api/sales/settings
 from __future__ import annotations
 
 import logging
-from typing import Any
+from typing import Any, Optional
 
 from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel, Field
 
-from constants import SALES_PERFORMANCE_TABLE, SALES_SETTINGS_TABLE, SE_APPLICATIONS_TABLE, USERS_TABLE
+from constants import REFERRAL_EVENTS_TABLE, SALES_PERFORMANCE_TABLE, SALES_SETTINGS_TABLE, SE_APPLICATIONS_TABLE, USERS_TABLE
 from db import get_supabase
 from middleware.auth import CurrentUser
 
@@ -131,7 +131,7 @@ _RECRUITABLE_ROLES = {"se", "cp", "rp", "zp", "np", "admin", "superadmin"}
 
 
 class SEApplicationBody(BaseModel):
-    referral_code: str = Field(min_length=1, max_length=100)
+    referral_code: Optional[str] = Field(None, max_length=100)
     aadhaar_last4: str = Field(min_length=4, max_length=4, pattern=r"^\d{4}$")
     aadhaar_name: str = Field(min_length=2, max_length=200)
     aadhaar_dob: str = Field(min_length=8, max_length=10)   # YYYY-MM-DD
@@ -168,26 +168,36 @@ def apply_se(body: SEApplicationBody, user: CurrentUser) -> dict[str, Any]:
             detail=f"You already have an application with status: {existing.data[0]['status']}.",
         )
 
-    # Validate referral code against users table (referral_code = recruiter's user_id)
-    referrer_res = (
-        sb.table(USERS_TABLE)
-        .select("id,role")
-        .eq("id", body.referral_code)
-        .limit(1)
-        .execute()
-    )
-    if not referrer_res.data:
-        raise HTTPException(status_code=404, detail="Referral code not found. Ask your referrer for their Kutumb Map User ID.")
-    referrer = referrer_res.data[0]
-    if referrer.get("role") not in _RECRUITABLE_ROLES:
-        raise HTTPException(status_code=400, detail="Referral code belongs to a non-sales member.")
+    # Validate referral code (Kutumb ID) if provided; absent = direct application for admin approval
+    referred_by_id: Optional[str] = None
+    referral_code_stored: Optional[str] = None
+    if body.referral_code and body.referral_code.strip():
+        referral_code_stored = body.referral_code.strip().upper()
+        referrer_res = (
+            sb.table(USERS_TABLE)
+            .select("id,role,kutumb_id")
+            .eq("kutumb_id", referral_code_stored)   # match against stored Kutumb ID
+            .limit(1)
+            .execute()
+        )
+        if not referrer_res.data:
+            raise HTTPException(
+                status_code=404,
+                detail="Kutumb ID not found. Ask your referrer to share their Kutumb ID from their ID card.",
+            )
+        referrer = referrer_res.data[0]
+        if referrer.get("role") not in _RECRUITABLE_ROLES:
+            raise HTTPException(status_code=400, detail="That Kutumb ID belongs to a member who is not yet part of the sales team.")
+        referred_by_id = referrer["id"]
+
+    applicant_id = str(user["id"])
 
     try:
         sb.table(SE_APPLICATIONS_TABLE).insert(
             {
-                "user_id": str(user["id"]),
-                "referral_code": body.referral_code,
-                "referred_by_id": referrer["id"],
+                "user_id": applicant_id,
+                "referral_code": referral_code_stored,
+                "referred_by_id": referred_by_id,
                 "aadhaar_last4": body.aadhaar_last4,
                 "aadhaar_name": body.aadhaar_name,
                 "aadhaar_dob": body.aadhaar_dob,
@@ -197,10 +207,25 @@ def apply_se(body: SEApplicationBody, user: CurrentUser) -> dict[str, Any]:
             }
         ).execute()
     except Exception:
-        logger.exception("Failed to insert SE application for user_id=%s", user.get("id"))
+        logger.exception("Failed to insert SE application for user_id=%s", applicant_id)
         raise HTTPException(status_code=502, detail="Could not save application. Please try again.") from None
 
-    logger.info("SE application submitted user_id=%s referred_by=%s", user.get("id"), referrer["id"])
+    # Append an immutable referral event for audit trail
+    if referral_code_stored:
+        try:
+            sb.table(REFERRAL_EVENTS_TABLE).insert(
+                {
+                    "kutumb_id_used": referral_code_stored,
+                    "referrer_id": referred_by_id,
+                    "referred_id": applicant_id,
+                    "event_type": "se_application",
+                    "metadata": {"role_applied": "se"},
+                }
+            ).execute()
+        except Exception:
+            logger.warning("Could not write referral_event for user_id=%s — non-fatal", applicant_id)
+
+    logger.info("SE application submitted user_id=%s referred_by=%s", applicant_id, referred_by_id)
     return {"ok": True, "status": "pending"}
 
 
@@ -248,7 +273,7 @@ def get_wallet(user: CurrentUser) -> dict[str, Any]:
 
     return {
         "role": role,
-        "referral_code": user_id,
+        "referral_code": str(user.get("kutumb_id") or ""),   # Kutumb ID = referral code
         "personal_sales": personal_sales,
         "team_sales": int(perf.get("team_sales") or 0),
         "rate_per_sale": rate,

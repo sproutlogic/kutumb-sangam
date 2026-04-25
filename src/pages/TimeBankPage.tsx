@@ -480,6 +480,70 @@ export default function TimeBankPage() {
         </div>
       </div>
 
+      {/* ── Kutumb ID Card ── */}
+      {appUser && (
+        <div className="container pt-5">
+          <div className="relative rounded-2xl overflow-hidden shadow-2xl" style={{
+            background: 'linear-gradient(135deg, #3d1a6e 0%, #6b21a8 40%, #7c3aed 70%, #4c1d95 100%)',
+            minHeight: '160px',
+          }}>
+            {/* Card texture overlay */}
+            <div className="absolute inset-0 opacity-10" style={{
+              backgroundImage: 'radial-gradient(circle at 80% 20%, rgba(255,215,0,0.6) 0%, transparent 50%), radial-gradient(circle at 10% 80%, rgba(255,255,255,0.2) 0%, transparent 40%)'
+            }} />
+            {/* Faint banyan silhouette */}
+            <div className="absolute right-0 bottom-0 opacity-[0.07] pointer-events-none">
+              <svg viewBox="0 0 200 150" className="w-48 h-36" fill="white">
+                <path d="M100 10 C90 30 75 50 60 70 C45 90 35 110 40 140 L160 140 C165 110 155 90 140 70 C125 50 110 30 100 10Z" />
+                <rect x="93" y="110" width="14" height="30" rx="3" />
+              </svg>
+            </div>
+
+            <div className="relative p-5 flex flex-col justify-between h-full" style={{ minHeight: '160px' }}>
+              {/* Top row */}
+              <div className="flex items-start justify-between">
+                <div>
+                  <p className="text-[9px] tracking-[0.25em] uppercase text-white/60 font-body mb-0.5">Kutumb Map</p>
+                  <p className="text-[10px] tracking-[0.2em] uppercase text-yellow-300/80 font-body">Samay Bank Member</p>
+                </div>
+                <Hourglass className="w-6 h-6 text-yellow-300/70" />
+              </div>
+
+              {/* Name + ID */}
+              <div className="mt-4">
+                <p className="font-heading text-xl font-bold text-white tracking-wide mb-0.5">
+                  {profile?.display_name ?? appUser.full_name ?? 'Member'}
+                </p>
+                <p className="text-[11px] text-white/50 font-body tracking-widest uppercase">
+                  ID: {appUser.kutumb_id ?? appUser.id.slice(0, 8).toUpperCase()}
+                </p>
+              </div>
+
+              {/* Bottom row: balances */}
+              <div className="flex items-end justify-between mt-4">
+                <div className="flex gap-4">
+                  <div>
+                    <p className="text-[9px] text-white/50 font-body uppercase tracking-wider">Local</p>
+                    <p className="font-heading text-lg font-bold text-white">{(branch?.my_local_balance ?? 0).toFixed(1)}h</p>
+                  </div>
+                  <div>
+                    <p className="text-[9px] text-white/50 font-body uppercase tracking-wider">Global</p>
+                    <p className="font-heading text-lg font-bold text-yellow-300">{(profile?.total_global_credits ?? 0).toFixed(2)}</p>
+                  </div>
+                </div>
+                <div className="text-right">
+                  {profile?.is_community_pillar && (
+                    <span className="text-[9px] px-2 py-0.5 rounded-full bg-yellow-300/20 text-yellow-300 font-bold tracking-wide">
+                      ★ Community Pillar
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="container py-6 space-y-5">
 
         {/* ── My Trust Card / Balance ── */}

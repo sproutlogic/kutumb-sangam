@@ -7,6 +7,7 @@ import { LanguageProvider } from "@/i18n/LanguageContext";
 import { TreeProvider } from "@/contexts/TreeContext";
 import { PlanProvider } from "@/contexts/PlanContext";
 import { AuthProvider } from "@/contexts/AuthContext";
+import { WorkspaceProvider } from "@/contexts/WorkspaceContext";
 import ProtectedRoute from "@/components/ProtectedRoute";
 
 import Index from "@/pages/Index";
@@ -33,6 +34,13 @@ import KutumbCalendarPage from "@/pages/KutumbCalendarPage";
 import KutumbRadarPage from "@/pages/KutumbRadarPage";
 import LegacyBoxPage from "@/pages/LegacyBoxPage";
 import TimeBankPage from "@/pages/TimeBankPage";
+import TransactionsPage from "@/pages/TransactionsPage";
+import KutumbProPage from "@/pages/KutumbProPage";
+import OrgSetupWizard from "@/pages/OrgSetupWizard";
+import OrgListPage from "@/pages/OrgListPage";
+import OrgDashboard from "@/pages/OrgDashboard";
+import OrgMembersPage from "@/pages/OrgMembersPage";
+import OrgJoinPage from "@/pages/OrgJoinPage";
 import ComingSoonPage from "@/pages/ComingSoonPage";
 import NotFound from "@/pages/NotFound";
 
@@ -53,6 +61,7 @@ const App = () => (
           <AuthProvider>
             <TreeProvider>
               <PlanProvider>
+                <WorkspaceProvider>
                 <TooltipProvider delayDuration={300}>
                   <Toaster />
                   <Routes>
@@ -84,6 +93,15 @@ const App = () => (
                     <Route path="/radar" element={<ProtectedRoute><KutumbRadarPage /></ProtectedRoute>} />
                     <Route path="/legacy-box" element={<ProtectedRoute><LegacyBoxPage /></ProtectedRoute>} />
                     <Route path="/time-bank" element={<ProtectedRoute><TimeBankPage /></ProtectedRoute>} />
+                    <Route path="/transactions" element={<ProtectedRoute><TransactionsPage /></ProtectedRoute>} />
+
+                    {/* Kutumb Pro — Community OS */}
+                    <Route path="/kutumb-pro" element={<ProtectedRoute><KutumbProPage /></ProtectedRoute>} />
+                    <Route path="/org/new" element={<ProtectedRoute><OrgSetupWizard /></ProtectedRoute>} />
+                    <Route path="/org/my" element={<ProtectedRoute><OrgListPage /></ProtectedRoute>} />
+                    <Route path="/org/join/:code" element={<ProtectedRoute><OrgJoinPage /></ProtectedRoute>} />
+                    <Route path="/org/:slug" element={<ProtectedRoute><OrgDashboard /></ProtectedRoute>} />
+                    <Route path="/org/:slug/members" element={<ProtectedRoute><OrgMembersPage /></ProtectedRoute>} />
 
                     {/* Upcoming / Launching Soon */}
                     <Route path="/upcoming/:serviceId" element={<ProtectedRoute><ComingSoonPage /></ProtectedRoute>} />
@@ -97,6 +115,7 @@ const App = () => (
                     <Route path="*" element={<NotFound />} />
                   </Routes>
                 </TooltipProvider>
+                </WorkspaceProvider>
               </PlanProvider>
             </TreeProvider>
           </AuthProvider>
