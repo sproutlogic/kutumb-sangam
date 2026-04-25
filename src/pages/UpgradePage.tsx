@@ -96,32 +96,40 @@ const UpgradePage = () => {
             const genCap     = runtime?.generationCap  ?? staticPlan.generationCap;
             const entitle    = runtime?.entitlements   ?? staticPlan.entitlements;
 
-            const isCurrent  = id === currentPlan;
-            const isFree     = price === 0;
-            const isTopTier  = id === 'vansh';
-            const showOffer  = isPreLaunch && prePrice !== null && prePrice < price;
+            const isCurrent    = id === currentPlan;
+            const isFree       = price === 0;
+            const isTopTier    = id === 'vansh';
+            const showOffer    = isPreLaunch && prePrice !== null && prePrice < price;
+            const isComingSoon = id === 'vriksh' || id === 'vansh';
 
             return (
               <div
                 key={id}
                 className={`relative bg-card rounded-2xl p-6 shadow-card border-2 transition-all flex flex-col ${
-                  isTopTier
-                    ? 'border-gold/50 shadow-gold hover:border-gold/80'
-                    : isCurrent
-                      ? 'border-primary shadow-warm'
-                      : 'border-border/50 hover:border-primary/30'
+                  isComingSoon
+                    ? 'border-border/30 opacity-70'
+                    : isTopTier
+                      ? 'border-gold/50 shadow-gold hover:border-gold/80'
+                      : isCurrent
+                        ? 'border-primary shadow-warm'
+                        : 'border-border/50 hover:border-primary/30'
                 }`}
               >
-                {isTopTier && <div className="absolute inset-x-0 top-0 gold-line rounded-t-2xl" />}
+                {isTopTier && !isComingSoon && <div className="absolute inset-x-0 top-0 gold-line rounded-t-2xl" />}
 
                 {/* Badges */}
                 <div className="flex items-center gap-2 mb-3 flex-wrap min-h-[1.5rem]">
-                  {isTopTier && (
+                  {isComingSoon && (
+                    <span className="text-[10px] px-2.5 py-0.5 rounded-full bg-accent/15 text-accent font-semibold font-body tracking-wide">
+                      Coming Soon
+                    </span>
+                  )}
+                  {!isComingSoon && isTopTier && (
                     <span className="text-[10px] px-2.5 py-0.5 rounded-full gradient-gold text-white font-semibold font-body shimmer flex items-center gap-1">
                       <Zap className="w-2.5 h-2.5" /> Best Value
                     </span>
                   )}
-                  {showOffer && (
+                  {!isComingSoon && showOffer && (
                     <span className="text-[10px] px-2.5 py-0.5 rounded-full bg-green-100 dark:bg-green-950/40 text-green-700 dark:text-green-300 font-semibold font-body flex items-center gap-1">
                       <Tag className="w-2.5 h-2.5" /> Pre-launch Offer
                     </span>
@@ -181,7 +189,11 @@ const UpgradePage = () => {
 
                 {/* CTA */}
                 <div className="mt-auto">
-                  {isCurrent ? (
+                  {isComingSoon ? (
+                    <div className="w-full py-2.5 rounded-xl bg-secondary text-center text-sm text-muted-foreground font-body font-medium cursor-not-allowed">
+                      Coming Soon
+                    </div>
+                  ) : isCurrent ? (
                     <div className="w-full py-2.5 rounded-xl bg-secondary text-center text-sm text-muted-foreground font-body font-medium">
                       Your current plan
                     </div>
