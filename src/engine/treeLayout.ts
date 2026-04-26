@@ -36,16 +36,15 @@ const PADDING_Y = 52;
 const PADDING_X = 56;
 /** Horizontal spacing between sibling centers from the parental union midpoint. */
 const CHILD_SPREAD = 68;
+/** Wider spread used when a repositioned child is also part of a couple (prevents frame overlap). */
+const COUPLE_CHILD_SPREAD = 92;
 /** Minimum horizontal gap (square / triangle can be wider than circle diameter). */
 const MIN_SLOT_CENTER_GAP = 68;
 /** Legacy floor; real width scales with how many people share a generation row. */
 const MIN_LAYOUT_CANVAS_WIDTH = 400;
 
-/**
- * Center distance between spouses (mother/wife left, father/husband right; pair centered on the slot).
- */
-/** Center distance between spouses (kept nearly touching for uniform couple spacing). */
-export const SPOUSE_SIDE_OFFSET = 42;
+/** Center distance between spouses — inner shapes ~4 px gap, outer rings nearly touching. */
+export const SPOUSE_SIDE_OFFSET = 40;
 
 /**
  * Maps stored `node.generation` to a signed layout index for Y = -(g × spacing).
@@ -195,7 +194,11 @@ function buildLayoutUnitsForBand(
   return units;
 }
 
-/** After the first pass, snap sibling X positions to the midpoint between their parents in the union. */
+/**
+ * After the first pass, snap sibling X positions to the midpoint between their parents in the union.
+ * When a repositioned child is also part of their own spousal couple, their spouse is dragged along
+ * so couple spacing stays uniform.
+ */
 function repositionChildrenByUnion(
   positioned: PositionedTreeNode[],
   unionRows: UnionRow[],
@@ -203,14 +206,43 @@ function repositionChildrenByUnion(
   if (unionRows.length === 0) return;
 
   const byId = new Map(positioned.map((n) => [n.id, n]));
-  /** Also index node ids loosely (parent ids from DB may differ in hyphenation). */
   const byIdLoose = new Map<string, PositionedTreeNode>();
   for (const n of positioned) {
     byIdLoose.set(n.id, n);
     byIdLoose.set(normalizeUuidKey(n.id), n);
   }
 
+  // Map each node to the union where they appear as male or female (their own couple).
+  const nodeOwnUnion = new Map<string, { union: UnionRow; role: "male" | "female" }>();
   for (const u of unionRows) {
+    if (u.maleNodeId) {
+      nodeOwnUnion.set(u.maleNodeId, { union: u, role: "male" });
+      nodeOwnUnion.set(normalizeUuidKey(u.maleNodeId), { union: u, role: "male" });
+    }
+    if (u.femaleNodeId) {
+      nodeOwnUnion.set(u.femaleNodeId, { union: u, role: "female" });
+      nodeOwnUnion.set(normalizeUuidKey(u.femaleNodeId), { union: u, role: "female" });
+    }
+  }
+
+  function updateNode(id: string, newX: number): void {
+    const node = byId.get(id) ?? byIdLoose.get(normalizeUuidKey(id));
+    if (!node) return;
+    const updated: PositionedTreeNode = { ...node, x: newX };
+    byId.set(id, updated);
+    byIdLoose.set(id, updated);
+    byIdLoose.set(normalizeUuidKey(id), updated);
+    const idx = positioned.findIndex((p) => p.id === id);
+    if (idx >= 0) positioned[idx] = updated;
+  }
+
+  // Process unions oldest-generation first so ancestor couple positions are stable when
+  // descendant children are repositioned.
+  const sortedUnions = [...unionRows].sort(
+    (a, b) => (a.relativeGenIndex ?? 0) - (b.relativeGenIndex ?? 0),
+  );
+
+  for (const u of sortedUnions) {
     const group = nodesForParentalUnionRow(positioned, u);
     if (group.length === 0) continue;
 
@@ -221,13 +253,39 @@ function repositionChildrenByUnion(
     const cx = (m.x + f.x) / 2;
     const k = group.length;
     group.sort((a, b) => a.createdAt - b.createdAt);
+
+    // Use wider spread when any child is also a spouse (prevents couple-frame overlap).
+    const anyChildIsSpouse = group.some(
+      (n) => nodeOwnUnion.has(n.id) || nodeOwnUnion.has(normalizeUuidKey(n.id)),
+    );
+    const spread = anyChildIsSpouse ? COUPLE_CHILD_SPREAD : CHILD_SPREAD;
+
     for (let i = 0; i < k; i++) {
       const node = group[i];
-      const x = cx + (i - (k - 1) / 2) * CHILD_SPREAD;
-      const updated: PositionedTreeNode = { ...node, x };
-      byId.set(node.id, updated);
-      const idx = positioned.findIndex((p) => p.id === node.id);
-      if (idx >= 0) positioned[idx] = updated;
+      const slotX = cx + (i - (k - 1) / 2) * spread; // couple-center for this slot
+
+      const ownPair =
+        nodeOwnUnion.get(node.id) ?? nodeOwnUnion.get(normalizeUuidKey(node.id));
+
+      if (ownPair) {
+        const { union: ou, role } = ownPair;
+        const spouseId = role === "male" ? ou.femaleNodeId : ou.maleNodeId;
+        const spouseNode = byId.get(spouseId) ?? byIdLoose.get(normalizeUuidKey(spouseId));
+
+        if (spouseNode && Math.abs(spouseNode.y - node.y) < 1) {
+          // Drag the whole couple to slotX as couple-center.
+          if (role === "male") {
+            updateNode(node.id, slotX + SPOUSE_SIDE_OFFSET / 2);
+            updateNode(spouseId, slotX - SPOUSE_SIDE_OFFSET / 2);
+          } else {
+            updateNode(node.id, slotX - SPOUSE_SIDE_OFFSET / 2);
+            updateNode(spouseId, slotX + SPOUSE_SIDE_OFFSET / 2);
+          }
+          continue;
+        }
+      }
+
+      updateNode(node.id, slotX);
     }
   }
 }

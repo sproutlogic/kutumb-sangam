@@ -30,7 +30,7 @@ router = APIRouter(prefix="/api", tags=["person"])
 CHILD_RELATIONS = frozenset({"Son", "Daughter", "Adopted Son", "Adopted Daughter"})
 PARENT_RELATIONS = frozenset({"Father", "Mother"})
 SIBLING_RELATIONS = frozenset({"Brother", "Sister"})
-SPOUSE_RELATIONS = frozenset({"Wife", "Husband"})
+SPOUSE_RELATIONS = frozenset({"Wife", "Husband", "Spouse"})
 
 class PersonCreateBody(BaseModel):
     """Person row for Postgres `persons` table. Identity fields are required for every new member."""

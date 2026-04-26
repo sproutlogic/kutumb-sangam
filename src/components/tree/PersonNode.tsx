@@ -55,7 +55,7 @@ export function PersonNode({
   const label =
     isPh && (!node.name.trim() || node.name === "\u2014") ? "\u2014" : node.name;
   const showLabel = label.length > 10 ? label.slice(0, 10) + "\u2026" : label;
-  const relationLabel = /^(wife|husband)$/i.test(node.relation.trim())
+  const relationLabel = /^(wife|husband|spouse)$/i.test(node.relation.trim())
     ? "Spouse"
     : node.relation;
 

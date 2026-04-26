@@ -19,8 +19,7 @@ export const KUTUMB_RELATION_OPTIONS: readonly string[] = [
   "Mother",
   "Brother",
   "Sister",
-  "Wife",
-  "Husband",
+  "Spouse",
   "Adopted Son",
   "Adopted Daughter",
 ] as const;
@@ -32,8 +31,7 @@ export const KUTUMB_RELATION_OPTIONS: readonly string[] = [
 export const ANCESTRAL_ADD_RELATION_OPTIONS: readonly string[] = [
   "Son",
   "Daughter",
-  "Wife",
-  "Husband",
+  "Spouse",
   "Adopted Son",
   "Adopted Daughter",
 ] as const;
@@ -48,7 +46,9 @@ export function normalizeRelationToKutumb(r: string): string {
   const hit = ALL_VRUKSHA_RELATIONS.find((o) => o.toLowerCase() === lower);
   if (hit) return hit;
   const legacy: Record<string, string> = {
-    spouse: "Wife",
+    spouse: "Spouse",
+    wife: "Spouse",
+    husband: "Spouse",
     relative: "Brother",
     father: "Father",
     mother: "Mother",
@@ -63,7 +63,7 @@ export function normalizeRelationToKutumb(r: string): string {
 /** @deprecated use KUTUMB_RELATION_OPTIONS */
 export const VRUKSHA_RELATION_GROUPS: { label: string; options: string[] }[] = [
   { label: "Blood relations", options: ["Son", "Daughter", "Father", "Mother", "Brother", "Sister"] },
-  { label: "Marriage", options: ["Wife", "Husband"] },
+  { label: "Marriage", options: ["Spouse"] },
   { label: "Adopted", options: ["Adopted Son", "Adopted Daughter"] },
 ];
 

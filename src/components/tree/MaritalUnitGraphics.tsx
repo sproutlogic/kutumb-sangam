@@ -3,8 +3,8 @@ import type { PositionedTreeNode } from "@/engine/treeLayout";
 /** Person glyph baseline radius from center. */
 const NODE_R = 18;
 /** Tight padding so pair frame only wraps the two people. */
-const FRAME_MARGIN_X = 4;
-const FRAME_MARGIN_Y = 4;
+const FRAME_MARGIN_X = 3;
+const FRAME_MARGIN_Y = 3;
 
 /** Vertical offset from node center to “+” (must match trunk origin in TreePage). */
 export const SPOUSE_PLUS_Y_OFFSET = 2;
