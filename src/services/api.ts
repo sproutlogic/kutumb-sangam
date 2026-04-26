@@ -343,6 +343,31 @@ export async function saveMatrimonyProfile(vansha_id: string, profile: Matrimony
   await parseJsonOrThrow(res);
 }
 
+// ── Prakriti Score ────────────────────────────────────────────────────────────
+
+export interface PrakritiScore {
+  vansha_id: string;
+  trees_planted: number;
+  eco_hours: number;
+  pledges_completed: number;
+  score: number;
+}
+
+/** Fetch live Prakriti Score for a vansha (eco_hours computed from samay_transactions). */
+export async function fetchPrakritiScore(vansha_id: string): Promise<PrakritiScore | null> {
+  const vid = resolveVanshaIdForApi(vansha_id);
+  if (!vid || !isValidVanshaUuid(vid)) return null;
+  try {
+    const res = await fetchApi(`${getApiBaseUrl()}/api/prakriti/score/${encodeURIComponent(vid)}`, {
+      method: "GET",
+      headers: { Accept: "application/json" },
+    });
+    return (await parseJsonOrThrow(res)) as PrakritiScore;
+  } catch {
+    return null;
+  }
+}
+
 /** Persist Pandit verification request for a member node. */
 export async function requestPanditVerification(params: {
   vansha_id?: string | null;

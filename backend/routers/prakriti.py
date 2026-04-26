@@ -23,6 +23,8 @@ from constants import (
     HARIT_CIRCLES_TABLE,
     PLATFORM_FEE_PCT,
     PRAKRITI_SCORES_TABLE,
+    SAMAY_REQUESTS_TABLE,
+    SAMAY_TRANSACTIONS_TABLE,
     USERS_TABLE,
 )
 from db import get_supabase
@@ -40,26 +42,56 @@ ECO_MULTIPLIER = 1.5  # eco-activity hours earn 1.5× credits in Samay Bank
 
 # ── Prakriti Score ────────────────────────────────────────────────────────────
 
+def _live_eco_hours(vansha_id: str, sb: Any) -> float:
+    """Aggregate completed eco-activity hours from samay_transactions for all vansha members."""
+    users_res = sb.table(USERS_TABLE).select("id").eq("vansha_id", vansha_id).execute()
+    user_ids = [str(u["id"]) for u in (users_res.data or [])]
+    if not user_ids:
+        return 0.0
+    txns = (
+        sb.table(SAMAY_TRANSACTIONS_TABLE)
+        .select(f"final_value, {SAMAY_REQUESTS_TABLE}!request_id(category)")
+        .in_("helper_id", user_ids)
+        .eq("status", "completed")
+        .execute()
+    )
+    return sum(
+        float(t["final_value"])
+        for t in (txns.data or [])
+        if t.get("final_value") is not None
+        and isinstance(t.get(SAMAY_REQUESTS_TABLE), dict)
+        and t[SAMAY_REQUESTS_TABLE].get("category") in ECO_ACTIVITY_CATEGORIES
+    )
+
+
 @router.get("/score/{vansha_id}")
 def get_prakriti_score(vansha_id: str) -> dict[str, Any]:
-    """Return the Prakriti Score card for a family (vansha)."""
+    """Return the live Prakriti Score card for a family (vansha).
+
+    eco_hours is computed in real-time from completed eco-category samay_transactions.
+    trees_planted and pledges_completed are stored manually via the eco-activity endpoint.
+    """
     sb = get_supabase()
-    res = (
+    stored = (
         sb.table(PRAKRITI_SCORES_TABLE)
-        .select("*")
+        .select("trees_planted, pledges_completed")
         .eq("vansha_id", vansha_id)
         .limit(1)
         .execute()
     )
-    if res.data:
-        return res.data[0]
-    # Return zero-state if not seeded yet
+    row = stored.data[0] if stored.data else {"trees_planted": 0, "pledges_completed": 0}
+
+    trees   = int(row.get("trees_planted", 0))
+    pledges = int(row.get("pledges_completed", 0))
+    eco_hours = _live_eco_hours(vansha_id, sb)
+    score = round(trees * 10 + eco_hours * 2 + pledges * 5, 2)
+
     return {
         "vansha_id": vansha_id,
-        "trees_planted": 0,
-        "eco_hours": 0.0,
-        "pledges_completed": 0,
-        "score": 0.0,
+        "trees_planted": trees,
+        "eco_hours": round(eco_hours, 2),
+        "pledges_completed": pledges,
+        "score": score,
     }
 
 
