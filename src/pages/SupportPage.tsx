@@ -13,7 +13,7 @@ interface Faq {
 const faqs: Faq[] = [
   {
     q: 'What is Prakriti by Aarush?',
-    a: 'Prakriti is India\'s environmental family network — built on Vasudhaiv Kutumbakam. Build your Harit Vanshavali (green family tree), earn Eco-Sewa Credits for community service, earn your family\'s Prakriti Score, and preserve your green heritage — verified by Paryavaran Mitras. Powered by Aarush Eco Tech (IIT Kanpur SIIC).',
+    a: 'Prakriti is India\'s environmental family network — built on Vasudhaiv Kutumbakam. Build your Harit Vanshavali (green family tree), earn Eco-Sewa Credits for community service, earn your family\'s Prakriti Score, and preserve your green heritage — verified by Paryavaran Mitras. Powered by Aarush Eco Tech.',
   },
   {
     q: 'How do I start building my Harit Vanshavali?',

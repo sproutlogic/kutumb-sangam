@@ -90,13 +90,24 @@ export function AppTopBar() {
     <>
       <header className="sticky top-0 z-40 flex h-12 items-center gap-2 border-b border-border bg-card/95 px-2 md:px-4 backdrop-blur supports-[backdrop-filter]:bg-card/80">
         <div className="flex min-w-0 flex-1 items-center gap-2 md:w-[180px] md:flex-none">
-          <button
-            type="button"
-            onClick={() => navigate(isTreeInitialized ? '/dashboard' : '/')}
-            className="hidden font-heading text-sm font-semibold text-primary md:inline hover:text-primary/70 transition-colors"
-          >
-            Kutumb
-          </button>
+          <div className="hidden md:flex items-center gap-1.5">
+            <button
+              type="button"
+              onClick={() => navigate(isTreeInitialized ? '/dashboard' : '/')}
+              className="font-heading text-sm font-semibold text-primary hover:text-primary/70 transition-colors"
+            >
+              Kutumb
+            </button>
+            <span className="text-muted-foreground/40 text-xs">·</span>
+            <a
+              href="https://ecotech.co.in"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-[10px] tracking-[0.12em] uppercase text-emerald-600 dark:text-emerald-400 font-body font-semibold hover:underline"
+            >
+              Prakriti by Aarush Eco Tech
+            </a>
+          </div>
           <span className="text-[10px] text-muted-foreground md:hidden">{tr("appTopSafety")}</span>
         </div>
 
