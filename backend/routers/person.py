@@ -261,9 +261,6 @@ def create_person(body: PersonCreateBody) -> dict[str, Any]:
             rel_idx = anchor_gen + 1
             row["relative_gen_index"] = rel_idx
             row["generation"] = rel_idx
-            row["parent_node_id"] = None
-            row["father_node_id"] = None
-            row["mother_node_id"] = None
             parental = _find_union_containing_node(unions(), anchor_id_str)
             if not parental:
                 anc_g = _normalize_gender(anchor.get("gender"))
@@ -321,9 +318,6 @@ def create_person(body: PersonCreateBody) -> dict[str, Any]:
             rel_idx = anchor_gen
             row["relative_gen_index"] = rel_idx
             row["generation"] = rel_idx
-            row["parent_node_id"] = None
-            row["father_node_id"] = None
-            row["mother_node_id"] = None
             row[PARENT_UNION_ID_COLUMN] = None
             ng = _normalize_gender(body.gender)
             anc_g = _normalize_gender(anchor.get("gender"))
@@ -351,12 +345,8 @@ def create_person(body: PersonCreateBody) -> dict[str, Any]:
                 detail=f"Unknown relation for anchored add: {relation_label!r}",
             )
     else:
-        parent_str = str(body.parent_node_id) if body.parent_node_id is not None else None
         row["relative_gen_index"] = int(body.relative_gen_index)
         row["generation"] = int(body.relative_gen_index)
-        row["parent_node_id"] = parent_str
-        row["father_node_id"] = parent_str
-        row["mother_node_id"] = parent_str
         row[PARENT_UNION_ID_COLUMN] = None
 
     if relation_label:
