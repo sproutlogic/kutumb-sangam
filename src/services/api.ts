@@ -343,6 +343,67 @@ export async function saveMatrimonyProfile(vansha_id: string, profile: Matrimony
   await parseJsonOrThrow(res);
 }
 
+// ── Harit Circle / Mitra Earnings ────────────────────────────────────────────
+
+export interface HaritCircle {
+  id: string;
+  name: string;
+  paryavaran_mitra_user_id: string;
+  location_name: string | null;
+  location_lat: number | null;
+  location_lon: number | null;
+  vansha_ids: string[];
+  created_at: string;
+}
+
+export interface MitraEarnings {
+  total_net_earned: number;
+  by_ceremony: Record<string, number>;
+  transactions: { ceremony_type: string; net_amount: number; status: string }[];
+}
+
+export async function fetchHaritCircles(): Promise<HaritCircle[]> {
+  try {
+    const res = await fetchApi(`${getApiBaseUrl()}/api/prakriti/circles`, {
+      headers: { Accept: "application/json" },
+    });
+    return (await parseJsonOrThrow(res)) as HaritCircle[];
+  } catch { return []; }
+}
+
+export async function createHaritCircle(body: {
+  name: string;
+  location_name?: string;
+}): Promise<{ ok: boolean }> {
+  const res = await fetchApi(`${getApiBaseUrl()}/api/prakriti/circles`, {
+    method: "POST",
+    headers: { Accept: "application/json", "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  return (await parseJsonOrThrow(res)) as { ok: boolean };
+}
+
+export async function fetchMitraEarnings(): Promise<MitraEarnings | null> {
+  try {
+    const res = await fetchApi(`${getApiBaseUrl()}/api/prakriti/ceremony/my-earnings`, {
+      headers: { Accept: "application/json" },
+    });
+    return (await parseJsonOrThrow(res)) as MitraEarnings;
+  } catch { return null; }
+}
+
+export async function logEcoCeremony(body: {
+  ceremony_type: string;
+  vansha_id?: string;
+}): Promise<{ ok: boolean; gross_amount: number; net_amount: number }> {
+  const res = await fetchApi(`${getApiBaseUrl()}/api/prakriti/ceremony`, {
+    method: "POST",
+    headers: { Accept: "application/json", "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  return (await parseJsonOrThrow(res)) as { ok: boolean; gross_amount: number; net_amount: number };
+}
+
 // ── Prakriti Score ────────────────────────────────────────────────────────────
 
 export interface PrakritiScore {

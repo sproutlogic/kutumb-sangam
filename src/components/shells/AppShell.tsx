@@ -3,7 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { useLang } from '@/i18n/LanguageContext';
 import {
   Hourglass, Home, TreePine, UserPlus, ShieldCheck, Search,
-  HelpCircle, LogOut, CalendarDays, Radar, Archive, Receipt, Building2,
+  HelpCircle, LogOut, CalendarDays, Radar, Archive, Receipt, Building2, Leaf, IndianRupee,
 } from 'lucide-react';
 import { useTree } from '@/contexts/TreeContext';
 import { useAuth } from '@/contexts/AuthContext';
@@ -20,8 +20,10 @@ const navItems = [
   { icon: CalendarDays, labelKey: 'kutumbCalendar'   as const, path: '/calendar' },
   { icon: Radar,        labelKey: 'kutumbRadar'      as const, path: '/radar' },
   { icon: Archive,      labelKey: 'legacyBox'        as const, path: '/legacy-box' },
-  { icon: Receipt,      labelKey: 'transactions'     as const, path: '/transactions' },
-  { icon: HelpCircle,   labelKey: 'support'          as const, path: '/support' },
+  { icon: Receipt,       labelKey: 'transactions'     as const, path: '/transactions' },
+  { icon: Leaf,          labelKey: 'haritCircleNav'  as const, path: '/harit-circle' },
+  { icon: IndianRupee,   labelKey: 'mitraEarningsNav' as const, path: '/mitra-earnings' },
+  { icon: HelpCircle,    labelKey: 'support'          as const, path: '/support' },
 ];
 
 interface AppShellProps {

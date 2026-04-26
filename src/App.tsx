@@ -42,6 +42,8 @@ import OrgDashboard from "@/pages/OrgDashboard";
 import OrgMembersPage from "@/pages/OrgMembersPage";
 import OrgJoinPage from "@/pages/OrgJoinPage";
 import ComingSoonPage from "@/pages/ComingSoonPage";
+import HaritCirclePage from "@/pages/HaritCirclePage";
+import ParyavaranMitraEarnings from "@/pages/ParyavaranMitraEarnings";
 import NotFound from "@/pages/NotFound";
 
 const queryClient = new QueryClient({
@@ -107,6 +109,8 @@ const App = () => (
                     <Route path="/upcoming/:serviceId" element={<ProtectedRoute><ComingSoonPage /></ProtectedRoute>} />
 
                     {/* Protected — Pandit role only */}
+                    <Route path="/harit-circle" element={<ProtectedRoute><HaritCirclePage /></ProtectedRoute>} />
+                    <Route path="/mitra-earnings" element={<ProtectedRoute><ParyavaranMitraEarnings /></ProtectedRoute>} />
                     <Route path="/pandit" element={<ProtectedRoute requiredRole="pandit"><PanditDashboard /></ProtectedRoute>} />
 
                     {/* Pandit KYC is public so Pandits can register */}
