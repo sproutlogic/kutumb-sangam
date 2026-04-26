@@ -1,8 +1,10 @@
 import type { PositionedTreeNode } from "@/engine/treeLayout";
 
-/** Frame padding around genogram shapes (triangle base can be ~42px for R=18). */
-const PAD_X = 46;
-const PAD_Y = 40;
+/** Person glyph baseline radius from center. */
+const NODE_R = 18;
+/** Tight padding so pair frame only wraps the two people. */
+const FRAME_MARGIN_X = 4;
+const FRAME_MARGIN_Y = 4;
 
 /** Vertical offset from node center to “+” (must match trunk origin in TreePage). */
 export const SPOUSE_PLUS_Y_OFFSET = 2;
@@ -18,14 +20,25 @@ function orderedPair(na: PositionedTreeNode, nb: PositionedTreeNode): Pair {
   return na.x <= nb.x ? { a: na, b: nb } : { a: nb, b: na };
 }
 
+function nodeHalfWidth(node: PositionedTreeNode): number {
+  if (node.gender === "female" || node.gender === "male") return NODE_R;
+  // Triangle nodes are a little wider than the square/circle at the same R.
+  return (2 * NODE_R) / Math.sqrt(3);
+}
+
+function nodeHalfHeight(): number {
+  return NODE_R;
+}
+
 /** Rectangle around mother/wife (left) and father/husband (right); drawn behind nodes. */
 export function SpouseCoupleFrame({ left, right }: { left: PositionedTreeNode; right: PositionedTreeNode }) {
   const { a, b } = orderedPair(left, right);
   const y = a.y;
-  const x1 = a.x - PAD_X;
-  const x2 = b.x + PAD_X;
-  const y1 = y - PAD_Y;
-  const y2 = y + PAD_Y;
+  const x1 = Math.min(a.x - nodeHalfWidth(a), b.x - nodeHalfWidth(b)) - FRAME_MARGIN_X;
+  const x2 = Math.max(a.x + nodeHalfWidth(a), b.x + nodeHalfWidth(b)) + FRAME_MARGIN_X;
+  const yHalf = nodeHalfHeight() + FRAME_MARGIN_Y;
+  const y1 = y - yHalf;
+  const y2 = y + yHalf;
   const w = x2 - x1;
   const h = y2 - y1;
   return (

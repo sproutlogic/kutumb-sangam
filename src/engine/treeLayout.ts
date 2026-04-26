@@ -44,8 +44,8 @@ const MIN_LAYOUT_CANVAS_WIDTH = 400;
 /**
  * Center distance between spouses (mother/wife left, father/husband right; pair centered on the slot).
  */
-/** Center distance between spouses (must be < 2× slot gap so couples in adjacent slots do not overlap). */
-export const SPOUSE_SIDE_OFFSET = 52;
+/** Center distance between spouses (kept nearly touching for uniform couple spacing). */
+export const SPOUSE_SIDE_OFFSET = 42;
 
 /**
  * Maps stored `node.generation` to a signed layout index for Y = -(g × spacing).
@@ -125,7 +125,8 @@ type LayoutUnit =
   | { kind: "single"; node: TreeNode };
 
 function isSpouseEdge(e: TreeEdge): boolean {
-  return e.relation === "spouse" || e.relation.toLowerCase() === "spouse";
+  const rel = e.relation.trim().toLowerCase();
+  return rel === "spouse" || rel === "wife" || rel === "husband";
 }
 
 function unitMinTime(u: LayoutUnit): number {

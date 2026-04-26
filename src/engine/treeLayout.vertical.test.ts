@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { layoutTreeNodes } from "./treeLayout";
+import { layoutTreeNodes, SPOUSE_SIDE_OFFSET } from "./treeLayout";
 import type { TreeNode } from "./types";
 
 function minimalNode(
@@ -40,5 +40,24 @@ describe("vertical growth (Upright: ancestors toward bottom, progeny toward top)
     expect(y("ggf")).toBeGreaterThan(y("gs"));
     expect(y("ggf")).toBeGreaterThan(y("self"));
     expect(y("self")).toBeGreaterThan(y("gs"));
+  });
+
+  it("treats wife/husband edges as spouse pairs with uniform spacing", () => {
+    const male = minimalNode("m1", "Anuj", 0, "self");
+    const female = {
+      ...minimalNode("f1", "Amit spouse", 0, "Wife"),
+      gender: "female" as const,
+      createdAt: 2,
+    };
+
+    const { positionedNodes } = layoutTreeNodes(
+      [male, female],
+      [{ from: male.id, to: female.id, relation: "Wife" }],
+      [],
+    );
+
+    const a = positionedNodes.find((n) => n.id === male.id)!;
+    const b = positionedNodes.find((n) => n.id === female.id)!;
+    expect(Math.abs(a.x - b.x)).toBe(SPOUSE_SIDE_OFFSET);
   });
 });

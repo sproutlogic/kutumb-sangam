@@ -16,6 +16,7 @@ import {
   getTreeNodeContainerVariant,
   idEqNodeIds,
   isAdoptedChildRelation,
+  isSpouseRelation,
 } from '@/constants/vrukshaRelations';
 import { PersonNode } from '@/components/tree/PersonNode';
 import {
@@ -107,16 +108,14 @@ const TreePage = () => {
 
   const edges = state.edges;
   const nodeMap = Object.fromEntries(positionedNodes.map((n) => [n.id, n]));
-  const spouseEdges = edges.filter(
-    (e) => e.relation === "spouse" || e.relation.toLowerCase() === "spouse",
-  );
+  const spouseEdges = edges.filter((e) => isSpouseRelation(e.relation));
   /**
    * Drop edges that duplicate the union trunk: any link between a child of union u
    * and u’s male or female node (covers Son/Daughter/Father/Mother and legacy labels).
    */
   const lineageEdges = useMemo(() => {
     const raw = edges.filter(
-      (e) => e.relation !== "spouse" && e.relation.toLowerCase() !== "spouse",
+      (e) => !isSpouseRelation(e.relation),
     );
     const unionRows = state.unionRows ?? [];
 
