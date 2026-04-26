@@ -51,6 +51,7 @@ const PanditKycPage = () => {
         <div className="w-16 h-16 rounded-full gradient-saffron flex items-center justify-center mx-auto mb-4 shadow-warm">
           <ShieldCheck className="w-8 h-8 text-primary-foreground" />
         </div>
+        <p className="text-[10px] tracking-[0.15em] uppercase text-emerald-600 font-body mb-1">Paryavaran Mitra Enrollment</p>
         <h1 className="font-heading text-2xl font-bold mb-2">{tr('panditKycTitle')}</h1>
         <p className="text-muted-foreground font-body">{tr('panditKycSubtitle')}</p>
       </div>

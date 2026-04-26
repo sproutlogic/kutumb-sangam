@@ -12,24 +12,24 @@ interface Faq {
 
 const faqs: Faq[] = [
   {
-    q: 'What is Kutumb Map?',
-    a: 'Kutumb Map is a family tree and time-banking platform built on the principle of Vasudhaiv Kutumbakam — the world is one family. You can build your family tree, connect with relatives, share skills through the Samay Bank, and verify ancestry with trusted Pandits.',
+    q: 'What is Prakriti by Aarush?',
+    a: 'Prakriti is India\'s environmental family network — built on Vasudhaiv Kutumbakam. Build your Harit Vanshavali (green family tree), earn Eco-Sewa Credits for community service, earn your family\'s Prakriti Score, and preserve your green heritage — verified by Paryavaran Mitras. Powered by Aarush Eco Tech (IIT Kanpur SIIC).',
   },
   {
-    q: 'How do I start building my family tree?',
+    q: 'How do I start building my Harit Vanshavali?',
     a: 'Click "Start Your Journey" in the sidebar. The onboarding wizard will guide you through entering your identity details, naming your family tree (vansha), and adding close family members. It takes about 3 minutes.',
   },
   {
-    q: 'What is the Samay Bank (Time Bank)?',
-    a: 'The Samay Bank lets you offer your skills and spare time to family and community members. Every hour you give earns you 1 Samay Credit. You can spend credits when you need help — with teaching, cooking, repairs, eldercare, and more.',
+    q: 'What is the Eco-Sewa Exchange?',
+    a: 'The Eco-Sewa Exchange lets you offer your skills and time to family and community. Every hour earns 1 Eco-Sewa Credit. Eco-activities (tree planting, waste segregation, clean-up drives) earn a 1.5× bonus multiplier. Your Prakriti Score rises with every act of service.',
   },
   {
     q: 'Is my family data private and secure?',
     a: 'Yes. All data is encrypted end-to-end. You control exactly what each family member can see. Private nodes are hidden from other relatives. We never sell your data and never share lineage information without your explicit consent.',
   },
   {
-    q: 'What is Pandit Verification?',
-    a: 'A registered Pandit reviews your ancestral details and verifies your lineage. A verified node gets a trust seal, which increases confidence in matrimonial and gotra-safe matching flows.',
+    q: 'What is Paryavaran Mitra Verification?',
+    a: 'A KYC-verified Paryavaran Mitra (Eco-Ambassador) reviews your ancestral details and verifies your Harit Vanshavali. A verified node gets a trust seal. Paryavaran Mitras also lead eco-ceremonies: Vriksha Pratishtha, Jal Puja, and Dharti Sandesh recordings.',
   },
   {
     q: 'What are the subscription plans?',

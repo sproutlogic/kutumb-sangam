@@ -23,7 +23,7 @@ const SignIn = () => {
   const location = useLocation();
   const { toast } = useToast();
 
-  const from = (location.state as { from?: { pathname: string } })?.from?.pathname ?? '/time-bank';
+  const from = (location.state as { from?: { pathname: string } })?.from?.pathname ?? '/dashboard';
 
   const [showEmail, setShowEmail] = useState(false);
   const [email, setEmail] = useState('');

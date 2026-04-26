@@ -158,7 +158,7 @@ def _send_notification(
         "type": f"verification_{action}",
         "title": "Verification Approved ✓" if approved else "Verification Rejected",
         "body": (
-            "A member in your family tree has been verified by a Pandit."
+            "A member in your Harit Vanshavali has been verified by a Paryavaran Mitra."
             if approved
             else f"Verification was not approved.{' Reason: ' + notes if notes else ''}"
         ),

@@ -10,8 +10,8 @@ const Landing = () => {
       {/* ── Top Nav ───────────────────────────────────────────────── */}
       <nav className="fixed top-0 inset-x-0 z-50 flex items-center justify-between px-6 py-4 bg-background/80 backdrop-blur-md border-b border-border/40">
         <div className="flex items-center gap-2">
-          <span className="text-xl font-heading font-bold text-primary">Kutumb</span>
-          <span className="text-xs tracking-[0.2em] uppercase text-muted-foreground font-body">Map</span>
+          <span className="text-xl font-heading font-bold text-primary">Prakriti</span>
+          <span className="text-xs tracking-[0.15em] uppercase text-muted-foreground font-body">by Aarush</span>
         </div>
         <div className="flex items-center gap-3">
           <button
@@ -65,8 +65,8 @@ const Landing = () => {
           </h1>
 
           <p className="text-lg md:text-xl opacity-80 max-w-2xl mx-auto mb-4 font-body leading-relaxed animate-fade-in" style={{ animationDelay: '200ms' }}>
-            From the Maha Upanishad, a timeless truth that binds all of humanity together —
-            every being on this Earth belongs to one universal family.
+            Build your <strong>Harit Vanshavali</strong> — your family's green legacy across generations.
+            Earn Eco-Sewa Credits, earn your Prakriti Score, and preserve what matters most.
           </p>
           <p className="text-base md:text-lg opacity-60 max-w-xl mx-auto mb-10 font-body italic animate-fade-in" style={{ animationDelay: '250ms' }}>
             "One who is rooted in the self, sees all beings as kin, and the world as one home."
@@ -77,7 +77,7 @@ const Landing = () => {
               onClick={() => navigate('/onboarding')}
               className="shimmer px-8 py-4 rounded-xl gradient-gold text-white font-semibold font-body text-lg shadow-gold hover:opacity-90 transition-all hover:-translate-y-0.5"
             >
-              Start Your Journey
+              Start Your Green Journey
             </button>
             <button
               onClick={() => navigate('/signin')}
@@ -121,8 +121,7 @@ const Landing = () => {
             family tree rooted in the same soil.
           </p>
           <p className="text-muted-foreground font-body text-lg leading-relaxed">
-            Kutumb Map exists to make this vision tangible. To help you discover, reconnect, and nurture
-            the invisible threads that bind you to the great human family — starting with your own.
+            Prakriti by Aarush Eco Tech exists to make this vision tangible — through your Harit Vanshavali, Eco-Sewa Credits, and Prakriti Score. Discover, reconnect, and nurture the invisible threads that bind you to the great human family, starting with your own.
           </p>
         </div>
       </section>
@@ -196,32 +195,31 @@ const Landing = () => {
       <section className="container py-20 md:py-28 px-6">
         <div className="grid md:grid-cols-2 gap-12 items-center max-w-5xl mx-auto">
           <div>
-            <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-primary/10 text-primary text-xs tracking-[0.2em] uppercase font-body mb-6">
-              <Clock className="w-3.5 h-3.5" />
-              The Time Bank
+            <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-emerald-100 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 text-xs tracking-[0.2em] uppercase font-body mb-6">
+              <Leaf className="w-3.5 h-3.5" />
+              Eco-Sewa Exchange
             </div>
             <h2 className="font-heading text-3xl md:text-4xl font-bold mb-6">
-              Time Is the World's Most Precious Currency
+              Eco-Service is the World's Most Precious Currency
             </h2>
             <p className="text-muted-foreground font-body text-lg leading-relaxed mb-5">
-              Money can be earned, saved, and spent — but every hour given to another human being
-              is an act of pure love. It cannot be manufactured. It cannot be bought back.
+              Every hour of community service — tree planting, waste segregation, clean-up drives —
+              earns you <strong className="text-foreground">Eco-Sewa Credits</strong>. Eco-activities earn a 1.5× bonus multiplier.
             </p>
             <p className="text-muted-foreground font-body text-lg leading-relaxed mb-5">
-              In the spirit of Vasudhaiv Kutumbakam, Kutumb Map introduces the <strong className="text-foreground">Samay Bank</strong> —
-              a time-banking system where you offer your skills and hours to family and community,
-              and earn credits when you need help in return.
+              Teaching, cooking, eldercare, repairs — all accepted in the <strong className="text-foreground">Eco-Sewa Exchange</strong>.
+              Your family's Prakriti Score rises with every act of service.
             </p>
             <p className="text-muted-foreground font-body text-lg leading-relaxed">
-              Teaching, cooking, eldercare, repairs, transport — every hour given strengthens the
-              bonds of the family we share. This is Vasudhaiv Kutumbakam in daily practice.
+              This is Vasudhaiv Kutumbakam and MOA Object 2, 3, 10 in daily practice —
+              sustainability, efficient resource use, and community CSR woven into your family tree.
             </p>
           </div>
           <div className="space-y-4">
             {[
-              { icon: '🎓', title: 'Give an hour of teaching', credit: 'Earn 1 Samay Credit' },
-              { icon: '🍳', title: 'Cook a meal for a neighbour', credit: 'Earn 1 Samay Credit' },
-              { icon: '🔧', title: 'Help with a repair', credit: 'Earn 1 Samay Credit' },
+              { icon: '🌱', title: 'Plant a tree at Van Mahotsav', credit: 'Earn 1.5× Eco-Sewa Credits' },
+              { icon: '♻️', title: 'Run a waste segregation drive', credit: 'Earn 1.5× Eco-Sewa Credits' },
+              { icon: '🎓', title: 'Teach a skill to the community', credit: 'Earn 1 Eco-Sewa Credit' },
               { icon: '🤝', title: 'Spend credits when you need help', credit: 'The family gives back' },
             ].map((item, i) => (
               <div key={i} className="flex items-center gap-4 bg-card rounded-xl p-4 border border-border/50 shadow-card animate-fade-in" style={{ animationDelay: `${i * 100}ms` }}>
@@ -236,7 +234,7 @@ const Landing = () => {
               onClick={() => navigate('/onboarding')}
               className="w-full py-3.5 rounded-xl gradient-hero text-primary-foreground font-semibold font-body shadow-warm hover:opacity-90 transition-opacity"
             >
-              Join the Samay Bank →
+              Join the Eco-Sewa Exchange →
             </button>
           </div>
         </div>
@@ -264,13 +262,13 @@ const Landing = () => {
             {[
               {
                 icon: TreePine,
-                title: 'Build Your Vansha',
-                desc: 'Create a living, breathing record of your family across generations. Know your roots to understand your place in the great human family.',
+                title: 'Build Your Harit Vanshavali',
+                desc: 'Create your family\'s multi-generational environmental legacy. Trees planted, drives organised, Eco-Credits earned — all recorded in your Harit Vanshavali.',
               },
               {
                 icon: Heart,
-                title: 'Verify & Trust',
-                desc: 'Ancestral knowledge verified by trusted Pandits. Your lineage — authenticated, honoured, and preserved for generations to come.',
+                title: 'Paryavaran Mitra Verified',
+                desc: 'Eco-Ambassadors verify your ancestral data and lead Vriksha Pratishtha & Jal Puja ceremonies. Your lineage — authenticated, honoured, and green.',
               },
               {
                 icon: Globe2,
@@ -322,7 +320,8 @@ const Landing = () => {
       {/* Footer */}
       <footer className="border-t border-border py-8 bg-background">
         <div className="container text-center text-sm text-muted-foreground font-body">
-          <p className="font-heading font-semibold text-foreground mb-1">Kutumb Map</p>
+          <p className="font-heading font-semibold text-foreground mb-1">Prakriti by Aarush Eco Tech</p>
+          <p className="text-xs opacity-70 mb-1">IIT Kanpur SIIC · prakriti.ecotech.co.in</p>
           <p>© {new Date().getFullYear()} Aarush Eco Tech. All rights reserved.</p>
           <p className="mt-2 text-xs italic opacity-70">वसुधैव कुटुम्बकम् — The world is one family.</p>
         </div>

@@ -13,7 +13,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from routers import (
     admin, auth_router, calendar, kutumb_pro, legacy_box, matrimony,
-    notifications, pandit, payments, person, radar, sales, time_bank, tree, union, verification,
+    notifications, pandit, payments, person, prakriti, radar, sales, time_bank, tree, union, verification,
 )
 from workers.matcher import create_matcher_scheduler
 from config import get_settings
@@ -68,6 +68,7 @@ app.include_router(calendar.router)
 app.include_router(legacy_box.router)
 app.include_router(radar.router)
 app.include_router(time_bank.router)
+app.include_router(prakriti.router)
 
 
 @app.api_route("/health", methods=["GET", "HEAD"])
