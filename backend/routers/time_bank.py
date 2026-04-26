@@ -205,9 +205,27 @@ def _update_rating_averages(user_id: str) -> None:
     ).execute()
 
 
+ECO_ACTIVITY_CATEGORIES = {
+    "tree_planting", "waste_segregation", "clean_up_drive",
+    "water_conservation", "eco_awareness", "solar_adoption", "composting",
+}
+ECO_MULTIPLIER = 1.5
+
+
+def _get_eco_multiplier(sb: Any, request_id: str | None) -> float:
+    """Return 1.5 if the samay_request is an eco-activity category, else 1.0."""
+    if not request_id:
+        return 1.0
+    req = sb.table(SAMAY_REQUESTS_TABLE).select("category").eq("id", request_id).limit(1).execute()
+    if req.data and req.data[0].get("category") in ECO_ACTIVITY_CATEGORIES:
+        return ECO_MULTIPLIER
+    return 1.0
+
+
 def _apply_credit_transfer(txn: dict) -> None:
     """
     Zero-sum local transfer or D-score boosted global credit mint.
+    Eco-activity categories earn a 1.5× multiplier for the helper.
     Must only be called once per transaction.
     """
     sb = _sb()
@@ -217,13 +235,16 @@ def _apply_credit_transfer(txn: dict) -> None:
     branch_id = txn.get("branch_id")
     credit_type = txn.get("credit_type", "local")
 
+    eco_mult = _get_eco_multiplier(sb, txn.get("request_id"))
+    helper_hours = round(hours * eco_mult, 4)  # helper earns boosted hours; requester always pays base
+
     if credit_type == "local" and branch_id:
         branch = sb.table(SAMAY_BRANCHES_TABLE).select("negative_limit_hours").eq("id", branch_id).limit(1).execute()
         limit = float(branch.data[0]["negative_limit_hours"]) if branch.data else 5.0
 
         recv = _get_member(branch_id, requester_id)
         if recv:
-            new_bal = float(recv["local_balance"]) - hours
+            new_bal = float(recv["local_balance"]) - hours  # requester pays base hours
             if new_bal < -limit:
                 raise HTTPException(
                     status_code=400,
@@ -234,12 +255,15 @@ def _apply_credit_transfer(txn: dict) -> None:
         prov = _get_member(branch_id, helper_id)
         if prov:
             sb.table(SAMAY_BRANCH_MEMBERS_TABLE).update(
-                {"local_balance": float(prov["local_balance"]) + hours}
+                {"local_balance": round(float(prov["local_balance"]) + helper_hours, 4)}
             ).eq("branch_id", branch_id).eq("user_id", helper_id).execute()
+
+        # Store final_value so Prakriti Score can aggregate eco hours
+        sb.table(SAMAY_TRANSACTIONS_TABLE).update({"final_value": helper_hours}).eq("id", txn["id"]).execute()
 
     elif credit_type == "global":
         d_score = _update_d_score(helper_id)
-        final_value = round(hours * (1 + d_score), 4)
+        final_value = round(helper_hours * (1 + d_score), 4)
         sb.table(SAMAY_TRANSACTIONS_TABLE).update({"final_value": final_value}).eq("id", txn["id"]).execute()
 
         # Credit helper's global profile
