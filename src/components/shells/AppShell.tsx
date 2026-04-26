@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useLang } from '@/i18n/LanguageContext';
 import {
@@ -9,6 +9,8 @@ import { useTree } from '@/contexts/TreeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { AppTopBar } from '@/components/shells/AppTopBar';
 import { UPCOMING_SERVICES } from '@/config/upcomingServices.config';
+import { fetchVanshaTree, setPersistedVanshaId } from '@/services/api';
+import { backendPayloadToTreeState } from '@/services/mapVanshaPayload';
 
 const navItems = [
   { icon: Hourglass,    labelKey: 'sewaChakraNav'   as const, path: '/time-bank' },
@@ -34,9 +36,21 @@ const AppShell: React.FC<AppShellProps> = ({ children }) => {
   const navigate = useNavigate();
   const location = useLocation();
   const { tr, lang } = useLang();
-  const { resetTree } = useTree();
+  const { resetTree, loadTreeState, isTreeInitialized } = useTree();
   const { appUser } = useAuth();
   const hasPro = appUser?.kutumb_pro;
+
+  // After login the local tree state is empty (localStorage was cleared on logout).
+  // Use appUser.vansha_id — which comes from the backend /api/auth/me — to fetch
+  // and restore the full tree. Runs once per session when the tree is unpopulated.
+  useEffect(() => {
+    const vid = appUser?.vansha_id;
+    if (!vid || isTreeInitialized) return;
+    setPersistedVanshaId(vid);
+    fetchVanshaTree(vid)
+      .then((data) => loadTreeState(backendPayloadToTreeState(data)))
+      .catch(() => { /* non-fatal — user can still proceed; tree may be empty */ });
+  }, [appUser?.vansha_id, isTreeInitialized, loadTreeState]);
 
   const handleLogout = () => {
     resetTree();
