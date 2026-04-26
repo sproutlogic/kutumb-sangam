@@ -534,9 +534,11 @@ export default function TimeBankPage() {
                   <p className="font-heading text-xl font-bold text-white tracking-wide truncate">
                     {profile?.display_name ?? appUser.full_name ?? 'Member'}
                   </p>
-                  <p className="text-[11px] text-amber-300/70 font-mono tracking-widest mt-0.5">
-                    {appUser.kutumb_id ?? appUser.id.slice(0, 10).toUpperCase()}
-                  </p>
+                  {appUser.kutumb_id && (
+                    <p className="text-[11px] text-amber-300/70 font-mono tracking-widest mt-0.5">
+                      {appUser.kutumb_id}
+                    </p>
+                  )}
                   {profile?.is_community_pillar && (
                     <span className="inline-flex items-center gap-1 mt-2 text-[10px] px-2.5 py-0.5 rounded-full bg-amber-300/20 text-amber-300 font-bold border border-amber-300/30">
                       <Award className="w-3 h-3" /> Community Pillar

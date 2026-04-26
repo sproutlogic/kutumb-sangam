@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Wallet, TrendingUp, Users, Copy, CheckCheck } from 'lucide-react';
 import { getApiBaseUrl } from '@/services/api';
 import { useLang } from '@/i18n/LanguageContext';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface WalletData {
   role: string;
@@ -26,6 +27,7 @@ function getAuthToken(): string {
 
 export function EarningsWallet() {
   const { tr } = useLang();
+  const { appUser } = useAuth();
   const [data, setData] = useState<WalletData | null>(null);
   const [loading, setLoading] = useState(true);
   const [copied, setCopied] = useState(false);
@@ -41,9 +43,13 @@ export function EarningsWallet() {
       .finally(() => setLoading(false));
   }, []);
 
+  // Canonical ID: always prefer kutumb_id from auth; fall back to wallet
+  // referral_code. Never expose a raw UUID.
+  const displayCode = appUser?.kutumb_id ?? data?.referral_code ?? null;
+
   function copyCode() {
-    if (!data || !data.referral_code) return;
-    navigator.clipboard.writeText(data.referral_code).then(() => {
+    if (!displayCode) return;
+    navigator.clipboard.writeText(displayCode).then(() => {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     });
@@ -60,9 +66,6 @@ export function EarningsWallet() {
   // Only show for sales roles
   const salesRoles = ['se', 'cp', 'rp', 'zp', 'np', 'admin', 'superadmin'];
   if (!salesRoles.includes(data.role)) return null;
-
-  // referral_code is now the stored kutumb_id (e.g. KMAB3CD7EF) — display as-is
-  const displayCode = data.referral_code || '—';
 
   return (
     <div className="bg-gradient-to-br from-primary/8 to-accent/8 rounded-xl p-5 shadow-card border border-primary/20 animate-fade-in">
@@ -105,22 +108,25 @@ export function EarningsWallet() {
         </p>
       )}
 
-      {/* Referral code */}
-      <div className="flex items-center gap-2">
-        <div className="flex-1 bg-card/80 rounded-lg px-3 py-2 border border-border/40">
-          <p className="text-[10px] text-muted-foreground font-body mb-0.5">{tr('seYourReferralCode')}</p>
-          <p className="text-sm font-mono font-bold tracking-widest text-primary">{displayCode}</p>
-        </div>
-        <button
-          onClick={copyCode}
-          className="p-2.5 rounded-lg bg-primary/10 hover:bg-primary/20 transition-colors text-primary"
-          title={tr('copy')}
-        >
-          {copied ? <CheckCheck className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
-        </button>
-      </div>
-
-      <p className="text-[10px] text-muted-foreground font-body mt-2">{tr('seReferralCodeHint')}</p>
+      {/* Referral code — only shown once kutumb_id is assigned */}
+      {displayCode && (
+        <>
+          <div className="flex items-center gap-2">
+            <div className="flex-1 bg-card/80 rounded-lg px-3 py-2 border border-border/40">
+              <p className="text-[10px] text-muted-foreground font-body mb-0.5">{tr('seYourReferralCode')}</p>
+              <p className="text-sm font-mono font-bold tracking-widest text-primary">{displayCode}</p>
+            </div>
+            <button
+              onClick={copyCode}
+              className="p-2.5 rounded-lg bg-primary/10 hover:bg-primary/20 transition-colors text-primary"
+              title={tr('copy')}
+            >
+              {copied ? <CheckCheck className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+            </button>
+          </div>
+          <p className="text-[10px] text-muted-foreground font-body mt-2">{tr('seReferralCodeHint')}</p>
+        </>
+      )}
     </div>
   );
 }
