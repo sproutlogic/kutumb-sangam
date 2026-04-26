@@ -9,10 +9,10 @@ const Landing = () => {
 
       {/* ── Top Nav ───────────────────────────────────────────────── */}
       <nav className="fixed top-0 inset-x-0 z-50 flex items-center justify-between px-6 py-4 bg-background/80 backdrop-blur-md border-b border-border/40">
-        <div className="flex items-center gap-2">
+        <a href="https://ecotech.co.in" target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
           <span className="text-xl font-heading font-bold text-primary">Prakriti</span>
           <span className="text-xs tracking-[0.15em] uppercase text-muted-foreground font-body">by Aarush</span>
-        </div>
+        </a>
         <div className="flex items-center gap-3">
           <button
             onClick={() => navigate('/signin')}
@@ -210,10 +210,6 @@ const Landing = () => {
               Teaching, cooking, eldercare, repairs — all accepted in the <strong className="text-foreground">Eco-Sewa Exchange</strong>.
               Your family's Prakriti Score rises with every act of service.
             </p>
-            <p className="text-muted-foreground font-body text-lg leading-relaxed">
-              This is Vasudhaiv Kutumbakam and MOA Object 2, 3, 10 in daily practice —
-              sustainability, efficient resource use, and community CSR woven into your family tree.
-            </p>
           </div>
           <div className="space-y-4">
             {[
@@ -273,7 +269,7 @@ const Landing = () => {
               {
                 icon: Globe2,
                 title: 'Connect Beyond Borders',
-                desc: 'Discover relatives across cities, countries, and continents. The Kutumb Radar finds the invisible threads that connect you to kin worldwide.',
+                desc: 'Discover relatives across cities, countries, and continents. The Kutumb Radar uncovers the invisible threads that connect you to kin worldwide.',
               },
             ].map((card, i) => (
               <div key={i} className="bg-card rounded-2xl p-8 border border-border/50 shadow-card hover:shadow-elevated hover:-translate-y-1 transition-all animate-fade-in" style={{ animationDelay: `${i * 120}ms` }}>
@@ -321,7 +317,7 @@ const Landing = () => {
       <footer className="border-t border-border py-8 bg-background">
         <div className="container text-center text-sm text-muted-foreground font-body">
           <p className="font-heading font-semibold text-foreground mb-1">Prakriti by Aarush Eco Tech</p>
-          <p className="text-xs opacity-70 mb-1">IIT Kanpur SIIC · prakriti.ecotech.co.in</p>
+          <p className="text-xs opacity-70 mb-1">prakriti.ecotech.co.in</p>
           <p>© {new Date().getFullYear()} Aarush Eco Tech. All rights reserved.</p>
           <p className="mt-2 text-xs italic opacity-70">वसुधैव कुटुम्बकम् — The world is one family.</p>
         </div>

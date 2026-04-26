@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useLang } from '@/i18n/LanguageContext';
 import { usePlan } from '@/contexts/PlanContext';
@@ -21,6 +21,76 @@ const GoogleIcon = () => (
 );
 
 const ONBOARDING_DRAFT_KEY = 'kutumb_onboarding_draft';
+
+/** Three-field DD / MM / YYYY date-of-birth input. Emits YYYY-MM-DD strings. */
+function DOBInput({ value, onChange, className }: { value: string; onChange: (v: string) => void; className?: string }) {
+  const currentYear = new Date().getFullYear();
+  const [dd, setDd] = useState('');
+  const [mm, setMm] = useState('');
+  const [yyyy, setYyyy] = useState('');
+  const mmRef = useRef<HTMLInputElement>(null);
+  const yyyyRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (value && /^\d{4}-\d{2}-\d{2}$/.test(value)) {
+      const [y, m, d] = value.split('-');
+      setYyyy(y); setMm(m); setDd(d);
+    }
+  }, [value]);
+
+  const emit = (d: string, m: string, y: string) => {
+    if (d.length === 2 && m.length === 2 && y.length === 4) {
+      onChange(`${y}-${m}-${d}`);
+    } else {
+      onChange('');
+    }
+  };
+
+  const handleDd = (v: string) => {
+    const clean = v.replace(/\D/g, '').slice(0, 2);
+    setDd(clean);
+    emit(clean, mm, yyyy);
+    if (clean.length === 2) mmRef.current?.focus();
+  };
+
+  const handleMm = (v: string) => {
+    const clean = v.replace(/\D/g, '').slice(0, 2);
+    setMm(clean);
+    emit(dd, clean, yyyy);
+    if (clean.length === 2) yyyyRef.current?.focus();
+  };
+
+  const handleYyyy = (v: string) => {
+    const clean = v.replace(/\D/g, '').slice(0, 4);
+    const num = parseInt(clean, 10);
+    const clamped = clean.length === 4 && num > currentYear ? String(currentYear) : clean;
+    setYyyy(clamped);
+    emit(dd, mm, clamped);
+  };
+
+  const seg = `border border-input bg-background font-body text-sm focus:outline-none focus:ring-2 focus:ring-ring/30 rounded-lg text-center`;
+  return (
+    <div className={`flex items-center gap-1 ${className ?? ''}`}>
+      <input
+        type="text" inputMode="numeric" placeholder="DD"
+        value={dd} onChange={e => handleDd(e.target.value)}
+        className={`${seg} w-14 px-2 py-2.5`} maxLength={2}
+      />
+      <span className="text-muted-foreground">/</span>
+      <input
+        ref={mmRef} type="text" inputMode="numeric" placeholder="MM"
+        value={mm} onChange={e => handleMm(e.target.value)}
+        className={`${seg} w-14 px-2 py-2.5`} maxLength={2}
+      />
+      <span className="text-muted-foreground">/</span>
+      <input
+        ref={yyyyRef} type="text" inputMode="numeric" placeholder="YYYY"
+        value={yyyy} onChange={e => handleYyyy(e.target.value)}
+        className={`${seg} w-20 px-2 py-2.5`} maxLength={4}
+      />
+    </div>
+  );
+}
 
 const defaultForm = () => ({
   givenName: '',
@@ -227,7 +297,7 @@ const Onboarding = () => {
           {step === 0 && (
             <div className="space-y-5 animate-fade-in">
               <div className="text-center mb-6">
-                <p className="text-[10px] tracking-[0.15em] uppercase text-emerald-600 font-body mb-1">Prakriti by Aarush</p>
+                <a href="https://ecotech.co.in" target="_blank" rel="noopener noreferrer" className="text-[10px] tracking-[0.15em] uppercase text-emerald-600 font-body mb-1 hover:underline inline-block">Prakriti by Aarush</a>
                 <h2 className="font-heading text-2xl font-bold">Start Your Green Journey</h2>
                 <p className="text-muted-foreground font-body mt-1 text-sm">Sign in to begin building your Harit Vanshavali</p>
               </div>
@@ -290,7 +360,7 @@ const Onboarding = () => {
             </div>
           )}
           {step === 1 && (
-            <div className="space-y-5 animate-fade-in">
+            <form className="space-y-5 animate-fade-in" onSubmit={e => { e.preventDefault(); if (identityComplete) setStep(2); }}>
               <div className="text-center mb-6">
                 <h2 className="font-heading text-2xl font-bold">{tr('onboardStep1Title')}</h2>
                 <p className="text-muted-foreground font-body mt-1">{tr('onboardStep1Subtitle')}</p>
@@ -305,13 +375,7 @@ const Onboarding = () => {
               </div>
               <div>
                 <label className="block text-sm font-medium font-body mb-1.5">{tr('dateOfBirth')}</label>
-                <input
-                  type="date"
-                  value={form.dateOfBirth}
-                  onChange={(e) => set('dateOfBirth', e.target.value)}
-                  className={inputClass}
-                  required
-                />
+                <DOBInput value={form.dateOfBirth} onChange={v => set('dateOfBirth', v)} className="w-full" />
               </div>
               <div>
                 <label className="block text-sm font-medium font-body mb-1.5">{tr('ancestralPlace')}</label>
@@ -335,18 +399,17 @@ const Onboarding = () => {
               )}
 
               <button
-                type="button"
-                onClick={() => setStep(2)}
+                type="submit"
                 disabled={!identityComplete}
                 className="w-full py-3 rounded-lg gradient-hero text-primary-foreground font-semibold font-body shadow-warm hover:opacity-90 transition-opacity disabled:opacity-50"
               >
                 {tr('next')}
               </button>
-            </div>
+            </form>
           )}
 
           {step === 2 && (
-            <div className="space-y-5 animate-fade-in">
+            <form className="space-y-5 animate-fade-in" onSubmit={e => { e.preventDefault(); setStep(3); }}>
               <div className="text-center mb-6">
                 <h2 className="font-heading text-2xl font-bold">{tr('onboardStep2Title')}</h2>
                 <p className="text-muted-foreground font-body mt-1">{tr('onboardStep2Subtitle')}</p>
@@ -364,18 +427,17 @@ const Onboarding = () => {
                   {tr('back')}
                 </button>
                 <button
-                  type="button"
-                  onClick={() => setStep(3)}
+                  type="submit"
                   className="flex-1 py-3 rounded-lg gradient-hero text-primary-foreground font-semibold font-body shadow-warm hover:opacity-90 transition-opacity"
                 >
                   {tr('next')}
                 </button>
               </div>
-            </div>
+            </form>
           )}
 
           {step === 3 && (
-            <div className="space-y-5 animate-fade-in">
+            <form className="space-y-5 animate-fade-in" onSubmit={e => { e.preventDefault(); void handleCreate(); }}>
               <div className="text-center mb-6">
                 <h2 className="font-heading text-2xl font-bold">{tr('onboardStep3Title')}</h2>
                 <p className="text-muted-foreground font-body mt-1">{tr('onboardStep3Subtitle')}</p>
@@ -394,12 +456,7 @@ const Onboarding = () => {
                 </div>
                 <div>
                   <label className="block text-sm font-medium font-body mb-1.5">{tr('dateOfBirth')}</label>
-                  <input
-                    type="date"
-                    value={form.dateOfBirth}
-                    onChange={(e) => set('dateOfBirth', e.target.value)}
-                    className={inputClass}
-                  />
+                  <DOBInput value={form.dateOfBirth} onChange={v => set('dateOfBirth', v)} className="w-full" />
                 </div>
                 <div>
                   <label className="block text-sm font-medium font-body mb-1.5">{tr('ancestralPlace')}</label>
@@ -432,8 +489,7 @@ const Onboarding = () => {
                   {tr('back')}
                 </button>
                 <button
-                  type="button"
-                  onClick={() => void handleCreate()}
+                  type="submit"
                   disabled={creating}
                   className={`flex-1 py-3 rounded-lg gradient-hero text-primary-foreground font-semibold font-body shadow-warm hover:opacity-90 transition-opacity relative z-10 ${
                     identityComplete ? '' : 'opacity-70'
@@ -442,7 +498,7 @@ const Onboarding = () => {
                   {creating ? 'Creating...' : tr('createTree')}
                 </button>
               </div>
-            </div>
+            </form>
           )}
         </div>
       </div>

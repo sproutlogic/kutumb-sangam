@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useLang } from '@/i18n/LanguageContext';
 import { usePlan } from '@/contexts/PlanContext';
@@ -23,6 +23,77 @@ import {
 import { RelationDropdown } from '@/components/members/RelationDropdown';
 import { migrateLegacyVisibility, privacyLevelsForPlan } from '@/engine/privacy';
 import type { NodePrivacyLevel } from '@/engine/types';
+
+/** Three-field DD / MM / YYYY date-of-birth input. Emits YYYY-MM-DD strings. */
+function DOBInput({ value, onChange, className }: { value: string; onChange: (v: string) => void; className?: string }) {
+  const currentYear = new Date().getFullYear();
+  const [dd, setDd] = useState('');
+  const [mm, setMm] = useState('');
+  const [yyyy, setYyyy] = useState('');
+  const mmRef = useRef<HTMLInputElement>(null);
+  const yyyyRef = useRef<HTMLInputElement>(null);
+
+  // Sync external value → internal fields
+  useEffect(() => {
+    if (value && /^\d{4}-\d{2}-\d{2}$/.test(value)) {
+      const [y, m, d] = value.split('-');
+      setYyyy(y); setMm(m); setDd(d);
+    }
+  }, [value]);
+
+  const emit = (d: string, m: string, y: string) => {
+    if (d.length === 2 && m.length === 2 && y.length === 4) {
+      onChange(`${y}-${m}-${d}`);
+    } else {
+      onChange('');
+    }
+  };
+
+  const handleDd = (v: string) => {
+    const clean = v.replace(/\D/g, '').slice(0, 2);
+    setDd(clean);
+    emit(clean, mm, yyyy);
+    if (clean.length === 2) mmRef.current?.focus();
+  };
+
+  const handleMm = (v: string) => {
+    const clean = v.replace(/\D/g, '').slice(0, 2);
+    setMm(clean);
+    emit(dd, clean, yyyy);
+    if (clean.length === 2) yyyyRef.current?.focus();
+  };
+
+  const handleYyyy = (v: string) => {
+    const clean = v.replace(/\D/g, '').slice(0, 4);
+    const num = parseInt(clean, 10);
+    const clamped = clean.length === 4 && num > currentYear ? String(currentYear) : clean;
+    setYyyy(clamped);
+    emit(dd, mm, clamped);
+  };
+
+  const seg = `border border-input bg-background font-body text-sm focus:outline-none focus:ring-2 focus:ring-ring/30 rounded-lg text-center`;
+  return (
+    <div className={`flex items-center gap-1 ${className ?? ''}`}>
+      <input
+        type="text" inputMode="numeric" placeholder="DD"
+        value={dd} onChange={e => handleDd(e.target.value)}
+        className={`${seg} w-14 px-2 py-2.5`} maxLength={2}
+      />
+      <span className="text-muted-foreground">/</span>
+      <input
+        ref={mmRef} type="text" inputMode="numeric" placeholder="MM"
+        value={mm} onChange={e => handleMm(e.target.value)}
+        className={`${seg} w-14 px-2 py-2.5`} maxLength={2}
+      />
+      <span className="text-muted-foreground">/</span>
+      <input
+        ref={yyyyRef} type="text" inputMode="numeric" placeholder="YYYY"
+        value={yyyy} onChange={e => handleYyyy(e.target.value)}
+        className={`${seg} w-20 px-2 py-2.5`} maxLength={4}
+      />
+    </div>
+  );
+}
 
 function splitLegacyDisplayName(name: string): { given: string; sur: string } {
   const t = name.trim();
@@ -117,6 +188,17 @@ const NodePage = () => {
   }, [existingNode]);
 
   const set = (k: string, v: string) => setForm(p => ({ ...p, [k]: v }));
+
+  // Auto-set gender when relation is chosen
+  useEffect(() => {
+    const genderByRelation: Record<string, 'male' | 'female'> = {
+      Son: 'male', Brother: 'male', Father: 'male', 'Adopted Son': 'male',
+      Daughter: 'female', Sister: 'female', Mother: 'female', 'Adopted Daughter': 'female',
+    };
+    const inferred = genderByRelation[form.relation];
+    if (inferred) set('gender', inferred);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form.relation]);
 
   const handleLinkSpouse = async () => {
     if (!existingNode || !spouseLinkTargetId) return;
@@ -421,12 +503,7 @@ const NodePage = () => {
           </div>
           <div>
             <label className="block text-sm font-medium font-body mb-1.5">{tr('dateOfBirth')}</label>
-            <input
-              type="date"
-              value={form.dateOfBirth}
-              onChange={(e) => set('dateOfBirth', e.target.value)}
-              className={inputClass}
-            />
+            <DOBInput value={form.dateOfBirth} onChange={v => set('dateOfBirth', v)} className="w-full" />
           </div>
           <div>
             <label className="block text-sm font-medium font-body mb-1.5">{tr('ancestralPlace')}</label>
@@ -542,7 +619,7 @@ const NodePage = () => {
                   onClick={() => set('gender', g)}
                   className={`flex-1 py-2 rounded-lg text-sm font-body border transition-colors ${form.gender === g ? 'border-primary bg-primary/10 text-primary font-medium' : 'border-input text-muted-foreground hover:bg-secondary'}`}
                 >
-                  {tr(g)}
+                  {g === 'other' ? tr('preferNotToSay') : tr(g)}
                 </button>
               ))}
             </div>

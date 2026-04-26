@@ -74,6 +74,14 @@ const Dashboard = () => {
             <div>
               <p className="text-xs tracking-[0.2em] uppercase opacity-60 font-body mb-1">{tr('haritVanshavali')}</p>
               <h1 className="font-heading text-3xl font-bold mb-0">{isTreeInitialized ? state.treeName : tr('dashboardTitle')}</h1>
+              <a
+                href="https://ecotech.co.in"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-xs text-emerald-300 dark:text-emerald-400 font-body tracking-wide hover:underline mt-1 inline-block opacity-80"
+              >
+                Prakriti by Aarush
+              </a>
             </div>
             <div className="flex items-center gap-2">
               <span className="text-xs px-3 py-1.5 rounded-full bg-primary-foreground/10 border border-primary-foreground/25 text-primary-foreground font-semibold font-body backdrop-blur-sm">

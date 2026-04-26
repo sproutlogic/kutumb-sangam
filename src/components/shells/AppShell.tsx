@@ -121,8 +121,14 @@ const AppShell: React.FC<AppShellProps> = ({ children }) => {
 
           <div className="mt-auto pt-4 border-t border-border">
             <div className="px-3 pb-3">
-              <p className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 tracking-[0.12em] uppercase font-body">Prakriti by Aarush</p>
-              <p className="text-[9px] text-muted-foreground/60 font-body leading-tight mt-0.5">IIT Kanpur SIIC · MOA Objects 2,3,5,6,10,11</p>
+              <a
+                href="https://ecotech.co.in"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 tracking-[0.12em] uppercase font-body hover:underline"
+              >
+                Prakriti by Aarush
+              </a>
             </div>
             <button
               onClick={handleLogout}

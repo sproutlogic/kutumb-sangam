@@ -77,7 +77,8 @@ const overrides: Record<string, TranslationEntry> = {
   kutumbMap: { en: "Kutumb Map", hi: "कुटुंब मानचित्र" },
   /* ── Prakriti green-cover layer ── */
   prakritiBrand:           { en: "Prakriti by Aarush", hi: "प्रकृति by Aarush" },
-  prakritiBrandSub:        { en: "India's environmental family network · IIT Kanpur SIIC", hi: "भारत का पर्यावरणीय पारिवारिक नेटवर्क" },
+  prakritiBrandSub:        { en: "India's environmental family network", hi: "भारत का पर्यावरणीय पारिवारिक नेटवर्क" },
+  preferNotToSay:          { en: "Prefer not to say", hi: "बताना नहीं चाहते" },
   haritVanshavali:         { en: "Harit Vanshavali", hi: "हरित वंशावली" },
   haritVanshavaliDesc:     { en: "Your family's multi-generational environmental legacy — trees planted, drives organised, Eco-Credits earned per generation", hi: "आपके परिवार की बहु-पीढ़ीय पर्यावरणीय विरासत" },
   ecoSewaExchange:         { en: "Eco-Sewa Exchange", hi: "इको-सेवा विनिमय" },
@@ -142,7 +143,7 @@ const overrides: Record<string, TranslationEntry> = {
   step3Title:         { en: "Verify with Paryavaran Mitra", hi: "पर्यावरण मित्र से सत्यापित करें" },
   step3Desc:          { en: "Request Paryavaran Mitra verification for gotra and ancestry. Verified data is locked and community-endorsed.", hi: "पर्यावरण मित्र से गोत्र और वंश सत्यापित कराएं।" },
   encryptedDesc:      { en: "End-to-end encrypted · Pandit-verified · Your data, your rules", hi: "एन्क्रिप्टेड · पंडित-सत्यापित · आपका डेटा, आपके नियम" },
-  footerCopy:         { en: "© 2026 Prakriti by Aarush Eco Tech (IIT Kanpur SIIC). Built with respect for Indian family traditions and the planet.", hi: "© 2026 Prakriti by Aarush Eco Tech (IIT Kanpur SIIC). भारतीय परंपराओं और पृथ्वी के सम्मान में।" },
+  footerCopy:         { en: "© 2026 Prakriti by Aarush Eco Tech. Built with respect for Indian family traditions and the planet.", hi: "© 2026 Prakriti by Aarush Eco Tech. भारतीय परंपराओं और पृथ्वी के सम्मान में।" },
   familiesLabel:      { en: "Families", hi: "परिवार" },
   membersLabel:       { en: "Members", hi: "सदस्य" },
   verificationsLabel: { en: "Verifications", hi: "सत्यापन" },
