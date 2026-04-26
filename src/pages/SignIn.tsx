@@ -23,7 +23,12 @@ const SignIn = () => {
   const location = useLocation();
   const { toast } = useToast();
 
-  const from = (location.state as { from?: { pathname: string } })?.from?.pathname ?? '/dashboard';
+  // After OAuth the browser does a full-page reload at the redirectTo URL.
+  // Sending it to a ProtectedRoute (/dashboard) triggers the auth race: the
+  // PKCE code hasn't been exchanged yet so ProtectedRoute sees session=null
+  // and redirects to /signin. We send OAuth back to / (public Landing) instead;
+  // Landing detects the live session and forwards to /dashboard safely.
+  const postAuthPath = (location.state as { from?: { pathname: string } })?.from?.pathname ?? '/';
 
   const [showEmail, setShowEmail] = useState(false);
   const [email, setEmail] = useState('');
@@ -43,7 +48,7 @@ const SignIn = () => {
     setGoogleLoading(true);
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
-      options: { redirectTo: `${window.location.origin}${from}` },
+      options: { redirectTo: `${window.location.origin}${postAuthPath}` },
     });
     if (error) {
       toast({ title: 'Google sign-in failed', description: error.message, variant: 'destructive' });
@@ -59,7 +64,7 @@ const SignIn = () => {
     setEmailLoading(true);
     const { error } = await supabase.auth.signInWithOtp({
       email: email.trim(),
-      options: { emailRedirectTo: `${window.location.origin}${from}` },
+      options: { emailRedirectTo: `${window.location.origin}${postAuthPath}` },
     });
     setEmailLoading(false);
     if (error) {

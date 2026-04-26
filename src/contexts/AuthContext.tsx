@@ -82,16 +82,34 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    supabase.auth.getSession().then(async ({ data }) => {
-      await syncSession(data.session);
-      setLoading(false);
-    });
+    // Do NOT call getSession() here. In Supabase v2 PKCE flow the OAuth callback
+    // lands with a `?code=` param that hasn't been exchanged yet, so getSession()
+    // returns null. That null would clear loading immediately and ProtectedRoute
+    // would redirect to /signin before SIGNED_IN ever fires.
+    //
+    // onAuthStateChange is the single source of truth: it fires INITIAL_SESSION
+    // (existing session from storage) or SIGNED_IN (after PKCE code exchange).
+    // We keep loading=true until one of those fires.
+    let settled = false;
+    const settle = () => {
+      if (!settled) {
+        settled = true;
+        setLoading(false);
+      }
+    };
 
     const { data: sub } = supabase.auth.onAuthStateChange(async (_event, s) => {
       await syncSession(s);
+      settle();
     });
 
-    return () => sub.subscription.unsubscribe();
+    // Safety valve: if Supabase never fires (e.g. network error), unblock UI after 8s.
+    const timer = setTimeout(settle, 8000);
+
+    return () => {
+      sub.subscription.unsubscribe();
+      clearTimeout(timer);
+    };
   }, []);
 
   async function signOut() {
