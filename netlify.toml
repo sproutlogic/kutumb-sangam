@@ -3,7 +3,7 @@
   publish   = "dist"
 
 [build.environment]
-  VITE_API_BASE_URL = "https://kutumb-sangam.onrender.com"
+  VITE_API_BASE_URL = "https://api.prakriti.ecotech.co.in"
 
 [[redirects]]
   from   = "/*"

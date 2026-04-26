@@ -67,9 +67,12 @@ async function fetchApi(url: string, init?: RequestInit): Promise<Response> {
     });
   } catch (e) {
     if (e instanceof TypeError) {
-      throw new Error(
-        `Cannot reach API at ${getApiBaseUrl()}. Start the FastAPI server from the backend folder (e.g. python -m uvicorn main:app --reload --host 127.0.0.1 --port 8000).`,
-      );
+      const base = getApiBaseUrl();
+      const isLocal = base.includes("127.0.0.1") || base.includes("localhost");
+      const hint = isLocal
+        ? `Start the FastAPI server: python -m uvicorn main:app --reload --host 127.0.0.1 --port 8000`
+        : `The server at ${base} is unreachable. It may be starting up — wait a moment and retry.`;
+      throw new Error(`Cannot reach API. ${hint}`);
     }
     throw e;
   }
