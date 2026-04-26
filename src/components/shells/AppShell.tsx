@@ -118,6 +118,10 @@ const AppShell: React.FC<AppShellProps> = ({ children }) => {
           </div>
 
           <div className="mt-auto pt-4 border-t border-border">
+            <div className="px-3 pb-3">
+              <p className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 tracking-[0.12em] uppercase font-body">Prakriti by Aarush</p>
+              <p className="text-[9px] text-muted-foreground/60 font-body leading-tight mt-0.5">IIT Kanpur SIIC · MOA Objects 2,3,5,6,10,11</p>
+            </div>
             <button
               onClick={handleLogout}
               className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-body text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors w-full"

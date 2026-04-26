@@ -1,11 +1,10 @@
 """
 Auth session management.
 
-POST /api/auth/session  — called by the frontend right after Supabase sign-in to
-                          ensure a public.users row exists (upsert) and returns the
-                          current user profile.
-GET  /api/auth/me       — returns the authenticated user's profile row.
-PATCH /api/auth/me      — update display name / link vansha_id after onboarding.
+POST /api/auth/session             — upsert public.users row after Supabase sign-in.
+GET  /api/auth/me                  — returns authenticated user's profile row.
+PATCH /api/auth/me                 — update display name / link vansha_id after onboarding.
+POST /api/auth/complete-onboarding — mark onboarding_complete = true (called at end of onboarding form).
 """
 
 from __future__ import annotations
@@ -86,3 +85,20 @@ def patch_me(body: MePatch, user: CurrentUser) -> dict[str, Any]:
 
     res = sb.table(USERS_TABLE).select("*").eq("id", uid).limit(1).execute()
     return res.data[0] if res.data else user
+
+
+@router.post("/complete-onboarding")
+def complete_onboarding(user: CurrentUser) -> dict[str, Any]:
+    """Mark the authenticated user's onboarding as complete.
+    Called by the frontend at the final step of the onboarding form.
+    Idempotent — safe to call multiple times.
+    """
+    sb = get_supabase()
+    uid = user["id"]
+    try:
+        sb.table(USERS_TABLE).update({"onboarding_complete": True}).eq("id", uid).execute()
+    except Exception:
+        logger.exception("Failed to set onboarding_complete for uid=%s", uid)
+        raise HTTPException(status_code=502, detail="Could not mark onboarding complete.")
+    res = sb.table(USERS_TABLE).select("*").eq("id", uid).limit(1).execute()
+    return res.data[0] if res.data else {**user, "onboarding_complete": True}

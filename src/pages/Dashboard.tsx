@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom';
-import { resolveVanshaIdForApi } from '@/services/api';
+import { resolveVanshaIdForApi, fetchPrakritiScore, type PrakritiScore } from '@/services/api';
 import { useLang } from '@/i18n/LanguageContext';
 import { usePlan } from '@/contexts/PlanContext';
 import { useTree } from '@/contexts/TreeContext';
@@ -8,8 +8,8 @@ import LockedBanner from '@/components/states/LockedBanner';
 import TrustBadge from '@/components/ui/TrustBadge';
 import TreeCompletionScore from '@/components/ui/TreeCompletionScore';
 import ClanMilestone from '@/components/ui/ClanMilestone';
-import { useState } from 'react';
-import { Users, Layers, Mail, TreePine, UserPlus, ShieldCheck, Clock, Search, Heart, Check, X, GitFork, ArrowUpCircle, BarChart3, Rocket, Briefcase, HandHeart } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Users, Layers, Mail, TreePine, UserPlus, ShieldCheck, Clock, Search, Heart, Check, X, GitFork, ArrowUpCircle, BarChart3, Rocket, Briefcase, HandHeart, Leaf } from 'lucide-react';
 import { UPCOMING_SERVICES } from '@/config/upcomingServices.config';
 import { JoinSEModal } from '@/components/sales/JoinSEModal';
 import { EarningsWallet } from '@/components/sales/EarningsWallet';
@@ -27,6 +27,13 @@ const Dashboard = () => {
 
   const isSalesMember = appUser ? SALES_ROLES.has(appUser.role) : false;
 
+  const [prakritiScore, setPrakritiScore] = useState<PrakritiScore | null>(null);
+  useEffect(() => {
+    const vid = resolveVanshaIdForApi(null);
+    if (!vid) return;
+    fetchPrakritiScore(vid).then(setPrakritiScore).catch(() => null);
+  }, []);
+
   const pendingCount = state.pendingActions.filter(a => a.status === 'pending').length;
   const activeDisputes = state.disputes.filter(d => d.status === 'active').length;
 
@@ -34,6 +41,7 @@ const Dashboard = () => {
     { icon: Users, label: tr('members'), value: `${membersUsed}/${plan.maxNodes}` },
     { icon: Layers, label: tr('generations'), value: `${generationsUsed}/${plan.generationCap}` },
     { icon: Mail, label: tr('pendingInvites'), value: `${pendingCount}` },
+    ...(hasEntitlement('ecoScore') ? [{ icon: Leaf, label: tr('prakritScoreLabel'), value: prakritiScore ? String(prakritiScore.score) : '—', eco: true }] : []),
   ];
 
   const milestones = [
@@ -64,7 +72,7 @@ const Dashboard = () => {
         <div className="container relative">
           <div className="flex items-center justify-between flex-wrap gap-4">
             <div>
-              <p className="text-xs tracking-[0.2em] uppercase opacity-60 font-body mb-1">{tr('dashboardFamilyLabel')}</p>
+              <p className="text-xs tracking-[0.2em] uppercase opacity-60 font-body mb-1">{tr('haritVanshavali')}</p>
               <h1 className="font-heading text-3xl font-bold mb-0">{isTreeInitialized ? state.treeName : tr('dashboardTitle')}</h1>
             </div>
             <div className="flex items-center gap-2">
@@ -104,10 +112,10 @@ const Dashboard = () => {
         {/* Stats + Trust Score Row */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
           {stats.map((s, i) => (
-            <div key={i} className="bg-card rounded-xl p-5 shadow-card border border-border/50 text-center animate-fade-in" style={{ animationDelay: `${i * 80}ms` }}>
-              <s.icon className="w-6 h-6 text-primary mx-auto mb-2" />
+            <div key={i} className={`rounded-xl p-5 shadow-card border text-center animate-fade-in ${'eco' in s && s.eco ? 'bg-emerald-50 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-800' : 'bg-card border-border/50'}`} style={{ animationDelay: `${i * 80}ms` }}>
+              <s.icon className={`w-6 h-6 mx-auto mb-2 ${'eco' in s && s.eco ? 'text-emerald-600' : 'text-primary'}`} />
               <p className="text-2xl font-bold font-heading">{s.value}</p>
-              <p className="text-sm text-muted-foreground font-body">{s.label}</p>
+              <p className={`text-sm font-body ${'eco' in s && s.eco ? 'text-emerald-700 dark:text-emerald-400 font-medium' : 'text-muted-foreground'}`}>{s.label}</p>
             </div>
           ))}
           <div className="bg-card rounded-xl p-5 shadow-card border border-border/50 flex items-center justify-center animate-fade-in" style={{ animationDelay: '240ms' }}>

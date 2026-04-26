@@ -7,7 +7,9 @@ export type EntitlementKey =
   | 'panditVerification'
   | 'matrimony'
   | 'sosAlerts'
-  | 'treeAnnounce';
+  | 'treeAnnounce'
+  | 'ecoScore'       // Prakriti Score card (Harit Vanshavali eco-index)
+  | 'haritCircle';   // Harit Circle membership & SmartBin community
 
 export interface PlanConfig {
   id: PlanId;
@@ -42,6 +44,8 @@ export const plans: Record<PlanId, PlanConfig> = {
       matrimony: false,
       sosAlerts: false,
       treeAnnounce: false,
+      ecoScore: false,
+      haritCircle: false,
     },
   },
   ankur: {
@@ -61,6 +65,8 @@ export const plans: Record<PlanId, PlanConfig> = {
       matrimony: false,
       sosAlerts: false,
       treeAnnounce: false,
+      ecoScore: true,
+      haritCircle: false,
     },
   },
   vriksh: {
@@ -80,6 +86,8 @@ export const plans: Record<PlanId, PlanConfig> = {
       matrimony: false,
       sosAlerts: true,
       treeAnnounce: false,
+      ecoScore: true,
+      haritCircle: true,
     },
   },
   vansh: {
@@ -99,6 +107,8 @@ export const plans: Record<PlanId, PlanConfig> = {
       matrimony: true,
       sosAlerts: true,
       treeAnnounce: true,
+      ecoScore: true,
+      haritCircle: true,
     },
   },
 };
@@ -139,6 +149,12 @@ export interface PanditDefaultFees {
   kundaliMilanReview:   number;
   gotraConsultation:    number;
   fullFamilyOnboarding: number;
+  // Paryavaran Mitra eco-ceremony fees (gross INR; 20% platform fee applies)
+  vrikshaPratishtha:    number;
+  jalPuja:              number;
+  ecoPledgeVerification:number;
+  dharthiSandesh:       number;
+  haritCircleMonthly:   number;
 }
 
 export interface PricingConfig {
@@ -179,8 +195,13 @@ export const defaultPricingConfig: PricingConfig = {
     secondPanditOpinion:  251,
   },
   panditDefaults: {
-    kundaliMilanReview:   501,
-    gotraConsultation:    251,
-    fullFamilyOnboarding: 2500,
+    kundaliMilanReview:    501,
+    gotraConsultation:     251,
+    fullFamilyOnboarding:  2500,
+    vrikshaPratishtha:     999,
+    jalPuja:               499,
+    ecoPledgeVerification: 199,
+    dharthiSandesh:        199,
+    haritCircleMonthly:    500,
   },
 };

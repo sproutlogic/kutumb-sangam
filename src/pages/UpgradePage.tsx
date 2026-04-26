@@ -23,10 +23,12 @@ const entitlementLabels: { key: EntitlementKey; label: string }[] = [
   { key: 'culturalFields',     label: 'Cultural Fields' },
   { key: 'discovery',          label: 'Discovery' },
   { key: 'connectionChains',   label: 'Connection Chains' },
-  { key: 'panditVerification', label: 'Pandit Verification' },
+  { key: 'panditVerification', label: 'Paryavaran Mitra Verification' },
   { key: 'matrimony',          label: 'Matrimony' },
   { key: 'sosAlerts',          label: 'SOS Alerts' },
   { key: 'treeAnnounce',       label: 'Tree Broadcast' },
+  { key: 'ecoScore',           label: 'Prakriti Score Card' },
+  { key: 'haritCircle',        label: 'Harit Circle Access' },
 ];
 
 const planDisplayNames: Record<PlanId, string> = {

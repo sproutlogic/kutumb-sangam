@@ -11,8 +11,9 @@ export interface AppUser {
   vansha_id: string | null;
   phone: string | null;
   full_name: string | null;
-  kutumb_id: string | null;   // unique permanent ID, doubles as referral code
-  kutumb_pro?: boolean;       // true = access to Kutumb Pro Community OS
+  kutumb_id: string | null;      // unique permanent ID, doubles as referral code
+  kutumb_pro?: boolean;          // true = access to Kutumb Pro Community OS
+  onboarding_complete: boolean;  // false → must finish onboarding form before entering app
 }
 
 interface AuthState {

@@ -46,3 +46,18 @@ DEFAULT_SGST_RATE      =  9.00
 
 VANSHA_ID_COLUMN = "vansha_id"
 PARENT_UNION_ID_COLUMN = "parent_union_id"
+
+# Prakriti — green-cover layer (MOA Objects 2, 3, 5, 6, 10, 11)
+PRAKRITI_SCORES_TABLE   = "prakriti_scores"
+HARIT_CIRCLES_TABLE     = "harit_circles"
+ECO_CEREMONIES_TABLE    = "eco_ceremonies"
+
+# Eco-ceremony gross amounts (INR) — Paryavaran Mitra earnings
+ECO_CEREMONY_PRICES: dict[str, int] = {
+    "vriksha_pratishtha":   999,
+    "jal_puja":             499,
+    "eco_pledge":           199,
+    "dharti_sandesh":       199,
+    "harit_circle_monthly": 500,
+}
+PLATFORM_FEE_PCT = 20.0  # 20% platform commission

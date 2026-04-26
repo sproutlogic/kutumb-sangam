@@ -99,7 +99,8 @@ export default function PanditDashboard() {
         <div className="flex items-center gap-3 mb-8">
           <ClipboardList className="w-7 h-7 text-primary" />
           <div>
-            <h1 className="font-heading text-2xl font-bold">Pandit Review Queue</h1>
+            <p className="text-[10px] tracking-[0.15em] uppercase text-emerald-600 font-body mb-0.5">Paryavaran Mitra</p>
+            <h1 className="font-heading text-2xl font-bold">Harit Vanshavali Verification Queue</h1>
             <p className="text-sm text-muted-foreground font-body">{queue.length} pending verification{queue.length !== 1 ? 's' : ''}</p>
           </div>
         </div>
