@@ -30,9 +30,34 @@ class Settings(BaseSettings):
     # Dev default allows Vite dev server; override in production.
     allowed_origins: str = "http://localhost:5173,http://localhost:8080"
 
+    # ── Razorpay ──────────────────────────────────────────────────────────────
+    # Set these in .env once you have live credentials from Razorpay dashboard.
+    razorpay_key_id:        str = ""
+    razorpay_key_secret:    str = ""
+    razorpay_webhook_secret: str = ""
+
+    # ── SMTP (vendor + user email notifications) ──────────────────────────────
+    smtp_host:  str = ""
+    smtp_port:  int = 587
+    smtp_user:  str = ""
+    smtp_pass:  str = ""
+    smtp_from:  str = "noreply@prakriti.ecotech.co.in"
+
+    # ── Panchang seeder ───────────────────────────────────────────────────────
+    # Optional: AstroAPI.com key for richer panchang data (nakshatra, yoga).
+    # Leave blank to use the offline pyswisseph / drik-panchanga library only.
+    panchang_api_key: str = ""
+
+    # Panchang rolling window in days (seeder fills this many days ahead)
+    panchang_window_days: int = 90
+
     @property
     def allowed_origins_list(self) -> list[str]:
         return [o.strip() for o in self.allowed_origins.split(",") if o.strip()]
+
+    @property
+    def razorpay_enabled(self) -> bool:
+        return bool(self.razorpay_key_id and self.razorpay_key_secret)
 
 
 @lru_cache

@@ -12,11 +12,14 @@ import {
 } from "lucide-react";
 import {
   defaultPricingConfig,
+  defaultServicePackages,
   planOrder,
   type PricingConfig,
   type PlanId,
   type EntitlementKey,
+  type ServicePackageId,
 } from "@/config/packages.config";
+import { TreePine, Droplets } from "lucide-react";
 
 const SALES_ROLES = new Set(['se', 'cp', 'rp', 'zp', 'np', 'admin', 'superadmin']);
 
@@ -152,6 +155,19 @@ function PricingTab({
 
   const updatePandit = (key: keyof PricingConfig['panditDefaults'], value: number) => {
     setDraft(prev => ({ ...prev, panditDefaults: { ...prev.panditDefaults, [key]: value } }));
+  };
+
+  const updateServicePackage = (pkgId: ServicePackageId, field: 'price_paise' | 'is_active', value: number | boolean) => {
+    setDraft(prev => ({
+      ...prev,
+      service_packages: {
+        ...(prev.service_packages ?? defaultServicePackages),
+        [pkgId]: {
+          ...(prev.service_packages?.[pkgId] ?? defaultServicePackages[pkgId]),
+          [field]: value,
+        },
+      },
+    }));
   };
 
   return (
@@ -357,6 +373,67 @@ function PricingTab({
             onChange={v => updatePandit('fullFamilyOnboarding', v)}
           />
         </div>
+      </div>
+
+      {/* ── Section 4: Eco Service Packages ── */}
+      <div className="bg-card rounded-xl border border-border/50 shadow-card p-6 space-y-4">
+        <div>
+          <h3 className="font-heading text-lg font-bold flex items-center gap-2">
+            <TreePine className="w-5 h-5 text-green-600" />
+            Eco Services
+          </h3>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            Runtime price overrides for eco service packages. Changes reflect immediately on
+            GET /api/services/packages — no redeploy needed.
+          </p>
+        </div>
+
+        {(
+          [
+            { id: 'taruvara'     as ServicePackageId, icon: <TreePine className="w-4 h-4 text-green-600" />, label: 'Taruvara — 1 Tree',       hint: '₹1,499 default' },
+            { id: 'dashavruksha' as ServicePackageId, icon: <TreePine className="w-4 h-4 text-emerald-600" />, label: 'Dashavruksha — 10 Trees', hint: '₹11,999 default' },
+            { id: 'jala_setu'    as ServicePackageId, icon: <Droplets className="w-4 h-4 text-blue-500" />,   label: 'Jala Setu — Water Station', hint: '₹2,499 default' },
+          ]
+        ).map(pkg => {
+          const cfg = draft.service_packages?.[pkg.id] ?? defaultServicePackages[pkg.id];
+          return (
+            <div key={pkg.id} className="flex items-center gap-4 flex-wrap border border-border/50 rounded-xl p-4 bg-muted/20">
+              <span className="flex items-center gap-2 text-sm font-medium min-w-[200px]">
+                {pkg.icon} {pkg.label}
+              </span>
+
+              {/* Price in rupees (display), stored as paise */}
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-muted-foreground">₹</span>
+                <input
+                  type="number"
+                  min={0}
+                  step={1}
+                  value={cfg.price_paise / 100}
+                  onChange={e => updateServicePackage(pkg.id, 'price_paise', Math.round(parseFloat(e.target.value || '0') * 100))}
+                  className="w-28 rounded-lg border border-input bg-background px-3 py-1.5 text-sm text-right"
+                />
+                <span className="text-xs text-muted-foreground">{pkg.hint}</span>
+              </div>
+
+              {/* Active toggle */}
+              <button
+                type="button"
+                onClick={() => updateServicePackage(pkg.id, 'is_active', !cfg.is_active)}
+                className={`flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg transition-colors ${
+                  cfg.is_active
+                    ? 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300'
+                    : 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400'
+                }`}
+              >
+                {cfg.is_active
+                  ? <><ToggleRight className="w-4 h-4" /> Active</>
+                  : <><ToggleLeft className="w-4 h-4" /> Inactive</>
+                }
+              </button>
+            </div>
+          );
+        })}
       </div>
     </div>
   );

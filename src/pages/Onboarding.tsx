@@ -109,10 +109,12 @@ const Onboarding = () => {
   const { session, appUser, refreshAppUser } = useAuth();
   const navigate = useNavigate();
 
-  // Existing users (onboarding already done or vansha_id present) → go to dashboard
+  // Onboarding already completed → skip straight to the app home (Eco-Sewa).
+  // Users who have a vansha_id but onboarding_complete=false are allowed to stay
+  // here so they can finish entering their details.
   useEffect(() => {
-    if (appUser && (appUser.onboarding_complete || appUser.vansha_id)) {
-      navigate('/dashboard', { replace: true });
+    if (appUser && appUser.onboarding_complete) {
+      navigate('/eco-sewa', { replace: true });
     }
   }, [appUser, navigate]);
 
@@ -258,7 +260,8 @@ const Onboarding = () => {
         /* non-fatal — user can still proceed; flag will be set on next session sync */
       }
 
-      navigate(`/passkey-setup?vansha_id=${encodeURIComponent(payload.vansha_id)}`, { replace: true });
+      // Onboarding complete — land on Eco-Sewa (the app home).
+      navigate('/eco-sewa', { replace: true });
     } catch (err) {
       toast({
         title: tr('errorGeneric'),

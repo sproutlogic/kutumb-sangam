@@ -25,12 +25,14 @@ export const KUTUMB_RELATION_OPTIONS: readonly string[] = [
 ] as const;
 
 /**
- * Ancestral tree: new members attach only via parents (children) or marriage (spouse unions).
- * No sibling / parent-only shortcuts in the Add Member flow.
+ * Ancestral tree: new members can be children, spouse, or immediate parents.
+ * Father / Mother grow the root upward; Spouse forms a union; children branch downward.
  */
 export const ANCESTRAL_ADD_RELATION_OPTIONS: readonly string[] = [
   "Son",
   "Daughter",
+  "Father",
+  "Mother",
   "Spouse",
   "Adopted Son",
   "Adopted Daughter",

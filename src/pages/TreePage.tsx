@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useLang } from '@/i18n/LanguageContext';
 import { usePlan } from '@/contexts/PlanContext';
@@ -24,7 +24,196 @@ import {
   SpousePlusMark,
   spousePlusCenterY,
 } from '@/components/tree/MaritalUnitGraphics';
-import { AlertCircle, Loader2, Pencil, TreePine, UserPlus } from 'lucide-react';
+import { AlertCircle, Copy, Check, Link2, Loader2, Pencil, Share2, TreePine, UserPlus } from 'lucide-react';
+
+// ── Invite helpers ─────────────────────────────────────────────────────────────
+type InviteMode = 'node' | 'tree' | 'platform';
+
+function generateInviteCode(prefix: string): string {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let code = '';
+  for (let i = 0; i < 5; i++) code += chars[Math.floor(Math.random() * chars.length)];
+  return `${prefix}-${code}`;
+}
+
+interface InvitePanelProps {
+  selectedNodeId: string | null;
+  nodeName?: string;
+  treeName?: string;
+}
+
+const InvitePanel: React.FC<InvitePanelProps> = ({ selectedNodeId, nodeName, treeName }) => {
+  const [mode, setMode]                 = useState<InviteMode>('tree');
+  const [generatedCode, setGeneratedCode] = useState('');
+  const [copied, setCopied]             = useState(false);
+  const [open, setOpen]                 = useState(false);
+
+  const modeConfig: { mode: InviteMode; prefix: string; icon: React.ReactNode; title: string; desc: string }[] = [
+    {
+      mode: 'node',
+      prefix: 'KTM-NOD',
+      icon: <UserPlus className="w-4 h-4" />,
+      title: 'इस नोड पर आमंत्रित करें',
+      desc: selectedNodeId
+        ? `केवल ${nodeName ?? 'चुने नोड'} के साथ जुड़ने की अनुमति`
+        : 'पहले पेड़ से कोई सदस्य चुनें',
+    },
+    {
+      mode: 'tree',
+      prefix: 'KTM-TRE',
+      icon: <TreePine className="w-4 h-4" />,
+      title: 'पूरे वंश वृक्ष पर आमंत्रित करें',
+      desc: `${treeName ?? 'इस वंश वृक्ष'} में किसी भी नोड पर जुड़ सकते हैं`,
+    },
+    {
+      mode: 'platform',
+      prefix: 'KTM-GEN',
+      icon: <Share2 className="w-4 h-4" />,
+      title: 'नया खाता बनाने के लिए आमंत्रित करें',
+      desc: 'नया सदस्य अपना खुद का खाता और नया वंश शुरू करेगा',
+    },
+  ];
+
+  const handleGenerate = () => {
+    if (mode === 'node' && !selectedNodeId) {
+      toast({ title: 'पहले पेड़ से एक सदस्य चुनें', variant: 'destructive' });
+      return;
+    }
+    const cfg = modeConfig.find(m => m.mode === mode)!;
+    setGeneratedCode(generateInviteCode(cfg.prefix));
+    setCopied(false);
+  };
+
+  const inviteLink = useMemo(() => {
+    if (!generatedCode) return '';
+    const params = new URLSearchParams({ code: generatedCode, type: mode });
+    if (mode === 'node' && selectedNodeId) params.set('nodeId', selectedNodeId);
+    if (mode === 'tree' && treeName) params.set('tree', treeName);
+    return `${window.location.origin}/code?${params.toString()}`;
+  }, [generatedCode, mode, selectedNodeId, treeName]);
+
+  const handleCopy = async (text: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      toast({ title: 'कॉपी हो गया!', description: text });
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      toast({ title: 'Copy failed' });
+    }
+  };
+
+  const handleShare = async () => {
+    if (navigator.share && inviteLink) {
+      try { await navigator.share({ title: 'Kutumb Map invitation', url: inviteLink }); }
+      catch { /* user cancelled */ }
+    } else {
+      handleCopy(inviteLink);
+    }
+  };
+
+  return (
+    <div className="border border-border/50 rounded-xl bg-card shadow-card overflow-hidden">
+      {/* Collapsible header */}
+      <button
+        type="button"
+        onClick={() => setOpen(o => !o)}
+        className="w-full flex items-center justify-between px-5 py-4 hover:bg-secondary/30 transition-colors"
+      >
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 rounded-lg gradient-hero flex items-center justify-center flex-shrink-0">
+            <UserPlus className="w-4 h-4 text-primary-foreground" />
+          </div>
+          <div className="text-left">
+            <p className="font-body font-semibold text-sm">सदस्य आमंत्रित करें</p>
+            <p className="text-xs text-muted-foreground font-body">नोड, वंश वृक्ष, या प्लेटफ़ॉर्म पर</p>
+          </div>
+        </div>
+        <span className="text-muted-foreground text-lg leading-none">{open ? '▲' : '▼'}</span>
+      </button>
+
+      {open && (
+        <div className="px-5 pb-5 space-y-4 border-t border-border/50 pt-4 animate-fade-in">
+          {/* Mode selector */}
+          <div className="space-y-2">
+            {modeConfig.map(cfg => (
+              <button
+                key={cfg.mode}
+                onClick={() => { setMode(cfg.mode); setGeneratedCode(''); }}
+                disabled={cfg.mode === 'node' && !selectedNodeId}
+                className={`w-full flex items-start gap-3 p-3.5 rounded-xl border-2 transition-all text-left disabled:opacity-40 ${
+                  mode === cfg.mode
+                    ? 'border-primary bg-primary/5 shadow-warm'
+                    : 'border-border/50 bg-secondary/30 hover:border-primary/30'
+                }`}
+              >
+                <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${
+                  mode === cfg.mode ? 'gradient-hero' : 'bg-secondary'
+                }`}>
+                  <span className={mode === cfg.mode ? 'text-primary-foreground' : 'text-muted-foreground'}>
+                    {cfg.icon}
+                  </span>
+                </div>
+                <div>
+                  <p className="font-body font-semibold text-sm">{cfg.title}</p>
+                  <p className="text-xs text-muted-foreground font-body mt-0.5">{cfg.desc}</p>
+                </div>
+              </button>
+            ))}
+          </div>
+
+          {/* Generate button */}
+          <button
+            type="button"
+            onClick={handleGenerate}
+            className="w-full py-2.5 rounded-lg gradient-hero text-primary-foreground font-semibold font-body text-sm shadow-warm hover:opacity-90 transition-opacity"
+          >
+            आमंत्रण कोड बनाएं
+          </button>
+
+          {/* Result */}
+          {generatedCode && (
+            <div className="bg-secondary/40 rounded-xl p-4 space-y-3 animate-fade-in">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-[10px] text-muted-foreground font-body mb-1">आपका आमंत्रण कोड</p>
+                  <span className="font-heading text-xl font-bold tracking-wider text-primary">{generatedCode}</span>
+                </div>
+                <button
+                  onClick={() => handleCopy(generatedCode)}
+                  className="p-2 rounded-lg bg-primary/10 text-primary hover:bg-primary/20 transition-colors"
+                >
+                  {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                </button>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="flex-1 px-2.5 py-2 rounded-lg bg-background border border-border text-[11px] font-mono text-muted-foreground truncate">
+                  {inviteLink}
+                </div>
+                <button
+                  onClick={() => handleCopy(inviteLink)}
+                  className="p-2 rounded-lg bg-primary/10 text-primary hover:bg-primary/20 transition-colors flex-shrink-0"
+                >
+                  <Link2 className="w-4 h-4" />
+                </button>
+              </div>
+              <button
+                type="button"
+                onClick={handleShare}
+                className="w-full py-2 rounded-lg border-2 border-primary text-primary font-semibold font-body text-sm hover:bg-primary/5 transition-colors flex items-center justify-center gap-2"
+              >
+                <Share2 className="w-4 h-4" />
+                शेयर करें
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
+
+// ── Component ──────────────────────────────────────────────────────────────────
 
 /** Distinct connector hue per marital union (polygamy: one color per wife/husband line). */
 function unionStrokeColor(unionId: string): string {
@@ -464,6 +653,15 @@ const TreePage = () => {
         <div className="bg-card rounded-xl shadow-card border border-border/50 overflow-hidden">
           {treeCanvasBody()}
         </div>
+
+        {/* Invite panel — replaces the old /invite sidebar link */}
+        {isTreeInitialized && (
+          <InvitePanel
+            selectedNodeId={selectedNodeId}
+            nodeName={state.nodes.find(n => n.id === selectedNodeId)?.name}
+            treeName={state.treeName}
+          />
+        )}
       </div>
     </AppShell>
   );

@@ -3,7 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { useLang } from '@/i18n/LanguageContext';
 import AuthShell from '@/components/shells/AuthShell';
 import TrustBadge from '@/components/ui/TrustBadge';
-import { Mail, ChevronDown, ChevronUp, Loader2, CheckCircle2 } from 'lucide-react';
+import { Eye, EyeOff, KeyRound, Mail, ChevronDown, ChevronUp, Loader2, CheckCircle2 } from 'lucide-react';
 import KutumbLogo from '@/components/ui/KutumbLogo';
 import { supabase } from '@/lib/supabase';
 import { useToast } from '@/hooks/use-toast';
@@ -31,10 +31,14 @@ const SignIn = () => {
   const postAuthPath = (location.state as { from?: { pathname: string } })?.from?.pathname ?? '/';
 
   const [showEmail, setShowEmail] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [showPwd, setShowPwd] = useState(false);
   const [magicLinkSent, setMagicLinkSent] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [emailLoading, setEmailLoading] = useState(false);
+  const [pwdLoading, setPwdLoading] = useState(false);
 
   const inputClass =
     'w-full px-4 py-2.5 rounded-lg border border-input bg-background font-body text-sm focus:outline-none focus:ring-2 focus:ring-ring/30';
@@ -72,6 +76,22 @@ const SignIn = () => {
     } else {
       setMagicLinkSent(true);
     }
+  };
+
+  // ── Email + password (for Supabase test accounts) ────────────────────────
+  const handlePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!email.trim() || !password || !supabase) return;
+    setPwdLoading(true);
+    const { error } = await supabase.auth.signInWithPassword({
+      email: email.trim(),
+      password,
+    });
+    setPwdLoading(false);
+    if (error) {
+      toast({ title: 'Sign-in failed', description: error.message, variant: 'destructive' });
+    }
+    // On success onAuthStateChange fires → AuthContext → Index.tsx redirects
   };
 
   return (
@@ -153,6 +173,68 @@ const SignIn = () => {
                 </button>
               </form>
             )}
+          </div>
+        )}
+      </div>
+
+      {/* Email + password — for Supabase-created test / admin accounts */}
+      <div className="bg-card rounded-xl shadow-card border border-border/50 overflow-hidden animate-fade-in mt-3" style={{ animationDelay: '250ms' }}>
+        <button
+          onClick={() => setShowPassword(!showPassword)}
+          className="w-full px-6 py-4 flex items-center justify-between text-sm text-muted-foreground font-body hover:bg-secondary/30 transition-colors"
+        >
+          <span className="flex items-center gap-2">
+            <KeyRound className="w-4 h-4" />
+            Sign in with password
+          </span>
+          {showPassword ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+        </button>
+
+        {showPassword && (
+          <div className="px-6 pb-6 border-t border-border/50 pt-4">
+            <form onSubmit={handlePassword} className="space-y-3">
+              <div>
+                <label className="block text-sm font-medium font-body mb-1.5">Email</label>
+                <input
+                  type="email"
+                  value={email}
+                  onChange={e => setEmail(e.target.value)}
+                  placeholder="you@example.com"
+                  className={inputClass}
+                  required
+                  autoFocus
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium font-body mb-1.5">Password</label>
+                <div className="relative">
+                  <input
+                    type={showPwd ? 'text' : 'password'}
+                    value={password}
+                    onChange={e => setPassword(e.target.value)}
+                    placeholder="••••••••"
+                    className={`${inputClass} pr-10`}
+                    required
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPwd(v => !v)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                    tabIndex={-1}
+                  >
+                    {showPwd ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+              </div>
+              <button
+                type="submit"
+                disabled={pwdLoading || !email.trim() || !password}
+                className="w-full py-2.5 rounded-lg gradient-hero text-primary-foreground font-semibold font-body shadow-warm hover:opacity-90 transition-opacity flex items-center justify-center gap-2 disabled:opacity-60"
+              >
+                {pwdLoading && <Loader2 className="w-4 h-4 animate-spin" />}
+                Sign in
+              </button>
+            </form>
           </div>
         )}
       </div>

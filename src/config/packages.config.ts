@@ -163,10 +163,35 @@ export interface PanditDefaultFees {
   haritCircleMonthly:   number;
 }
 
+// ── Eco Service Packages ─────────────────────────────────────────────────────
+// Superadmin can override price_paise and toggle is_active at runtime via
+// PUT /api/admin/pricing-config without a code deploy.
+
+export type ServicePackageId = 'taruvara' | 'dashavruksha' | 'jala_setu';
+
+export interface ServicePackageConfig {
+  /** Price in paise (₹1 = 100 paise); runtime override from platform_config */
+  price_paise: number;
+  is_active:   boolean;
+}
+
+/** Convenience: price in INR rupees (derived from price_paise) */
+export function servicePackagePriceInr(cfg: ServicePackageConfig): number {
+  return cfg.price_paise / 100;
+}
+
+export const defaultServicePackages: Record<ServicePackageId, ServicePackageConfig> = {
+  taruvara:     { price_paise: 149900,  is_active: true },
+  dashavruksha: { price_paise: 1199900, is_active: true },
+  jala_setu:    { price_paise: 249900,  is_active: true },
+};
+
 export interface PricingConfig {
-  plans:          Record<PlanId, PlanLimits>;
-  matrimony:      MatrimonyPrices;
-  panditDefaults: PanditDefaultFees;
+  plans:            Record<PlanId, PlanLimits>;
+  matrimony:        MatrimonyPrices;
+  panditDefaults:   PanditDefaultFees;
+  /** Runtime-editable eco service package prices; keyed by ServicePackageId */
+  service_packages?: Record<ServicePackageId, ServicePackageConfig>;
 }
 
 export const defaultPricingConfig: PricingConfig = {
@@ -210,4 +235,5 @@ export const defaultPricingConfig: PricingConfig = {
     dharthiSandesh:        199,
     haritCircleMonthly:    500,
   },
+  service_packages: defaultServicePackages,
 };

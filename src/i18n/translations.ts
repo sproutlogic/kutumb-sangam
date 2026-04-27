@@ -246,6 +246,10 @@ const overrides: Record<string, TranslationEntry> = {
   legacyBox:        { en: "Dharti Sandesh",  hi: "धरती संदेश" },
   transactions:     { en: "Transactions",    hi: "लेन-देन" },
   kutumbProNav:     { en: "Kutumb Pro",      hi: "कुटुंब प्रो" },
+  ecoSewa:          { en: "Eco Sewa",        hi: "इको-सेवा लॉग" },
+  ecoServices:      { en: "Plant a Tree",    hi: "वृक्ष सेवा" },
+  haritCircleNav:   { en: "Harit Circle",    hi: "हरित वृत्त" },
+  mitraEarningsNav: { en: "Mitra Earnings",  hi: "मित्र आय" },
 
   /* ── Kutumb Pro — Community OS ── */
   kutumbProTitle:      { en: "Kutumb Pro — Community OS", hi: "कुटुंब प्रो — कम्युनिटी OS" },

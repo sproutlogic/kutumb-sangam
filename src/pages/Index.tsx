@@ -4,16 +4,24 @@ import { useAuth } from "@/contexts/AuthContext";
 import Landing from "./Landing";
 
 const Index = () => {
-  const { session, loading } = useAuth();
+  const { session, appUser, loading } = useAuth();
   const navigate = useNavigate();
 
-  // OAuth callback lands here (redirectTo points to /). Once the session is
-  // established, send the user straight to the dashboard.
+  // OAuth callback lands here (redirectTo points to /).
+  // Once the session + appUser are resolved:
+  //   • No personal record yet (no vansha_id) → go to onboarding to create one
+  //   • Personal record exists → go to /eco-sewa (the new app home)
   useEffect(() => {
-    if (!loading && session) {
-      navigate("/dashboard", { replace: true });
+    if (loading) return;
+    if (!session) return;
+    // appUser may still be loading — wait for it
+    if (appUser === null) return;
+    if (!appUser.vansha_id) {
+      navigate("/onboarding", { replace: true });
+    } else {
+      navigate("/eco-sewa", { replace: true });
     }
-  }, [session, loading, navigate]);
+  }, [session, appUser, loading, navigate]);
 
   return <Landing />;
 };

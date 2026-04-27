@@ -72,14 +72,21 @@ interface SamayProfile {
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
+// Eco-Sewa categories aligned with Prakriti by Aarush terminology
 const CATEGORIES = [
-  'teaching','cooking','childcare','eldercare',
-  'repairs','transport','tech','admin','health','general',
+  'tree_planting','waste_cleanup','water_conservation','eco_awareness',
+  'skill_sharing','eco_volunteering','composting','solar_energy','nature_care','general',
 ];
 const CAT_EMOJI: Record<string, string> = {
-  teaching:'📚', cooking:'🍳', childcare:'👶', eldercare:'🤝',
-  repairs:'🔧', transport:'🚗', tech:'💻', admin:'📋',
-  health:'❤️', general:'⭐',
+  tree_planting:'🌳', waste_cleanup:'♻️', water_conservation:'🌊', eco_awareness:'📢',
+  skill_sharing:'🌱', eco_volunteering:'🤝', composting:'🍂', solar_energy:'☀️',
+  nature_care:'🐦', general:'⭐',
+};
+// Human-readable labels for display in UI
+const CAT_LABEL: Record<string, string> = {
+  tree_planting:'वृक्षारोपण', waste_cleanup:'कचरा सफाई', water_conservation:'जल संरक्षण',
+  eco_awareness:'पर्यावरण जागरूकता', skill_sharing:'कौशल साझा', eco_volunteering:'इको स्वयंसेवा',
+  composting:'कम्पोस्टिंग', solar_energy:'सौर ऊर्जा', nature_care:'प्रकृति सेवा', general:'सामान्य',
 };
 const STATUS_PILL: Record<string, string> = {
   pending:     'bg-amber-100 text-amber-700',
@@ -811,7 +818,7 @@ export default function TimeBankPage() {
                       }`}
                     >
                       {c !== 'all' && <span>{CAT_EMOJI[c]}</span>}
-                      {c === 'all' ? tr('all') : c}
+                      {c === 'all' ? tr('all') : (CAT_LABEL[c] ?? c)}
                     </button>
                   ))}
                 </div>
@@ -1234,7 +1241,7 @@ export default function TimeBankPage() {
                       }`}
                     >
                       <span className="text-base">{CAT_EMOJI[c]}</span>
-                      <span className="text-[9px] font-body leading-tight">{c}</span>
+                      <span className="text-[9px] font-body leading-tight">{CAT_LABEL[c] ?? c}</span>
                     </button>
                   ))}
                 </div>
@@ -1294,7 +1301,7 @@ export default function TimeBankPage() {
             <div className="px-6 py-5 space-y-4">
               <div className="bg-secondary/40 rounded-xl p-3">
                 <p className="text-sm font-semibold font-body">{respondingTo.title}</p>
-                <p className="text-xs text-muted-foreground font-body">{respondingTo.requester_name} · {CAT_EMOJI[respondingTo.category]} {respondingTo.category}</p>
+                <p className="text-xs text-muted-foreground font-body">{respondingTo.requester_name} · {CAT_EMOJI[respondingTo.category]} {CAT_LABEL[respondingTo.category] ?? respondingTo.category}</p>
               </div>
               <div>
                 <label className="block text-xs font-semibold mb-1.5 text-muted-foreground">{tr('hoursRequested')}: {respHours}h</label>
