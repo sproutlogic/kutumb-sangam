@@ -12,7 +12,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from routers import (
-    admin, auth_router, calendar, content, eco_sewa, eco_services, green_legacy,
+    admin, approval, auth_router, calendar, content, eco_sewa, eco_services, green_legacy,
     kutumb_pro, legacy_box, matrimony,
     notifications, pandit, panchang, payments, person, prakriti, radar, sales, time_bank, tree, union, verification,
 )
@@ -65,6 +65,7 @@ app.add_middleware(
 )
 
 app.include_router(admin.router)
+app.include_router(approval.router)
 app.include_router(auth_router.router)
 app.include_router(tree.router)
 app.include_router(person.router)
