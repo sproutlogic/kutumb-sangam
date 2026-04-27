@@ -8,7 +8,7 @@ interface Props {
 }
 
 // Roles that bypass the onboarding gate (they have separate KYC flows)
-const ONBOARDING_EXEMPT: Set<string> = new Set(["pandit", "admin", "superadmin"]);
+const ONBOARDING_EXEMPT: Set<string> = new Set(["margdarshak", "admin", "superadmin", "office", "finance"]);
 
 export default function ProtectedRoute({ children, requiredRole }: Props) {
   const { session, appUser, loading } = useAuth();

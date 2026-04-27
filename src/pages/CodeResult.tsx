@@ -3,10 +3,10 @@ import { useLang } from '@/i18n/LanguageContext';
 import AuthShell from '@/components/shells/AuthShell';
 import { ShieldCheck, Users, BookOpen, AlertTriangle, Sparkles } from 'lucide-react';
 
-const MOCK_CODES: Record<string, 'branch' | 'referral' | 'pandit'> = {
+const MOCK_CODES: Record<string, 'branch' | 'referral' | 'margdarshak'> = {
   'KTM-FAM-29A7X': 'branch',
   'KTM-REF-8B3YZ': 'referral',
-  'KTM-PND-4C1WQ': 'pandit',
+  'KTM-PND-4C1WQ': 'margdarshak',
 };
 
 const CodeResult = () => {
@@ -14,7 +14,7 @@ const CodeResult = () => {
   const { tr } = useLang();
   const navigate = useNavigate();
 
-  const resolvedType = code ? MOCK_CODES[code.toUpperCase()] : (legacyType as 'branch' | 'referral' | 'pandit' | undefined);
+  const resolvedType = code ? MOCK_CODES[code.toUpperCase()] : (legacyType as 'branch' | 'referral' | 'margdarshak' | undefined);
 
   // Invalid code
   if (!resolvedType) {
@@ -115,11 +115,11 @@ const CodeResult = () => {
         <div className="w-16 h-16 rounded-full gradient-hero flex items-center justify-center mx-auto mb-6">
           <ShieldCheck className="w-8 h-8 text-primary-foreground" />
         </div>
-        <h1 className="font-heading text-2xl font-bold mb-2">{tr('panditTitle')}</h1>
-        <p className="text-muted-foreground font-body mb-6">{tr('panditSubtitle')}</p>
+        <h1 className="font-heading text-2xl font-bold mb-2">{tr('margdarshakTitle')}</h1>
+        <p className="text-muted-foreground font-body mb-6">{tr('margdarshakSubtitle')}</p>
         <div className="bg-secondary/50 rounded-lg p-4 mb-6 text-left space-y-2">
           <div className="flex justify-between font-body text-sm">
-            <span className="text-muted-foreground">{tr('panditName')}</span>
+            <span className="text-muted-foreground">{tr('margdarshakName')}</span>
             <span className="font-medium">{tr('noPanditAssigned')}</span>
           </div>
           <div className="flex justify-between font-body text-sm">

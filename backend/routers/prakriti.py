@@ -147,7 +147,7 @@ def create_harit_circle(
     current_user: dict[str, Any] = Depends(get_current_user),
 ) -> dict[str, Any]:
     """Create a Harit Circle — only a Paryavaran Mitra (pandit) may do this."""
-    if not current_user.get("is_paryavaran_mitra") and current_user.get("role") not in ("pandit", "admin", "superadmin"):
+    if not current_user.get("is_paryavaran_mitra") and current_user.get("role") not in ("margdarshak", "admin", "superadmin"):
         raise HTTPException(status_code=403, detail="Only a Paryavaran Mitra can create a Harit Circle.")
     sb = get_supabase()
     row = {
@@ -178,7 +178,7 @@ def log_ceremony(
     """Log an eco-ceremony performed by a Paryavaran Mitra and record earnings."""
     if body.ceremony_type not in ECO_CEREMONY_PRICES:
         raise HTTPException(status_code=400, detail=f"Unknown ceremony_type '{body.ceremony_type}'.")
-    if not current_user.get("is_paryavaran_mitra") and current_user.get("role") not in ("pandit", "admin", "superadmin"):
+    if not current_user.get("is_paryavaran_mitra") and current_user.get("role") not in ("margdarshak", "admin", "superadmin"):
         raise HTTPException(status_code=403, detail="Only a Paryavaran Mitra can log a ceremony.")
 
     gross = ECO_CEREMONY_PRICES[body.ceremony_type]

@@ -56,13 +56,13 @@ async def get_current_user(
     return row
 
 
-async def require_pandit(
+async def require_margdarshak(
     user: Annotated[dict[str, Any], Depends(get_current_user)],
 ) -> dict[str, Any]:
-    if user.get("role") not in ("pandit", "admin"):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Pandit role required.")
+    if user.get("role") not in ("margdarshak", "admin"):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Margdarshak role required.")
     return user
 
 
 CurrentUser = Annotated[dict[str, Any], Depends(get_current_user)]
-PanditUser = Annotated[dict[str, Any], Depends(require_pandit)]
+MargdarshakUser = Annotated[dict[str, Any], Depends(require_margdarshak)]

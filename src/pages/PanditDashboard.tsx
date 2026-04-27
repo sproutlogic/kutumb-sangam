@@ -49,9 +49,9 @@ export default function PanditDashboard() {
   const [notes, setNotes] = useState('');
 
   const { data: queue = [], isLoading } = useQuery<QueueItem[]>({
-    queryKey: ['pandit-queue'],
+    queryKey: ['margdarshak-queue'],
     queryFn: async () => {
-      const res = await authFetch(`${base}/api/pandit/queue`);
+      const res = await authFetch(`${base}/api/margdarshak/queue`);
       if (!res.ok) throw new Error('Failed to load queue');
       return res.json();
     },
@@ -60,7 +60,7 @@ export default function PanditDashboard() {
 
   const reviewMutation = useMutation({
     mutationFn: async ({ request_id, action }: { request_id: string; action: string }) => {
-      const res = await authFetch(`${base}/api/pandit/review`, {
+      const res = await authFetch(`${base}/api/margdarshak/review`, {
         method: 'POST',
         body: JSON.stringify({ request_id, action, notes: notes.trim() || null }),
       });
@@ -74,7 +74,7 @@ export default function PanditDashboard() {
       toast({ title: action === 'approved' ? 'Approved' : 'Rejected', description: 'Decision saved and family notified.' });
       setReviewingId(null);
       setNotes('');
-      qc.invalidateQueries({ queryKey: ['pandit-queue'] });
+      qc.invalidateQueries({ queryKey: ['margdarshak-queue'] });
     },
     onError: (err: Error) => {
       toast({ title: 'Error', description: err.message, variant: 'destructive' });

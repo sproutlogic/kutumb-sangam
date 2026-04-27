@@ -16,7 +16,7 @@ const ReferralPandit = () => {
         <h1 className="font-heading text-2xl font-bold mb-2">{tr('referralPanditTitle')}</h1>
         <p className="text-muted-foreground font-body mb-6">{tr('referralPanditDesc')}</p>
         <button
-          onClick={() => navigate('/pandit-kyc')}
+          onClick={() => navigate('/margdarshak-kyc')}
           className="w-full py-3 rounded-lg gradient-saffron text-primary-foreground font-semibold font-body shadow-warm hover:opacity-90 transition-opacity"
         >
           {tr('proceedWithVerification')}
