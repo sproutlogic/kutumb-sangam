@@ -165,6 +165,7 @@ export interface BootstrapTreePayload {
   spouse_name?: string;
   identity: {
     given_name: string;
+    middle_name?: string;
     surname: string;
     date_of_birth: string;
     ancestral_place: string;
