@@ -3,7 +3,7 @@ import type { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabase";
 import { getApiBaseUrl } from "@/services/api";
 
-export type UserRole = "user" | "pandit" | "admin" | "superadmin" | "np" | "zp" | "rp" | "cp" | "se";
+export type UserRole = "user" | "margdarshak" | "admin" | "superadmin" | "np" | "zp" | "rp" | "cp" | "se" | "office" | "finance";
 
 export interface AppUser {
   id: string;

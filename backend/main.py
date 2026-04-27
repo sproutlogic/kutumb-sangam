@@ -12,7 +12,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from routers import (
-    admin, auth_router, calendar, kutumb_pro, legacy_box, matrimony,
+    admin, approval, auth_router, calendar, kutumb_pro, legacy_box, matrimony,
     notifications, pandit, payments, person, prakriti, radar, sales, time_bank, tree, union, verification,
 )
 from workers.matcher import create_matcher_scheduler
@@ -53,6 +53,7 @@ app.add_middleware(
 )
 
 app.include_router(admin.router)
+app.include_router(approval.router)
 app.include_router(auth_router.router)
 app.include_router(tree.router)
 app.include_router(person.router)

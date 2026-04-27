@@ -21,7 +21,7 @@ const CEREMONY_LABEL: Record<string, string> = {
 export default function HaritCirclePage() {
   const { appUser } = useAuth();
   const { toast } = useToast();
-  const isMitra = appUser?.role === 'pandit' || appUser?.role === 'admin' || appUser?.role === 'superadmin';
+  const isMitra = appUser?.role === 'margdarshak' || appUser?.role === 'admin' || appUser?.role === 'superadmin';
 
   const [circles, setCircles]     = useState<HaritCircle[]>([]);
   const [loading, setLoading]     = useState(true);

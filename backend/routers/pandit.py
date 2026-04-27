@@ -24,10 +24,10 @@ from constants import (
     VANSHA_ID_COLUMN,
 )
 from db import get_supabase
-from middleware.auth import PanditUser
+from middleware.auth import MargdarshakUser
 
 logger = logging.getLogger(__name__)
-router = APIRouter(prefix="/api/pandit", tags=["pandit"])
+router = APIRouter(prefix="/api/margdarshak", tags=["margdarshak"])
 
 
 class ReviewBody(BaseModel):
@@ -37,7 +37,7 @@ class ReviewBody(BaseModel):
 
 
 @router.get("/queue")
-def get_queue(pandit: PanditUser) -> list[dict[str, Any]]:
+def get_queue(pandit: MargdarshakUser) -> list[dict[str, Any]]:
     """Return all pending verification requests with person snapshot."""
     sb = get_supabase()
     reqs = (
@@ -69,7 +69,7 @@ def get_queue(pandit: PanditUser) -> list[dict[str, Any]]:
 
 
 @router.post("/review")
-def review_request(body: ReviewBody, pandit: PanditUser) -> dict[str, Any]:
+def review_request(body: ReviewBody, pandit: MargdarshakUser) -> dict[str, Any]:
     """Approve or reject a verification request."""
     if body.action not in ("approved", "rejected"):
         raise HTTPException(status_code=400, detail="action must be 'approved' or 'rejected'.")

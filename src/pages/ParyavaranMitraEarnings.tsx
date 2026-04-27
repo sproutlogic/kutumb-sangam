@@ -34,7 +34,7 @@ export default function ParyavaranMitraEarnings() {
   const { appUser } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
-  const isMitra = appUser?.role === 'pandit' || appUser?.role === 'admin' || appUser?.role === 'superadmin';
+  const isMitra = appUser?.role === 'margdarshak' || appUser?.role === 'admin' || appUser?.role === 'superadmin';
 
   const [data, setData]           = useState<MitraEarnings | null>(null);
   const [loading, setLoading]     = useState(true);
@@ -79,7 +79,7 @@ export default function ParyavaranMitraEarnings() {
             This page is for verified Paryavaran Mitras. Apply via the KYC process.
           </p>
           <button
-            onClick={() => navigate('/pandit-kyc')}
+            onClick={() => navigate('/margdarshak-kyc')}
             className="px-6 py-2.5 rounded-lg gradient-hero text-primary-foreground font-semibold font-body text-sm shadow-warm hover:opacity-90 transition-opacity">
             Apply as Paryavaran Mitra
           </button>
