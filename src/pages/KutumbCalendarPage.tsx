@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { CalendarDays, Plus, Megaphone, Trash2, Bell, X } from 'lucide-react';
 import AppShell from '@/components/shells/AppShell';
+import EcoPanchangStrip from '@/components/EcoPanchangStrip';
 import { useLang } from '@/i18n/LanguageContext';
 import { getApiBaseUrl, resolveVanshaIdForApi } from '@/services/api';
 import { toast } from '@/hooks/use-toast';
@@ -133,6 +134,9 @@ export default function KutumbCalendarPage() {
       </div>
 
       <div className="container py-8 space-y-6">
+        {/* ── Eco-Panchang strip — today's tithi + eco recommendation ── */}
+        <EcoPanchangStrip />
+
         {!vanshaId && (
           <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 rounded-xl p-4 text-sm font-body text-amber-800 dark:text-amber-300">
             {tr('noVanshaId')}

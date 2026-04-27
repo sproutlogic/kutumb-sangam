@@ -46,6 +46,15 @@ import HaritCirclePage from "@/pages/HaritCirclePage";
 import ParyavaranMitraEarnings from "@/pages/ParyavaranMitraEarnings";
 import NotFound from "@/pages/NotFound";
 
+// ── Eco-Panchang & Green Legacy ──────────────────────────────────────────────
+import EcoPanchangPage from "@/pages/EcoPanchangPage";
+import EcoSewaPage from "@/pages/EcoSewaPage";
+import EcoServicesPage from "@/pages/EcoServicesPage";
+import ServiceOrderDetailPage from "@/pages/ServiceOrderDetailPage";
+import GreenLegacyPage from "@/pages/GreenLegacyPage";
+import VendorPortalPage from "@/pages/VendorPortalPage";
+import ContentQueuePage from "@/pages/ContentQueuePage";
+
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
@@ -115,6 +124,21 @@ const App = () => (
 
                     {/* Pandit KYC is public so Pandits can register */}
                     <Route path="/pandit-kyc" element={<PanditKycPage />} />
+
+                    {/* ── Eco-Panchang (public, no auth required) ── */}
+                    <Route path="/eco-panchang" element={<EcoPanchangPage />} />
+                    <Route path="/green-legacy/:vanshaId" element={<GreenLegacyPage />} />
+                    <Route path="/services" element={<EcoServicesPage />} />
+
+                    {/* ── Eco-Sewa & Service Orders (authenticated) ── */}
+                    <Route path="/eco-sewa" element={<ProtectedRoute><EcoSewaPage /></ProtectedRoute>} />
+                    <Route path="/services/orders/:orderId" element={<ProtectedRoute><ServiceOrderDetailPage /></ProtectedRoute>} />
+
+                    {/* ── Vendor portal (authenticated vendor) ── */}
+                    <Route path="/vendor-portal" element={<ProtectedRoute><VendorPortalPage /></ProtectedRoute>} />
+
+                    {/* ── Admin content queue (admin / superadmin) ── */}
+                    <Route path="/admin/content" element={<ProtectedRoute><ContentQueuePage /></ProtectedRoute>} />
 
                     <Route path="*" element={<NotFound />} />
                   </Routes>

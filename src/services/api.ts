@@ -467,3 +467,597 @@ export async function requestPanditVerification(params: {
     request_id: data.request_id,
   };
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Eco-Panchang APIs
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface TithiDefinition {
+  id: number;
+  paksha: "shukla" | "krishna";
+  tithi_number: number;
+  name_sanskrit: string;
+  name_hindi: string;
+  name_common: string;
+  eco_significance: string;
+  plant_action: string | null;
+  water_action: string | null;
+  avoid_action: string | null;
+  nature_observation: string | null;
+  sewa_category: string;
+  community_action: string;
+  ceremony_type_hint: string | null;
+}
+
+export interface EcoRecommendation {
+  primary: string;
+  plant: string;
+  water: string;
+  avoid: string;
+  observe: string;
+  community: string;
+}
+
+export interface TodayPanchang {
+  date: string;
+  tithi: TithiDefinition;
+  nakshatra: string | null;
+  yoga: string | null;
+  masa: string | null;
+  samvat_year: number | null;
+  paksha: "shukla" | "krishna";
+  special_flag: string | null;
+  is_kshaya: boolean;
+  is_adhika: boolean;
+  sunrise_ts: string | null;
+  ref_lat: number;
+  ref_lon: number;
+  eco_recommendation: EcoRecommendation;
+}
+
+export interface PanchangCalendarRow {
+  id: string;
+  gregorian_date: string;
+  tithi_id: number;
+  tithis?: TithiDefinition;
+  paksha: "shukla" | "krishna";
+  nakshatra: string | null;
+  yoga: string | null;
+  masa_name: string | null;
+  samvat_year: number | null;
+  special_flag: string | null;
+  is_kshaya: boolean;
+  is_adhika: boolean;
+  sunrise_ts: string | null;
+  ref_lat: number;
+  ref_lon: number;
+}
+
+/** Today's tithi + eco recommendation. lat/lon optional — defaults to Ujjain. */
+export async function fetchTodayPanchang(
+  lat?: number,
+  lon?: number,
+): Promise<TodayPanchang | null> {
+  try {
+    const params = new URLSearchParams();
+    if (lat !== undefined) params.set("lat", String(lat));
+    if (lon !== undefined) params.set("lon", String(lon));
+    const qs = params.toString() ? `?${params.toString()}` : "";
+    const res = await fetchApi(`${getApiBaseUrl()}/api/panchang/today${qs}`, {
+      headers: { Accept: "application/json" },
+    });
+    return (await parseJsonOrThrow(res)) as TodayPanchang;
+  } catch {
+    return null;
+  }
+}
+
+/** All 30 tithi definitions (public, rarely changes). */
+export async function fetchTithis(): Promise<TithiDefinition[]> {
+  try {
+    const res = await fetchApi(`${getApiBaseUrl()}/api/panchang/tithis`, {
+      headers: { Accept: "application/json" },
+    });
+    return (await parseJsonOrThrow(res)) as TithiDefinition[];
+  } catch {
+    return [];
+  }
+}
+
+/** Rolling calendar window. Defaults to today → today+7. Max 90 days. */
+export async function fetchPanchangCalendar(
+  from?: string,
+  to?: string,
+): Promise<PanchangCalendarRow[]> {
+  try {
+    const params = new URLSearchParams();
+    if (from) params.set("from", from);
+    if (to) params.set("to", to);
+    const qs = params.toString() ? `?${params.toString()}` : "";
+    const res = await fetchApi(`${getApiBaseUrl()}/api/panchang/calendar${qs}`, {
+      headers: { Accept: "application/json" },
+    });
+    return (await parseJsonOrThrow(res)) as PanchangCalendarRow[];
+  } catch {
+    return [];
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Eco-Sewa APIs (Tier 1 self-reported)
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type EcoSewaActionType =
+  | "tree_watered" | "tree_planted_self" | "waste_segregated"
+  | "animal_water" | "eco_pledge" | "community_clean"
+  | "composting" | "solar_action" | "water_harvesting";
+
+export type EcoSewaStatus = "pending" | "vouched" | "disputed" | "rejected";
+
+export interface EcoSewaLog {
+  id: string;
+  vansha_id: string;
+  reported_by_uid: string;
+  action_type: EcoSewaActionType;
+  action_date: string;
+  location_text: string | null;
+  notes: string | null;
+  photo_url: string | null;
+  tithi_id: number | null;
+  status: EcoSewaStatus;
+  vouched_by_uid: string | null;
+  vouched_at: string | null;
+  dispute_reason: string | null;
+  score_contribution: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface LogSewaPayload {
+  action_type: EcoSewaActionType;
+  action_date?: string;
+  location_text?: string;
+  notes?: string;
+  photo_url?: string;
+}
+
+export async function logEcoSewa(
+  payload: LogSewaPayload,
+): Promise<{ ok: boolean; log_id: string; status: string; score_contribution: number; message: string }> {
+  const res = await fetchApi(`${getApiBaseUrl()}/api/eco-sewa/log`, {
+    method: "POST",
+    headers: { Accept: "application/json", "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  return (await parseJsonOrThrow(res)) as {
+    ok: boolean; log_id: string; status: string; score_contribution: number; message: string;
+  };
+}
+
+export async function fetchEcoSewaLogs(
+  vansha_id?: string,
+  limit = 50,
+): Promise<EcoSewaLog[]> {
+  try {
+    const params = new URLSearchParams({ limit: String(limit) });
+    if (vansha_id) params.set("vansha_id", vansha_id);
+    const res = await fetchApi(`${getApiBaseUrl()}/api/eco-sewa/logs?${params.toString()}`, {
+      headers: { Accept: "application/json" },
+    });
+    return (await parseJsonOrThrow(res)) as EcoSewaLog[];
+  } catch {
+    return [];
+  }
+}
+
+export async function vouchEcoSewaLog(
+  log_id: string,
+): Promise<{ ok: boolean; new_status: string; score_contribution: number; eco_hours_delta: number }> {
+  const res = await fetchApi(`${getApiBaseUrl()}/api/eco-sewa/logs/${encodeURIComponent(log_id)}/vouch`, {
+    method: "PATCH",
+    headers: { Accept: "application/json" },
+  });
+  return (await parseJsonOrThrow(res)) as {
+    ok: boolean; new_status: string; score_contribution: number; eco_hours_delta: number;
+  };
+}
+
+export async function disputeEcoSewaLog(
+  log_id: string,
+  reason: string,
+): Promise<{ ok: boolean; new_status: string }> {
+  const res = await fetchApi(`${getApiBaseUrl()}/api/eco-sewa/logs/${encodeURIComponent(log_id)}/dispute`, {
+    method: "PATCH",
+    headers: { Accept: "application/json", "Content-Type": "application/json" },
+    body: JSON.stringify({ reason }),
+  });
+  return (await parseJsonOrThrow(res)) as { ok: boolean; new_status: string };
+}
+
+export interface EcoSewaStats {
+  vansha_id: string;
+  total_actions: number;
+  vouched: number;
+  pending: number;
+  disputed: number;
+  total_score_contrib: number;
+  by_action_type: Record<string, number>;
+}
+
+export async function fetchEcoSewaStats(vansha_id: string): Promise<EcoSewaStats | null> {
+  try {
+    const res = await fetchApi(
+      `${getApiBaseUrl()}/api/eco-sewa/stats/${encodeURIComponent(vansha_id)}`,
+      { headers: { Accept: "application/json" } },
+    );
+    return (await parseJsonOrThrow(res)) as EcoSewaStats;
+  } catch {
+    return null;
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Eco Service APIs (Tier 2 verified)
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type ServicePackageId = "taruvara" | "dashavruksha" | "jala_setu";
+
+export interface ServicePackage {
+  id: ServicePackageId;
+  name_sanskrit: string;
+  name_english: string;
+  description: string;
+  price_paise: number;
+  price_inr: number;
+  tree_count: number;
+  care_months: number;
+  includes_water_station: boolean;
+  is_active: boolean;
+}
+
+export interface ServiceOrder {
+  id: string;
+  vansha_id: string;
+  user_id: string;
+  package_id: ServicePackageId;
+  payment_id: string | null;
+  payment_status: string;
+  delivery_location_text: string;
+  delivery_lat: number | null;
+  delivery_lon: number | null;
+  preferred_date: string | null;
+  vendor_id: string | null;
+  status: string;
+  care_schedule: CareMilestone[];
+  completed_at: string | null;
+  created_at: string;
+  updated_at: string;
+  service_packages?: Pick<ServicePackage, "name_english" | "name_sanskrit" | "tree_count" | "includes_water_station">;
+}
+
+export interface CareMilestone {
+  month: number;
+  due_date: string;
+  status: "pending" | "notified" | "completed";
+  proof_id: string | null;
+}
+
+export async function fetchServicePackages(): Promise<ServicePackage[]> {
+  try {
+    const res = await fetchApi(`${getApiBaseUrl()}/api/services/packages`, {
+      headers: { Accept: "application/json" },
+    });
+    return (await parseJsonOrThrow(res)) as ServicePackage[];
+  } catch {
+    return [];
+  }
+}
+
+export interface CreateServiceOrderPayload {
+  package_id: ServicePackageId;
+  delivery_location_text: string;
+  delivery_lat?: number;
+  delivery_lon?: number;
+  preferred_date?: string;
+  use_igst?: boolean;
+  billed_name?: string;
+  billed_email?: string;
+  billed_phone?: string;
+  gstin?: string;
+}
+
+export async function createServiceOrder(
+  payload: CreateServiceOrderPayload,
+): Promise<{ ok: boolean; service_order_id: string; payment_id: string; total_paise: number; display_total: string }> {
+  const res = await fetchApi(`${getApiBaseUrl()}/api/services/create-order`, {
+    method: "POST",
+    headers: { Accept: "application/json", "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  return (await parseJsonOrThrow(res)) as {
+    ok: boolean; service_order_id: string; payment_id: string; total_paise: number; display_total: string;
+  };
+}
+
+export async function fetchMyServiceOrders(): Promise<ServiceOrder[]> {
+  try {
+    const res = await fetchApi(`${getApiBaseUrl()}/api/services/orders`, {
+      headers: { Accept: "application/json" },
+    });
+    return (await parseJsonOrThrow(res)) as ServiceOrder[];
+  } catch {
+    return [];
+  }
+}
+
+export async function fetchServiceOrderDetail(order_id: string): Promise<ServiceOrder | null> {
+  try {
+    const res = await fetchApi(
+      `${getApiBaseUrl()}/api/services/orders/${encodeURIComponent(order_id)}`,
+      { headers: { Accept: "application/json" } },
+    );
+    return (await parseJsonOrThrow(res)) as ServiceOrder;
+  } catch {
+    return null;
+  }
+}
+
+export async function vendorAcceptOrder(
+  order_id: string,
+): Promise<{ ok: boolean; new_status: string }> {
+  const res = await fetchApi(
+    `${getApiBaseUrl()}/api/services/orders/${encodeURIComponent(order_id)}/accept`,
+    { method: "PATCH", headers: { Accept: "application/json" } },
+  );
+  return (await parseJsonOrThrow(res)) as { ok: boolean; new_status: string };
+}
+
+export interface ProofUploadPayload {
+  photo_urls: string[];
+  geo_lat: number;
+  geo_lon: number;
+  geo_accuracy_m?: number;
+  captured_at: string;
+  vendor_notes?: string;
+  submission_type?: string;
+}
+
+export async function uploadOrderProof(
+  order_id: string,
+  payload: ProofUploadPayload,
+): Promise<{ ok: boolean; proof_id: string; auto_approved: boolean; geo_ok: boolean; time_ok: boolean; status: string; message: string }> {
+  const res = await fetchApi(
+    `${getApiBaseUrl()}/api/services/orders/${encodeURIComponent(order_id)}/proof`,
+    {
+      method: "POST",
+      headers: { Accept: "application/json", "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    },
+  );
+  return (await parseJsonOrThrow(res)) as {
+    ok: boolean; proof_id: string; auto_approved: boolean;
+    geo_ok: boolean; time_ok: boolean; status: string; message: string;
+  };
+}
+
+export async function reviewOrderProof(
+  order_id: string,
+  approved: boolean,
+  rejection_reason?: string,
+): Promise<{ ok: boolean; result: "approved" | "rejected" }> {
+  const res = await fetchApi(
+    `${getApiBaseUrl()}/api/services/orders/${encodeURIComponent(order_id)}/proof/review`,
+    {
+      method: "POST",
+      headers: { Accept: "application/json", "Content-Type": "application/json" },
+      body: JSON.stringify({ approved, rejection_reason }),
+    },
+  );
+  return (await parseJsonOrThrow(res)) as { ok: boolean; result: "approved" | "rejected" };
+}
+
+export async function fetchVendorDashboard(limit = 20): Promise<{
+  vendor: Record<string, unknown>;
+  orders: ServiceOrder[];
+  total: number;
+  by_status: Record<string, number>;
+} | null> {
+  try {
+    const res = await fetchApi(
+      `${getApiBaseUrl()}/api/services/vendor/dashboard?limit=${limit}`,
+      { headers: { Accept: "application/json" } },
+    );
+    return (await parseJsonOrThrow(res)) as {
+      vendor: Record<string, unknown>;
+      orders: ServiceOrder[];
+      total: number;
+      by_status: Record<string, number>;
+    };
+  } catch {
+    return null;
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Green Legacy APIs (public)
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface GreenLegacyProfile {
+  vansha_id: string;
+  family_name: string;
+  location: string;
+  member_count: number;
+  verified_trees: number;
+  verified_pledges: number;
+  prakriti_score: number;
+  sewa_actions_total: number;
+  sewa_actions_vouched: number;
+  sewa_score_contrib: number;
+  orders_completed: number;
+  trees_via_service: number;
+  green_legacy_score: number;
+  last_activity_at: string | null;
+  share_url: string;
+}
+
+export interface GreenLegacyEvent {
+  source: "eco_sewa" | "verified" | "ceremony";
+  action_type: string;
+  event_date: string;
+  notes: string | null;
+  photo_url: string | null;
+  points: number;
+  tithi_id: number | null;
+  created_at: string;
+}
+
+export async function fetchGreenLegacyProfile(
+  vansha_id: string,
+): Promise<GreenLegacyProfile | null> {
+  try {
+    const res = await fetchApi(
+      `${getApiBaseUrl()}/api/green-legacy/${encodeURIComponent(vansha_id)}`,
+      { headers: { Accept: "application/json" } },
+    );
+    return (await parseJsonOrThrow(res)) as GreenLegacyProfile;
+  } catch {
+    return null;
+  }
+}
+
+export async function fetchGreenLegacyTimeline(
+  vansha_id: string,
+  limit = 50,
+  offset = 0,
+): Promise<GreenLegacyEvent[]> {
+  try {
+    const params = new URLSearchParams({ limit: String(limit), offset: String(offset) });
+    const res = await fetchApi(
+      `${getApiBaseUrl()}/api/green-legacy/${encodeURIComponent(vansha_id)}/timeline?${params.toString()}`,
+      { headers: { Accept: "application/json" } },
+    );
+    return (await parseJsonOrThrow(res)) as GreenLegacyEvent[];
+  } catch {
+    return [];
+  }
+}
+
+export async function fetchGreenLegacyGenerations(
+  vansha_id: string,
+): Promise<Record<string, unknown> | null> {
+  try {
+    const res = await fetchApi(
+      `${getApiBaseUrl()}/api/green-legacy/${encodeURIComponent(vansha_id)}/generations`,
+      { headers: { Accept: "application/json" } },
+    );
+    return (await parseJsonOrThrow(res)) as Record<string, unknown>;
+  } catch {
+    return null;
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Content APIs (admin review queue + public published)
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type ContentType = "blog_post" | "ig_caption" | "yt_short";
+export type ContentStatus = "draft" | "approved" | "published" | "rejected";
+
+export interface GeneratedContentItem {
+  id: string;
+  panchang_date: string;
+  tithi_id: number;
+  content_type: ContentType;
+  vansha_id: string | null;
+  family_name: string | null;
+  location: string | null;
+  title: string;
+  subtitle: string | null;
+  body: string;
+  hashtags: string[] | null;
+  status: ContentStatus;
+  reviewed_by: string | null;
+  reviewed_at: string | null;
+  published_at: string | null;
+  created_at: string;
+}
+
+export async function fetchContentQueue(params?: {
+  content_type?: ContentType;
+  limit?: number;
+  offset?: number;
+}): Promise<{ items: GeneratedContentItem[]; total: number }> {
+  try {
+    const qs = new URLSearchParams();
+    if (params?.content_type) qs.set("content_type", params.content_type);
+    if (params?.limit !== undefined) qs.set("limit", String(params.limit));
+    if (params?.offset !== undefined) qs.set("offset", String(params.offset));
+    const res = await fetchApi(
+      `${getApiBaseUrl()}/api/content/queue?${qs.toString()}`,
+      { headers: { Accept: "application/json" } },
+    );
+    return (await parseJsonOrThrow(res)) as { items: GeneratedContentItem[]; total: number };
+  } catch {
+    return { items: [], total: 0 };
+  }
+}
+
+export async function approveContent(
+  content_id: string,
+  publish_now = false,
+): Promise<{ ok: boolean; new_status: string }> {
+  const res = await fetchApi(
+    `${getApiBaseUrl()}/api/content/${encodeURIComponent(content_id)}/approve`,
+    {
+      method: "PATCH",
+      headers: { Accept: "application/json", "Content-Type": "application/json" },
+      body: JSON.stringify({ publish_now }),
+    },
+  );
+  return (await parseJsonOrThrow(res)) as { ok: boolean; new_status: string };
+}
+
+export async function rejectContent(
+  content_id: string,
+  reason: string,
+): Promise<{ ok: boolean }> {
+  const res = await fetchApi(
+    `${getApiBaseUrl()}/api/content/${encodeURIComponent(content_id)}/reject`,
+    {
+      method: "PATCH",
+      headers: { Accept: "application/json", "Content-Type": "application/json" },
+      body: JSON.stringify({ reason }),
+    },
+  );
+  return (await parseJsonOrThrow(res)) as { ok: boolean };
+}
+
+export async function triggerContentGeneration(): Promise<{ ok: boolean; inserted: number; message: string }> {
+  const res = await fetchApi(`${getApiBaseUrl()}/api/content/generate`, {
+    method: "POST",
+    headers: { Accept: "application/json" },
+  });
+  return (await parseJsonOrThrow(res)) as { ok: boolean; inserted: number; message: string };
+}
+
+export async function fetchPublishedContent(params?: {
+  content_type?: ContentType;
+  vansha_id?: string;
+  limit?: number;
+  offset?: number;
+}): Promise<{ items: GeneratedContentItem[]; content_type: ContentType }> {
+  try {
+    const qs = new URLSearchParams();
+    qs.set("content_type", params?.content_type ?? "blog_post");
+    if (params?.vansha_id) qs.set("vansha_id", params.vansha_id);
+    if (params?.limit !== undefined) qs.set("limit", String(params.limit));
+    if (params?.offset !== undefined) qs.set("offset", String(params.offset));
+    const res = await fetchApi(
+      `${getApiBaseUrl()}/api/content/published?${qs.toString()}`,
+      { headers: { Accept: "application/json" } },
+    );
+    return (await parseJsonOrThrow(res)) as { items: GeneratedContentItem[]; content_type: ContentType };
+  } catch {
+    return { items: [], content_type: params?.content_type ?? "blog_post" };
+  }
+}

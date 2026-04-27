@@ -12,10 +12,14 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from routers import (
-    admin, auth_router, calendar, kutumb_pro, legacy_box, matrimony,
-    notifications, pandit, payments, person, prakriti, radar, sales, time_bank, tree, union, verification,
+    admin, auth_router, calendar, content, eco_sewa, eco_services, green_legacy,
+    kutumb_pro, legacy_box, matrimony,
+    notifications, pandit, panchang, payments, person, prakriti, radar, sales, time_bank, tree, union, verification,
 )
+from workers.care_reminder import create_care_reminder_scheduler
+from workers.content_gen import create_content_gen_scheduler
 from workers.matcher import create_matcher_scheduler
+from workers.panchang_seeder import create_panchang_scheduler
 from config import get_settings
 
 logging.basicConfig(
@@ -27,9 +31,17 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # create_matcher_scheduler() builds and returns the AsyncIOScheduler;
+    # we pass that same instance to the Eco-Panchang workers so all jobs
+    # run on one shared scheduler.
     scheduler = create_matcher_scheduler()
+    create_panchang_scheduler(scheduler)
+    create_content_gen_scheduler(scheduler)
+    create_care_reminder_scheduler(scheduler)
     scheduler.start()
-    logger.info("APScheduler started (daily gotra collision job registered)")
+    logger.info(
+        "APScheduler started — gotra matcher, panchang seeder, content gen, care reminder registered"
+    )
     try:
         yield
     finally:
@@ -69,6 +81,13 @@ app.include_router(legacy_box.router)
 app.include_router(radar.router)
 app.include_router(time_bank.router)
 app.include_router(prakriti.router)
+
+# Eco-Panchang & Green Legacy
+app.include_router(panchang.router)
+app.include_router(eco_sewa.router)
+app.include_router(eco_services.router)
+app.include_router(green_legacy.router)
+app.include_router(content.router)
 
 
 @app.api_route("/health", methods=["GET", "HEAD"])

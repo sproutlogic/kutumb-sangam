@@ -9,7 +9,7 @@ import TrustBadge from '@/components/ui/TrustBadge';
 import TreeCompletionScore from '@/components/ui/TreeCompletionScore';
 import ClanMilestone from '@/components/ui/ClanMilestone';
 import { useState, useEffect } from 'react';
-import { Users, Layers, Mail, TreePine, UserPlus, ShieldCheck, Clock, Search, Heart, Check, X, GitFork, ArrowUpCircle, BarChart3, Rocket, Briefcase, HandHeart, Leaf } from 'lucide-react';
+import { Users, Layers, Mail, TreePine, UserPlus, ShieldCheck, Clock, Search, Heart, Check, X, GitFork, ArrowUpCircle, BarChart3, Rocket, Briefcase, HandHeart, Leaf, UserCircle2 } from 'lucide-react';
 import { UPCOMING_SERVICES } from '@/config/upcomingServices.config';
 import { JoinSEModal } from '@/components/sales/JoinSEModal';
 import { EarningsWallet } from '@/components/sales/EarningsWallet';
@@ -73,7 +73,18 @@ const Dashboard = () => {
           <div className="flex items-center justify-between flex-wrap gap-4">
             <div>
               <p className="text-xs tracking-[0.2em] uppercase opacity-60 font-body mb-1">{tr('haritVanshavali')}</p>
+              {/* Greet by name if available */}
+              {appUser?.full_name && (
+                <p className="text-sm opacity-75 font-body mb-0.5">
+                  नमस्ते, {appUser.full_name} 🌿
+                </p>
+              )}
               <h1 className="font-heading text-3xl font-bold mb-0">{isTreeInitialized ? state.treeName : tr('dashboardTitle')}</h1>
+              {appUser?.kutumb_id && (
+                <p className="text-[11px] opacity-60 font-body mt-0.5 tracking-wide">
+                  ID: {appUser.kutumb_id}
+                </p>
+              )}
               <a
                 href="https://ecotech.co.in"
                 target="_blank"
@@ -116,6 +127,67 @@ const Dashboard = () => {
             </button>
           </div>
         )}
+
+        {/* ── My Profile card — pre-fills saved personal details ── */}
+        {isTreeInitialized && (() => {
+          // Root node = node with minimum generation (the person who did onboarding)
+          const rootNode = state.nodes.length > 0
+            ? [...state.nodes].sort((a, b) => (a.generation ?? 0) - (b.generation ?? 0))[0]
+            : null;
+          if (!rootNode) return null;
+          return (
+            <div className="bg-card rounded-xl p-5 shadow-card border border-border/50 animate-fade-in">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="font-heading text-base font-semibold flex items-center gap-2">
+                  <UserCircle2 className="w-5 h-5 text-primary" />
+                  मेरी प्रोफ़ाइल
+                </h3>
+                <button
+                  onClick={() => navigate(`/node/${rootNode.id}`)}
+                  className="text-xs text-primary font-body font-medium hover:underline"
+                >
+                  संपादित करें →
+                </button>
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-3 text-sm font-body">
+                <div>
+                  <p className="text-xs text-muted-foreground mb-0.5">नाम</p>
+                  <p className="font-medium">{rootNode.name}</p>
+                </div>
+                {appUser?.phone && (
+                  <div>
+                    <p className="text-xs text-muted-foreground mb-0.5">फ़ोन</p>
+                    <p className="font-medium">{appUser.phone}</p>
+                  </div>
+                )}
+                {appUser?.kutumb_id && (
+                  <div>
+                    <p className="text-xs text-muted-foreground mb-0.5">Kutumb ID</p>
+                    <p className="font-medium font-mono text-xs">{appUser.kutumb_id}</p>
+                  </div>
+                )}
+                {(rootNode as any).dateOfBirth && (
+                  <div>
+                    <p className="text-xs text-muted-foreground mb-0.5">जन्मतिथि</p>
+                    <p className="font-medium">{(rootNode as any).dateOfBirth}</p>
+                  </div>
+                )}
+                {(rootNode as any).ancestralPlace && (
+                  <div>
+                    <p className="text-xs text-muted-foreground mb-0.5">पैतृक स्थान</p>
+                    <p className="font-medium">{(rootNode as any).ancestralPlace}</p>
+                  </div>
+                )}
+                {(rootNode as any).currentResidence && (
+                  <div>
+                    <p className="text-xs text-muted-foreground mb-0.5">वर्तमान निवास</p>
+                    <p className="font-medium">{(rootNode as any).currentResidence}</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          );
+        })()}
 
         {/* Stats + Trust Score Row */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">

@@ -61,3 +61,46 @@ ECO_CEREMONY_PRICES: dict[str, int] = {
     "harit_circle_monthly": 500,
 }
 PLATFORM_FEE_PCT = 20.0  # 20% platform commission
+
+# ── Eco-Panchang ──────────────────────────────────────────────────────────────
+TITHIS_TABLE               = "tithis"
+PANCHANG_CALENDAR_TABLE    = "panchang_calendar"
+GENERATED_CONTENT_TABLE    = "generated_content"
+
+# ── Two-Tier Trust Model ───────────────────────────────────────────────────────
+ECO_SEWA_LOGS_TABLE        = "eco_sewa_logs"
+VERIFIED_ECO_ACTIONS_TABLE = "verified_eco_actions"
+
+# ── Service Layer ─────────────────────────────────────────────────────────────
+SERVICE_PACKAGES_TABLE     = "service_packages"
+SERVICE_ORDERS_TABLE       = "service_orders"
+VENDORS_TABLE              = "vendors"
+VENDOR_ASSIGNMENTS_TABLE   = "vendor_assignments"
+PROOF_SUBMISSIONS_TABLE    = "proof_submissions"
+
+# Default service package prices in paise (runtime override from platform_config)
+SERVICE_PACKAGE_DEFAULT_PRICES: dict[str, int] = {
+    "taruvara":     149900,   # ₹1,499
+    "dashavruksha": 1199900,  # ₹11,999
+    "jala_setu":    249900,   # ₹2,499
+}
+
+# Eco-Sewa: hours credited per action type (Tier 1 → eco_hours bucket)
+ECO_SEWA_HOUR_WEIGHTS: dict[str, float] = {
+    "tree_watered":       0.5,
+    "tree_planted_self":  2.0,
+    "waste_segregated":   0.5,
+    "animal_water":       0.5,
+    "eco_pledge":         1.0,
+    "community_clean":    1.5,
+    "composting":         0.5,
+    "solar_action":       1.0,
+    "water_harvesting":   1.0,
+}
+
+# Auto-verification: proof must be within this distance of delivery address
+GEOFENCE_RADIUS_METRES = 500
+
+# Ujjain — traditional Hindu meridian (default for panchang sunrise computation)
+UJJAIN_LAT: float = 23.1809
+UJJAIN_LON: float = 75.7771
