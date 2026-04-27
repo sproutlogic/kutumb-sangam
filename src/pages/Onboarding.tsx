@@ -1,12 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useLang } from '@/i18n/LanguageContext';
-import { usePlan } from '@/contexts/PlanContext';
 import { useTree } from '@/contexts/TreeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { backendPayloadToTreeState } from '@/services/mapVanshaPayload';
 import { bootstrapOnboardingTree, getApiBaseUrl } from '@/services/api';
-import LockedBanner from '@/components/states/LockedBanner';
 import { toast } from '@/hooks/use-toast';
 import { supabase } from '@/lib/supabase';
 import { Loader2, Mail, ChevronDown, ChevronUp, CheckCircle2 } from 'lucide-react';
@@ -99,7 +97,6 @@ const defaultForm = () => ({
   dateOfBirth: '',
   ancestralPlace: '',
   currentResidence: '',
-  gotra: '',
   treeName: '',
   fatherName: '',
   motherName: '',
@@ -108,7 +105,6 @@ const defaultForm = () => ({
 
 const Onboarding = () => {
   const { tr } = useLang();
-  const { hasEntitlement } = usePlan();
   const { loadTreeState } = useTree();
   const { session, appUser, refreshAppUser } = useAuth();
   const navigate = useNavigate();
@@ -168,7 +164,6 @@ const Onboarding = () => {
   /** Avoid writing sessionStorage until we've read any existing draft (prevents wiping data on refresh). */
   const [draftReady, setDraftReady] = useState(false);
 
-  const hasCultural = hasEntitlement('culturalFields');
   const set = (key: string, val: string) => setForm(prev => ({ ...prev, [key]: val }));
 
   useEffect(() => {
@@ -233,7 +228,7 @@ const Onboarding = () => {
       const treeName = form.treeName.trim() || `${form.givenName.trim()}'s Family`;
       const payload = await bootstrapOnboardingTree({
         tree_name: treeName,
-        gotra: form.gotra.trim(),
+        gotra: '',
         father_name: form.fatherName.trim(),
         mother_name: form.motherName.trim(),
         spouse_name: form.spouseName.trim(),
@@ -399,17 +394,6 @@ const Onboarding = () => {
                 <input value={form.currentResidence} onChange={(e) => set('currentResidence', e.target.value)} className={inputClass} required />
               </div>
 
-              {hasCultural ? (
-                <div>
-                  <label className="block text-sm font-medium font-body mb-1.5">{tr('gotra')}</label>
-                  <input value={form.gotra} onChange={(e) => set('gotra', e.target.value)} className={inputClass} />
-                </div>
-              ) : (
-                <div className="border-t border-border pt-4">
-                  <p className="text-xs text-muted-foreground font-body mb-3">{tr('culturalFieldsLocked')}</p>
-                  <LockedBanner featureKey="culturalFields" />
-                </div>
-              )}
 
               <button
                 type="submit"

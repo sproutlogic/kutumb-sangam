@@ -91,12 +91,12 @@ const STATUS_PILL: Record<string, string> = {
 };
 
 const USE_CASES = [
-  { emoji: '📚', title: 'Teach a skill',   desc: 'Share coding, cooking, music, or language — earn Sewa Credits in return.' },
-  { emoji: '🤝', title: 'Help an elder',   desc: 'Assist a senior with errands, tech support, or companionship.' },
-  { emoji: '👶', title: 'Childcare swap',  desc: 'Two families take turns babysitting. No money — just mutual Sewa.' },
-  { emoji: '🔧', title: 'Fix & repair',    desc: 'Offer plumbing, carpentry or electrical help. Your skills matter.' },
-  { emoji: '🚗', title: 'Ride share',      desc: 'Going somewhere? Offer a seat. Someone helps you next time.' },
-  { emoji: '💻', title: 'Tech support',    desc: 'Help a neighbour with their phone, Wi-Fi, or digital banking.' },
+  { emoji: '🌳', title: 'Tree planting drives', desc: 'Organise or join a Van Mahotsav / plantation drive. Earn 1.5× Eco-Sewa Credits for every hour contributed.' },
+  { emoji: '♻️', title: 'Waste segregation & clean-up', desc: 'Lead or support waste segregation camps, SwachhBharat drives, and neighbourhood clean-up efforts.' },
+  { emoji: '🌊', title: 'Water & river conservation', desc: 'Help with Jal Puja, river clean-up, rainwater harvesting awareness, or community well restoration.' },
+  { emoji: '📢', title: 'Environmental awareness', desc: 'Conduct eco-awareness sessions in schools, colonies, or markets. Share knowledge that multiplies impact.' },
+  { emoji: '🌱', title: 'Sustainable skills sharing', desc: 'Teach composting, organic farming, natural dyes, solar cooking, or any skill that reduces environmental harm.' },
+  { emoji: '🤝', title: 'Community eco-volunteering', desc: 'Join or organise any community service that protects nature — forests, wetlands, urban green spaces, or air quality.' },
 ];
 
 // ── Auth helper ───────────────────────────────────────────────────────────────
@@ -416,6 +416,7 @@ export default function TimeBankPage() {
   const inProgress = myTxns.filter(t => ['pending','assigned'].includes(t.status));
   const history = myTxns.filter(t => ['confirmed','cancelled','disputed'].includes(t.status));
   const isManager = branch?.my_role === 'manager';
+  const isPlatformAdmin = appUser?.role === 'admin' || appUser?.role === 'superadmin';
   const pendingApproval = adminTxns.filter(t => t.requires_manager_approval && !t.manager_approved && t.status === 'helper_done');
 
   // ── Loading ────────────────────────────────────────────────────────────────────
@@ -592,6 +593,50 @@ export default function TimeBankPage() {
       </div>
 
       {/* ══════════════════════════════════════
+          PUBLISHED FEED STRIP — most important
+          notifications shown immediately below hero
+      ══════════════════════════════════════ */}
+      {feed.length > 0 && (
+        <div className="border-b border-border bg-card/60 backdrop-blur-sm">
+          <div className="container px-4 py-4">
+            <div className="flex items-center gap-2 mb-3">
+              <span className="inline-flex items-center gap-1.5 text-[10px] font-bold tracking-[0.18em] uppercase text-primary">
+                <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse inline-block" />
+                Live Sewa Board
+              </span>
+              <span className="text-[10px] text-muted-foreground font-body">{feed.length} active post{feed.length !== 1 ? 's' : ''} in your community</span>
+            </div>
+            <div className="flex gap-3 overflow-x-auto pb-1 scrollbar-hide">
+              {feed.slice(0, 8).map(req => {
+                const isOffer = req.request_type === 'offer';
+                return (
+                  <div
+                    key={req.id}
+                    className={`flex-shrink-0 w-64 rounded-xl border p-3 bg-card shadow-sm hover:shadow-card transition-all cursor-default ${
+                      isOffer ? 'border-green-200/70' : 'border-blue-200/70'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2 mb-1.5">
+                      <span className="text-lg leading-none">{CAT_EMOJI[req.category] || '⭐'}</span>
+                      <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
+                        isOffer ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'
+                      }`}>
+                        {isOffer ? '🙋 Offering' : '🙏 Needs help'}
+                      </span>
+                    </div>
+                    <p className="text-sm font-semibold font-body line-clamp-1">{req.title}</p>
+                    <p className="text-[11px] text-muted-foreground font-body mt-0.5">
+                      {req.requester_name}{req.hours_estimate ? ` · ${req.hours_estimate}h` : ''}
+                    </p>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ══════════════════════════════════════
           HOW IT WORKS
       ══════════════════════════════════════ */}
       <div className="border-b border-border" style={{ backgroundColor: 'hsl(290 18% 95%)' }}>
@@ -696,7 +741,7 @@ export default function TimeBankPage() {
           <>
             {/* ── Tab bar ── */}
             <div className="flex gap-1 bg-secondary/50 rounded-xl p-1">
-              {(['feed','activity', ...(isManager ? ['admin'] : [])] as const).map(t => (
+              {(['feed','activity', ...(isPlatformAdmin ? ['admin'] : [])] as const).map(t => (
                 <button
                   key={t}
                   onClick={() => setTab(t as typeof tab)}
@@ -982,7 +1027,7 @@ export default function TimeBankPage() {
             )}
 
             {/* ══ ADMIN TAB ══ */}
-            {tab === 'admin' && isManager && (
+            {tab === 'admin' && isPlatformAdmin && (
               <div className="space-y-6">
 
                 {/* Branch settings */}
