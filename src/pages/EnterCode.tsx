@@ -6,7 +6,7 @@ import AuthShell from '@/components/shells/AuthShell';
 const MOCK_CODES: Record<string, string> = {
   'KTM-FAM-29A7X': 'branch',
   'KTM-REF-8B3YZ': 'referral',
-  'KTM-PND-4C1WQ': 'pandit',
+  'KTM-PND-4C1WQ': 'margdarshak',
 };
 
 const EnterCode = () => {

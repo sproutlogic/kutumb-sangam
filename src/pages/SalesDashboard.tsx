@@ -58,7 +58,7 @@ const ENTITLEMENT_LABELS: Record<EntitlementKey, string> = {
   culturalFields:      'Cultural Fields',
   discovery:           'Discovery',
   connectionChains:    'Connection Chains',
-  panditVerification:  'Pandit Verification',
+  panditVerification:  'Margdarshak Verification',
   matrimony:           'Matrimony',
   sosAlerts:           'SOS Alerts',
   treeAnnounce:        'Tree Broadcast',

@@ -97,7 +97,7 @@ const App = () => (
                     <Route path="/node" element={<ProtectedRoute><NodePage /></ProtectedRoute>} />
                     <Route path="/node/:id" element={<ProtectedRoute><NodePage /></ProtectedRoute>} />
                     <Route path="/referral-new-tree" element={<ProtectedRoute><ReferralNewTree /></ProtectedRoute>} />
-                    <Route path="/referral-pandit" element={<ProtectedRoute><ReferralPandit /></ProtectedRoute>} />
+                    <Route path="/referral-margdarshak" element={<ProtectedRoute><ReferralPandit /></ProtectedRoute>} />
                     <Route path="/device-reverify" element={<ProtectedRoute><DeviceReVerifyPage /></ProtectedRoute>} />
                     <Route path="/sales" element={<ProtectedRoute><SalesDashboard /></ProtectedRoute>} />
                     <Route path="/calendar" element={<ProtectedRoute><KutumbCalendarPage /></ProtectedRoute>} />
@@ -117,13 +117,13 @@ const App = () => (
                     {/* Upcoming / Launching Soon */}
                     <Route path="/upcoming/:serviceId" element={<ProtectedRoute><ComingSoonPage /></ProtectedRoute>} />
 
-                    {/* Protected — Pandit role only */}
+                    {/* Protected — Margdarshak role only */}
                     <Route path="/harit-circle" element={<ProtectedRoute><HaritCirclePage /></ProtectedRoute>} />
                     <Route path="/mitra-earnings" element={<ProtectedRoute><ParyavaranMitraEarnings /></ProtectedRoute>} />
-                    <Route path="/pandit" element={<ProtectedRoute requiredRole="pandit"><PanditDashboard /></ProtectedRoute>} />
+                    <Route path="/margdarshak" element={<ProtectedRoute requiredRole="margdarshak"><PanditDashboard /></ProtectedRoute>} />
 
-                    {/* Pandit KYC is public so Pandits can register */}
-                    <Route path="/pandit-kyc" element={<PanditKycPage />} />
+                    {/* Margdarshak KYC is public so Margdarshaks can register */}
+                    <Route path="/margdarshak-kyc" element={<PanditKycPage />} />
 
                     {/* ── Eco-Panchang (public, no auth required) ── */}
                     <Route path="/eco-panchang" element={<EcoPanchangPage />} />

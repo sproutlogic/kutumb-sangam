@@ -44,6 +44,10 @@ DEFAULT_IGST_RATE      = 18.00   # used unless CGST+SGST split is requested
 DEFAULT_CGST_RATE      =  9.00
 DEFAULT_SGST_RATE      =  9.00
 
+ONBOARDING_APPROVALS_TABLE = "onboarding_approvals"
+TRANSACTIONS_TABLE         = "transactions"
+TRANSACTION_APPROVALS_TABLE = "transaction_approvals"
+
 VANSHA_ID_COLUMN = "vansha_id"
 PARENT_UNION_ID_COLUMN = "parent_union_id"
 

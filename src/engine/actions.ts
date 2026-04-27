@@ -259,7 +259,7 @@ export function approvePendingAction(
     newValue: applyValue,
     changedBy: action.submittedBy,
     timestamp: Date.now(),
-    reason: action.type === 'verify-request' ? 'pandit_verified' : 'factual_correction_approved',
+    reason: action.type === 'verify-request' ? 'margdarshak_verified' : 'factual_correction_approved',
   };
 
   const activity: ActivityLogEntry = {
