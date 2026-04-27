@@ -100,6 +100,65 @@ const Landing = () => {
       {/* Gold separator */}
       <div className="gold-line" />
 
+      {/* ── Recognised & Supported By ─────────────────────────────── */}
+      <section className="bg-secondary/20 border-b border-border/40 py-6">
+        <div className="container px-6">
+          <p className="text-center text-[10px] font-semibold font-body tracking-[0.25em] uppercase text-muted-foreground mb-5">
+            Recognised &amp; Supported By
+          </p>
+          <div className="flex flex-wrap items-center justify-center gap-8 md:gap-12">
+            {/* Startup India */}
+            <div className="flex flex-col items-center gap-1.5">
+              <div className="flex items-center gap-2 px-4 py-2 rounded-lg border border-border bg-card shadow-sm">
+                <svg viewBox="0 0 32 32" className="w-7 h-7" fill="none" aria-hidden="true">
+                  <circle cx="16" cy="16" r="15" fill="#FF671F"/>
+                  <path d="M10 22 Q16 8 22 22" stroke="white" strokeWidth="2" fill="none"/>
+                  <circle cx="16" cy="11" r="2" fill="white"/>
+                </svg>
+                <div>
+                  <p className="text-xs font-bold font-body text-foreground leading-tight">Startup India</p>
+                  <p className="text-[9px] text-muted-foreground font-body">DPIIT Recognised</p>
+                </div>
+              </div>
+            </div>
+            {/* IIT Kanpur SIIC */}
+            <div className="flex flex-col items-center gap-1.5">
+              <div className="flex items-center gap-2 px-4 py-2 rounded-lg border border-border bg-card shadow-sm">
+                <div className="w-7 h-7 rounded bg-primary/10 flex items-center justify-center flex-shrink-0">
+                  <span className="text-primary font-bold text-[10px] font-body">IIT</span>
+                </div>
+                <div>
+                  <p className="text-xs font-bold font-body text-foreground leading-tight">IIT Kanpur SIIC</p>
+                  <p className="text-[9px] text-muted-foreground font-body">Incubated Startup</p>
+                </div>
+              </div>
+            </div>
+            {/* MSME */}
+            <div className="flex flex-col items-center gap-1.5">
+              <div className="flex items-center gap-2 px-4 py-2 rounded-lg border border-border bg-card shadow-sm">
+                <div className="w-7 h-7 rounded bg-emerald-100 dark:bg-emerald-950/40 flex items-center justify-center flex-shrink-0">
+                  <span className="text-emerald-700 dark:text-emerald-300 font-bold text-[9px] font-body">GOI</span>
+                </div>
+                <div>
+                  <p className="text-xs font-bold font-body text-foreground leading-tight">MSME Certified</p>
+                  <p className="text-[9px] text-muted-foreground font-body">Govt. of India</p>
+                </div>
+              </div>
+            </div>
+            {/* Aarush Eco Tech */}
+            <div className="flex flex-col items-center gap-1.5">
+              <div className="flex items-center gap-2 px-4 py-2 rounded-lg border border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950/30 shadow-sm">
+                <Leaf className="w-5 h-5 text-emerald-600 flex-shrink-0" />
+                <div>
+                  <p className="text-xs font-bold font-body text-emerald-800 dark:text-emerald-200 leading-tight">Aarush Eco Tech</p>
+                  <p className="text-[9px] text-emerald-600 dark:text-emerald-400 font-body">ecotech.co.in</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* ── The Vision ────────────────────────────────────────────── */}
       <section className="container py-20 md:py-28 px-6">
         <div className="max-w-3xl mx-auto text-center">

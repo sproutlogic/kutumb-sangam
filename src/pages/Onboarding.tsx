@@ -94,6 +94,7 @@ function DOBInput({ value, onChange, className }: { value: string; onChange: (v:
 
 const defaultForm = () => ({
   givenName: '',
+  middleName: '',
   surname: '',
   dateOfBirth: '',
   ancestralPlace: '',
@@ -109,8 +110,15 @@ const Onboarding = () => {
   const { tr } = useLang();
   const { hasEntitlement } = usePlan();
   const { loadTreeState } = useTree();
-  const { session, refreshAppUser } = useAuth();
+  const { session, appUser, refreshAppUser } = useAuth();
   const navigate = useNavigate();
+
+  // Existing users (onboarding already done or vansha_id present) → go to dashboard
+  useEffect(() => {
+    if (appUser && (appUser.onboarding_complete || appUser.vansha_id)) {
+      navigate('/dashboard', { replace: true });
+    }
+  }, [appUser, navigate]);
 
   // Step 0 = auth (shown only when no session); steps 1-3 = form
   const [step, setStep] = useState(session ? 1 : 0);
@@ -231,6 +239,7 @@ const Onboarding = () => {
         spouse_name: form.spouseName.trim(),
         identity: {
           given_name: form.givenName.trim(),
+          middle_name: form.middleName.trim(),
           surname: form.surname.trim(),
           date_of_birth: form.dateOfBirth.trim(),
           ancestral_place: form.ancestralPlace.trim(),
@@ -370,6 +379,10 @@ const Onboarding = () => {
                 <input value={form.givenName} onChange={(e) => set('givenName', e.target.value)} className={inputClass} required />
               </div>
               <div>
+                <label className="block text-sm font-medium font-body mb-1.5">{tr('middleName')}</label>
+                <input value={form.middleName} onChange={(e) => set('middleName', e.target.value)} className={inputClass} placeholder="Optional" />
+              </div>
+              <div>
                 <label className="block text-sm font-medium font-body mb-1.5">{tr('surname')}</label>
                 <input value={form.surname} onChange={(e) => set('surname', e.target.value)} className={inputClass} required />
               </div>
@@ -449,6 +462,10 @@ const Onboarding = () => {
                 <div>
                   <label className="block text-sm font-medium font-body mb-1.5">{tr('givenName')}</label>
                   <input value={form.givenName} onChange={(e) => set('givenName', e.target.value)} className={inputClass} />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium font-body mb-1.5">{tr('middleName')}</label>
+                  <input value={form.middleName} onChange={(e) => set('middleName', e.target.value)} className={inputClass} placeholder="Optional" />
                 </div>
                 <div>
                   <label className="block text-sm font-medium font-body mb-1.5">{tr('surname')}</label>

@@ -60,6 +60,15 @@ def upsert_session(body: SessionBody, user: CurrentUser) -> dict[str, Any]:
 
 @router.get("/me")
 def get_me(user: CurrentUser) -> dict[str, Any]:
+    # If user has a vansha_id they completed onboarding; ensure the flag is set
+    # (handles cases where migration 017 hasn't run yet or back-fill missed this row).
+    if user.get("vansha_id") and not user.get("onboarding_complete"):
+        sb = get_supabase()
+        try:
+            sb.table(USERS_TABLE).update({"onboarding_complete": True}).eq("id", user["id"]).execute()
+            user = {**user, "onboarding_complete": True}
+        except Exception:
+            logger.exception("Failed to auto-set onboarding_complete for uid=%s", user.get("id"))
     return user
 
 

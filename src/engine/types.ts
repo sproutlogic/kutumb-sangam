@@ -43,6 +43,8 @@ export interface TreeNode {
   name: string;
   /** Given / first name (optional until migrated from legacy `name` only). */
   givenName?: string;
+  /** Middle name — not necessarily a name given by the father. */
+  middleName?: string;
   /** Family / surname */
   surname?: string;
   /** ISO date string YYYY-MM-DD when captured */

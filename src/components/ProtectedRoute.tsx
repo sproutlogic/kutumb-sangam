@@ -28,9 +28,12 @@ export default function ProtectedRoute({ children, requiredRole }: Props) {
 
   // Gate: authenticated but onboarding not complete → send to onboarding form.
   // appUser may briefly be null while fetching; only block when we have the row.
+  // If vansha_id is already set the user has an existing tree — treat as complete
+  // even if the DB column is NULL (migration 017 not yet applied).
   if (
     appUser &&
     !appUser.onboarding_complete &&
+    !appUser.vansha_id &&
     !ONBOARDING_EXEMPT.has(appUser.role)
   ) {
     return <Navigate to="/onboarding" replace />;

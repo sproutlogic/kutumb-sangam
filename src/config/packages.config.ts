@@ -24,6 +24,8 @@ export interface PlanConfig {
   maxNodes: number;
   generationCap: number;
   entitlements: Record<EntitlementKey, boolean>;
+  /** Max nodes a user may select as SOS contacts (0 = not available) */
+  sosNodeLimit: number;
 }
 
 export const plans: Record<PlanId, PlanConfig> = {
@@ -36,6 +38,7 @@ export const plans: Record<PlanId, PlanConfig> = {
     isPreLaunch: false,
     maxNodes: 15,
     generationCap: 3,
+    sosNodeLimit: 0,
     entitlements: {
       culturalFields: false,
       discovery: false,
@@ -57,6 +60,7 @@ export const plans: Record<PlanId, PlanConfig> = {
     isPreLaunch: true,
     maxNodes: 100,
     generationCap: 7,
+    sosNodeLimit: 0,
     entitlements: {
       culturalFields: true,
       discovery: true,
@@ -78,6 +82,7 @@ export const plans: Record<PlanId, PlanConfig> = {
     isPreLaunch: false,
     maxNodes: 500,
     generationCap: 15,
+    sosNodeLimit: 5,
     entitlements: {
       culturalFields: true,
       discovery: true,
@@ -99,6 +104,7 @@ export const plans: Record<PlanId, PlanConfig> = {
     isPreLaunch: false,
     maxNodes: 1000,
     generationCap: 25,
+    sosNodeLimit: 10,
     entitlements: {
       culturalFields: true,
       discovery: true,

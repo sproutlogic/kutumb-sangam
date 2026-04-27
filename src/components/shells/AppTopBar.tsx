@@ -1,10 +1,9 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { AlertTriangle, Megaphone, Radio } from "lucide-react";
+import { AlertTriangle, Megaphone, Radio, Check } from "lucide-react";
 import { useLang } from "@/i18n/LanguageContext";
 import { usePlan } from "@/contexts/PlanContext";
 import { useTree } from "@/contexts/TreeContext";
-import { resolveSosRecipients } from "@/engine/privacy";
 import {
   Dialog,
   DialogContent,
@@ -15,38 +14,127 @@ import {
 } from "@/components/ui/dialog";
 import { toast } from "@/hooks/use-toast";
 
+const SOS_CONTACTS_KEY = "kutumb_sos_contacts";
+
+function getSavedSosContacts(): string[] | null {
+  try {
+    const raw = localStorage.getItem(SOS_CONTACTS_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+function saveSosContacts(ids: string[]) {
+  try {
+    localStorage.setItem(SOS_CONTACTS_KEY, JSON.stringify(ids));
+  } catch { /* quota / private mode */ }
+}
+
 /**
  * Top bar: SOS (subscription), centre announce broadcast (Vansh), plan upsell.
  */
 export function AppTopBar() {
   const { tr } = useLang();
   const navigate = useNavigate();
-  const { hasEntitlement, planId } = usePlan();
+  const { hasEntitlement, planId, plan } = usePlan();
   const { state, pushActivity, isTreeInitialized } = useTree();
+
+  // SOS state
   const [sosOpen, setSosOpen] = useState(false);
   const [sosNote, setSosNote] = useState("");
   const [sending, setSending] = useState(false);
+
+  // SOS contact setup state (shown on first press)
+  const [setupOpen, setSetupOpen] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [pendingSosAfterSetup, setPendingSosAfterSetup] = useState(false);
+
+  // Announce state
   const [announce, setAnnounce] = useState("");
+
+  // Long-press to reconfigure SOS contacts
+  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const canSos = hasEntitlement("sosAlerts");
   const canAnnounce = hasEntitlement("treeAnnounce");
+  const sosLimit = plan.sosNodeLimit ?? 0;
   const senderId = state.currentUserId;
 
-  const sendSos = () => {
-    if (!isTreeInitialized || !senderId) {
-      toast({
-        title: tr("sosNoTree"),
-        description: tr("sosNoTreeDesc"),
-        variant: "destructive",
-      });
+  // Members available to pick as SOS contacts (everyone except self)
+  const pickableNodes = state.nodes.filter((n) => n.id !== senderId);
+
+  function openSosSetup(andSendAfter = false) {
+    const saved = getSavedSosContacts();
+    setSelectedIds(saved ?? []);
+    setPendingSosAfterSetup(andSendAfter);
+    setSetupOpen(true);
+  }
+
+  function saveSetupAndProceed() {
+    saveSosContacts(selectedIds);
+    setSetupOpen(false);
+    if (pendingSosAfterSetup) {
+      setSosOpen(true);
+    } else {
+      toast({ title: "SOS contacts saved", description: `${selectedIds.length} contact(s) configured.` });
+    }
+  }
+
+  function toggleContact(id: string) {
+    setSelectedIds((prev) => {
+      if (prev.includes(id)) return prev.filter((x) => x !== id);
+      if (prev.length >= sosLimit) return prev; // at limit
+      return [...prev, id];
+    });
+  }
+
+  const handleSosButtonDown = () => {
+    if (!canSos) return;
+    // Long press (800ms) → reconfigure contacts
+    longPressTimer.current = setTimeout(() => {
+      openSosSetup(false);
+    }, 800);
+  };
+
+  const handleSosButtonUp = () => {
+    if (longPressTimer.current) {
+      clearTimeout(longPressTimer.current);
+      longPressTimer.current = null;
+    }
+  };
+
+  const handleSosClick = () => {
+    if (!canSos) {
+      toast({ title: tr("sosLockedTitle"), description: tr("sosLockedDesc") });
+      navigate("/upgrade");
       return;
     }
+    if (!isTreeInitialized || !senderId) {
+      toast({ title: tr("sosNoTree"), description: tr("sosNoTreeDesc"), variant: "destructive" });
+      return;
+    }
+
+    const saved = getSavedSosContacts();
+    // First press ever OR no contacts configured → show setup
+    if (!saved || saved.length === 0) {
+      openSosSetup(true);
+      return;
+    }
+    setSosOpen(true);
+  };
+
+  const sendSos = () => {
     setSending(true);
+    const contactIds = getSavedSosContacts() ?? [];
+    const recipientIds = contactIds.filter((id) => state.nodes.some((n) => n.id === id));
+    const names = recipientIds
+      .map((id) => state.nodes.find((n) => n.id === id)?.name ?? id)
+      .join(", ");
+
     const finish = (lat: string, lon: string) => {
-      const { recipientIds } = resolveSosRecipients(senderId, state.nodes, state.edges);
-      const names = recipientIds
-        .map((id) => state.nodes.find((n) => n.id === id)?.name ?? id)
-        .join(", ");
       pushActivity("activitySosSent", {
         count: String(recipientIds.length),
         names: names.slice(0, 400),
@@ -68,12 +156,8 @@ export function AppTopBar() {
       return;
     }
     navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        finish(String(pos.coords.latitude), String(pos.coords.longitude));
-      },
-      () => {
-        finish("", "");
-      },
+      (pos) => finish(String(pos.coords.latitude), String(pos.coords.longitude)),
+      () => finish("", ""),
       { enableHighAccuracy: true, timeout: 12_000, maximumAge: 60_000 },
     );
   };
@@ -159,18 +243,14 @@ export function AppTopBar() {
           )}
           <button
             type="button"
-            onClick={() => {
-              if (!canSos) {
-                toast({
-                  title: tr("sosLockedTitle"),
-                  description: tr("sosLockedDesc"),
-                });
-                navigate("/upgrade");
-                return;
-              }
-              setSosOpen(true);
-            }}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-destructive/40 bg-destructive/10 px-2.5 py-1.5 text-xs font-semibold text-destructive hover:bg-destructive/20"
+            onClick={handleSosClick}
+            onMouseDown={handleSosButtonDown}
+            onMouseUp={handleSosButtonUp}
+            onMouseLeave={handleSosButtonUp}
+            onTouchStart={handleSosButtonDown}
+            onTouchEnd={handleSosButtonUp}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-destructive/40 bg-destructive/10 px-2.5 py-1.5 text-xs font-semibold text-destructive hover:bg-destructive/20 select-none"
+            title={canSos ? "Tap: send SOS · Hold: change contacts" : "Upgrade to use SOS"}
           >
             <AlertTriangle className="h-4 w-4" aria-hidden />
             SOS
@@ -178,12 +258,110 @@ export function AppTopBar() {
         </div>
       </header>
 
+      {/* ── SOS Contact Setup Modal (first press) ─────────────────────────── */}
+      <Dialog open={setupOpen} onOpenChange={setSetupOpen}>
+        <DialogContent className="font-body sm:max-w-md max-h-[80vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="font-heading">{tr("sosSetupTitle")}</DialogTitle>
+            <DialogDescription>
+              {tr("sosSetupDesc")}
+            </DialogDescription>
+          </DialogHeader>
+          <p className="text-xs text-muted-foreground px-1">
+            {tr("sosSetupLimit").replace("{n}", String(sosLimit))}
+            {" "}
+            <span className="font-semibold text-foreground">{selectedIds.length}/{sosLimit} selected</span>
+          </p>
+
+          <div className="overflow-y-auto flex-1 space-y-1 pr-1 -mr-1">
+            {pickableNodes.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-6">
+                No family members in your tree yet. Add members first.
+              </p>
+            ) : (
+              pickableNodes.map((node) => {
+                const selected = selectedIds.includes(node.id);
+                const atLimit = selectedIds.length >= sosLimit && !selected;
+                return (
+                  <button
+                    key={node.id}
+                    type="button"
+                    disabled={atLimit}
+                    onClick={() => toggleContact(node.id)}
+                    className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg border text-left transition-colors ${
+                      selected
+                        ? "border-destructive/50 bg-destructive/8 text-foreground"
+                        : atLimit
+                        ? "border-border/30 bg-secondary/20 text-muted-foreground/50 cursor-not-allowed"
+                        : "border-border/50 bg-card hover:bg-secondary/30 text-foreground"
+                    }`}
+                  >
+                    <div className={`w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 ${
+                      selected ? "border-destructive bg-destructive" : "border-border"
+                    }`}>
+                      {selected && <Check className="w-3 h-3 text-white" />}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-medium truncate">{node.name}</p>
+                      <p className="text-xs text-muted-foreground capitalize">{node.relation}</p>
+                    </div>
+                  </button>
+                );
+              })
+            )}
+          </div>
+
+          <DialogFooter className="gap-2 sm:gap-0 pt-2 border-t border-border/50 mt-2">
+            <button
+              type="button"
+              className="rounded-md border border-border px-4 py-2 text-sm"
+              onClick={() => setSetupOpen(false)}
+            >
+              {tr("cancel")}
+            </button>
+            <button
+              type="button"
+              disabled={selectedIds.length === 0}
+              className="rounded-md bg-destructive px-4 py-2 text-sm font-semibold text-destructive-foreground disabled:opacity-50"
+              onClick={saveSetupAndProceed}
+            >
+              {tr("sosSetupSave")}
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── SOS Send Modal ────────────────────────────────────────────────── */}
       <Dialog open={sosOpen} onOpenChange={setSosOpen}>
         <DialogContent className="font-body sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="font-heading">{tr("sosDialogTitle")}</DialogTitle>
-            <DialogDescription>{tr("sosDialogDesc")}</DialogDescription>
+            <DialogDescription>
+              {tr("sosDialogDesc")}
+            </DialogDescription>
           </DialogHeader>
+
+          {/* Show configured contacts */}
+          {(() => {
+            const saved = getSavedSosContacts() ?? [];
+            const names = saved
+              .map((id) => state.nodes.find((n) => n.id === id)?.name)
+              .filter(Boolean);
+            return names.length > 0 ? (
+              <div className="rounded-lg bg-destructive/8 border border-destructive/20 px-3 py-2">
+                <p className="text-xs font-semibold text-destructive mb-1">Alerting {names.length} contact(s):</p>
+                <p className="text-xs text-muted-foreground">{names.join(", ")}</p>
+                <button
+                  type="button"
+                  className="text-[11px] text-primary hover:underline mt-1"
+                  onClick={() => { setSosOpen(false); openSosSetup(true); }}
+                >
+                  Change contacts
+                </button>
+              </div>
+            ) : null;
+          })()}
+
           <textarea
             value={sosNote}
             onChange={(e) => setSosNote(e.target.value)}

@@ -37,6 +37,7 @@ class PersonCreateBody(BaseModel):
 
     vansha_id: uuid.UUID
     first_name: str = Field(min_length=1, description="Given / first name")
+    middle_name: Optional[str] = Field(default=None, description="Middle name (optional; separate from given name)")
     last_name: str = Field(min_length=1, description="Surname / family name")
     date_of_birth: str = Field(
         min_length=1,
@@ -201,6 +202,7 @@ def create_person(body: PersonCreateBody) -> dict[str, Any]:
         "node_id": node_id,
         VANSHA_ID_COLUMN: vid,
         "first_name": body.first_name.strip(),
+        "middle_name": (body.middle_name or "").strip() or None,
         "last_name": body.last_name.strip(),
         "date_of_birth": body.date_of_birth.strip(),
         "ancestral_place": body.ancestral_place.strip(),

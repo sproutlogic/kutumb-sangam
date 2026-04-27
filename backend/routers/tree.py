@@ -80,6 +80,7 @@ class BridgeBody(BaseModel):
 
 class OnboardingIdentity(BaseModel):
     given_name: str = Field(min_length=1)
+    middle_name: str = Field(default="")
     surname: str = Field(min_length=1)
     date_of_birth: str = Field(min_length=1)
     ancestral_place: str = Field(min_length=1)
@@ -182,6 +183,7 @@ def bootstrap_onboarding_tree(body: OnboardingBootstrapBody) -> dict[str, Any]:
         "node_id": self_id,
         VANSHA_ID_COLUMN: vansha_id,
         "first_name": i.given_name.strip(),
+        "middle_name": i.middle_name.strip() or None,
         "last_name": i.surname.strip(),
         "date_of_birth": i.date_of_birth.strip(),
         "ancestral_place": i.ancestral_place.strip(),

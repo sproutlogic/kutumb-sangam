@@ -65,6 +65,7 @@ function mapPerson(row: Row): TreeNode {
   const id = str(row, "node_id", "id");
   const owner = str(row, "owner_id", "ownerId", "node_id", "id") || id;
   const given = str(row, "first_name", "givenName", "given_name");
+  const middle = str(row, "middle_name", "middleName");
   const surname = str(row, "last_name", "surname");
   const name = displayName(row);
   const relation = str(row, "relation", "relation_label", "role") || "member";
@@ -90,6 +91,7 @@ function mapPerson(row: Row): TreeNode {
     id: id || generateId(),
     name,
     givenName: given || undefined,
+    middleName: middle || undefined,
     surname: surname || undefined,
     dateOfBirth: dob || undefined,
     ancestralPlace: ancestral || undefined,
