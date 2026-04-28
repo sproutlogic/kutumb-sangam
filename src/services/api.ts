@@ -172,6 +172,27 @@ export async function fetchVanshaTree(vansha_id: string): Promise<VanshaTreePayl
   return data;
 }
 
+export async function fetchVanshaTreePage(
+  vansha_id: string,
+  gen_min: number,
+  gen_max: number,
+): Promise<VanshaTreePayload> {
+  const raw = vansha_id.trim();
+  requireValidVanshaUuid(raw);
+  const id = encodeURIComponent(raw);
+  const url = `${getApiBaseUrl()}/api/tree/${id}/page?gen_min=${gen_min}&gen_max=${gen_max}`;
+  const res = await fetchApi(url, {
+    method: "GET",
+    headers: { Accept: "application/json" },
+  });
+  const data = (await parseJsonOrThrow(res)) as VanshaTreePayload;
+  if (!data || typeof data.vansha_id !== "string") {
+    throw new Error("Unexpected tree response shape");
+  }
+  setPersistedVanshaId(data.vansha_id);
+  return data;
+}
+
 export interface BootstrapTreePayload {
   tree_name: string;
   gotra?: string;

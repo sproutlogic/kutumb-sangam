@@ -6,7 +6,7 @@ import { useTree } from '@/contexts/TreeContext';
 import AppShell from '@/components/shells/AppShell';
 import TreeCompletionScore from '@/components/ui/TreeCompletionScore';
 import TrustBadge from '@/components/ui/TrustBadge';
-import { fetchMatrimonyProfile, fetchVanshaTree, getApiBaseUrl, getPersistedVanshaId } from '@/services/api';
+import { fetchMatrimonyProfile, fetchVanshaTree, fetchVanshaTreePage, getApiBaseUrl, getPersistedVanshaId } from '@/services/api';
 import { backendPayloadToTreeState } from '@/services/mapVanshaPayload';
 import { mergeMatrimonyProfile } from '@/engine/matrimonyDefaults';
 import { canViewerSeeNodeDetails } from '@/engine/privacy';
@@ -25,7 +25,10 @@ import {
   SpousePlusMark,
   spousePlusCenterY,
 } from '@/components/tree/MaritalUnitGraphics';
-import { AlertCircle, Copy, Check, Link2, Loader2, Pencil, Share2, TreePine, UserPlus } from 'lucide-react';
+import { AlertCircle, ChevronLeft, ChevronRight, Copy, Check, Link2, Loader2, Pencil, Share2, TreePine, UserPlus } from 'lucide-react';
+
+const PAGE_SIZE = 6;        // generations per page window
+const PAGE_THRESHOLD = 150; // switch to paginated mode above this many persons
 
 // ── Invite helpers ─────────────────────────────────────────────────────────────
 type InviteMode = 'node' | 'tree' | 'platform';
@@ -249,6 +252,9 @@ const TreePage = () => {
   const [retryToken, setRetryToken] = useState(0);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
+  const [isPaginated, setIsPaginated] = useState(false);
+  const [genMin, setGenMin] = useState(-3);
+  const [genMax, setGenMax] = useState(genMin + PAGE_SIZE - 1);
 
   useEffect(() => {
     if (!useRemoteVansha) {
@@ -263,7 +269,21 @@ const TreePage = () => {
 
     (async () => {
       try {
-        const data = await fetchVanshaTree(vanshaId);
+        let data;
+        if (isPaginated) {
+          data = await fetchVanshaTreePage(vanshaId, genMin, genMax);
+        } else {
+          data = await fetchVanshaTree(vanshaId);
+          // auto-switch to paginated if tree is large
+          if (data.persons.length > PAGE_THRESHOLD) {
+            setIsPaginated(true);
+            const gens = data.persons.map((p) => Number((p as Record<string, unknown>).generation ?? 0));
+            const minG = Math.min(...gens);
+            setGenMin(minG);
+            setGenMax(minG + PAGE_SIZE - 1);
+            data = await fetchVanshaTreePage(vanshaId, minG, minG + PAGE_SIZE - 1);
+          }
+        }
         if (cancelled) return;
         loadTreeState(backendPayloadToTreeState(data));
         try {
@@ -284,7 +304,7 @@ const TreePage = () => {
     return () => {
       cancelled = true;
     };
-  }, [useRemoteVansha, vanshaId, loadTreeState, retryToken, setMatrimonyProfile]);
+  }, [useRemoteVansha, vanshaId, loadTreeState, retryToken, setMatrimonyProfile, isPaginated, genMin, genMax]);
 
   // Main-line progeny on axis; incoming spouse beside (+); children centered on union midpoint when unionRows exist.
   const { positionedNodes, viewHeight, viewWidth } = useMemo(() => {
@@ -415,6 +435,29 @@ const TreePage = () => {
 
     return (
       <>
+        {isPaginated && (
+          <div className="flex items-center justify-between px-4 py-2 border-b border-border bg-muted/40">
+            <button
+              type="button"
+              disabled={remotePhase === 'loading'}
+              onClick={() => { const next = genMin - PAGE_SIZE; setGenMin(next); setGenMax(next + PAGE_SIZE - 1); }}
+              className="inline-flex items-center gap-1 px-3 py-1.5 rounded-md text-sm font-medium font-body border border-border bg-background hover:bg-secondary disabled:opacity-40 transition-colors"
+            >
+              <ChevronLeft className="w-4 h-4" /> Older
+            </button>
+            <span className="text-xs text-muted-foreground font-body">
+              Generations {genMin} to {genMax}
+            </span>
+            <button
+              type="button"
+              disabled={remotePhase === 'loading'}
+              onClick={() => { const next = genMin + PAGE_SIZE; setGenMin(next); setGenMax(next + PAGE_SIZE - 1); }}
+              className="inline-flex items-center gap-1 px-3 py-1.5 rounded-md text-sm font-medium font-body border border-border bg-background hover:bg-secondary disabled:opacity-40 transition-colors"
+            >
+              Newer <ChevronRight className="w-4 h-4" />
+            </button>
+          </div>
+        )}
         <div className="relative w-full" style={{ height: Math.max(320, viewHeight) }}>
           <div className="absolute inset-0 gradient-warm opacity-50" />
           <svg className="absolute inset-0 w-full h-full" viewBox={`0 0 ${viewWidth} ${viewHeight}`} preserveAspectRatio="xMidYMid meet">
