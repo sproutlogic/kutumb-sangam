@@ -169,7 +169,7 @@ export default function EcoPanchangStrip() {
 
   const rec       = data.eco_recommendation;
   const badge     = data.special_flag ? FLAG_BADGE[data.special_flag] : null;
-  const tithiName = tithi.name_hindi || tithi.name_common || "—";
+  const tithiName = tithi.name_sanskrit || tithi.name_common || "—";
   const ceremony  = tithi.ceremony_type_hint;
 
   return (
