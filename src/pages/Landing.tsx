@@ -108,11 +108,11 @@ const Landing = () => {
           </p>
           <div className="flex flex-wrap items-center justify-center gap-6 md:gap-10">
             {[
+              { src: '/logo-SIL-by-Citi.webp',     alt: 'Startup India Lab by Citi' },
               { src: '/logo-startup-india.webp',   alt: 'Startup India — DPIIT Recognised' },
               { src: '/logo-SIIC-iit-kanpur.webp', alt: 'SIIC IIT Kanpur — Incubated Startup' },
-              { src: '/logo-SIL-by-Citi.webp',     alt: 'Startup India Lab by Citi' },
-              { src: '/logo-AIIDE-Coe.webp',       alt: 'AIIDE Centre of Excellence' },
               { src: '/logo-start-in-up.webp',     alt: 'Start in UP — Govt. of Uttar Pradesh' },
+              { src: '/logo-AIIDE-Coe.webp',       alt: 'AIIDE Centre of Excellence' },
             ].map(({ src, alt }) => (
               <div key={src} className="flex items-center justify-center px-3 py-2 rounded-lg border border-border bg-card shadow-sm">
                 <img
