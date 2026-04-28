@@ -9,6 +9,7 @@ import TrustBadge from '@/components/ui/TrustBadge';
 import TreeCompletionScore from '@/components/ui/TreeCompletionScore';
 import ClanMilestone from '@/components/ui/ClanMilestone';
 import { useState, useEffect } from 'react';
+import EcoPanchangStrip from '@/components/EcoPanchangStrip';
 import { Users, Layers, Mail, TreePine, UserPlus, ShieldCheck, Clock, Search, Heart, Check, X, GitFork, ArrowUpCircle, BarChart3, Rocket, Briefcase, HandHeart, Leaf, UserCircle2 } from 'lucide-react';
 import { UPCOMING_SERVICES } from '@/config/upcomingServices.config';
 import { JoinSEModal } from '@/components/sales/JoinSEModal';
@@ -83,11 +84,17 @@ const Dashboard = () => {
                 </p>
               )}
               <h1 className="font-heading text-3xl font-bold mb-0">{isTreeInitialized ? state.treeName : tr('dashboardTitle')}</h1>
-              {appUser?.kutumb_id && (
-                <p className="text-[11px] opacity-60 font-body mt-0.5 tracking-wide">
-                  ID: {appUser.kutumb_id}
-                </p>
-              )}
+              {isTreeInitialized && (() => {
+                const selfNode = state.nodes.find(n => n.id === state.currentUserId)
+                  ?? state.nodes.find(n => n.relation?.toLowerCase() === 'self')
+                  ?? state.nodes.find(n => (n.generation ?? 0) === 0);
+                const fullName = selfNode
+                  ? [selfNode.givenName, selfNode.middleName, selfNode.surname].filter(Boolean).join(' ')
+                  : null;
+                return fullName ? (
+                  <p className="text-[11px] opacity-60 font-body mt-0.5 tracking-wide">{fullName}</p>
+                ) : null;
+              })()}
             </div>
             <div className="flex items-center gap-2">
               <span className="text-xs px-3 py-1.5 rounded-full bg-primary-foreground/10 border border-primary-foreground/25 text-primary-foreground font-semibold font-body backdrop-blur-sm">
@@ -107,6 +114,9 @@ const Dashboard = () => {
           <span className="text-xs text-muted-foreground font-body">{tr('encryptedDesc')}</span>
         </div>
       </div>
+
+      {/* Panchang Strip */}
+      <EcoPanchangStrip />
 
       <div className="container py-8 space-y-8">
         {/* Not initialized banner */}
@@ -151,7 +161,9 @@ const Dashboard = () => {
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-3 text-sm font-body">
                 <div>
                   <p className="text-xs text-muted-foreground mb-0.5">नाम</p>
-                  <p className="font-medium">{profileNode.name}</p>
+                  <p className="font-medium">
+                    {[profileNode.givenName, profileNode.middleName, profileNode.surname].filter(Boolean).join(' ') || profileNode.name}
+                  </p>
                 </div>
                 {appUser?.phone && (
                   <div>
