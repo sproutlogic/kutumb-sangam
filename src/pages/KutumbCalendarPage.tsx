@@ -137,12 +137,6 @@ export default function KutumbCalendarPage() {
         {/* ── Eco-Panchang strip — today's tithi + eco recommendation ── */}
         <EcoPanchangStrip />
 
-        {!vanshaId && (
-          <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 rounded-xl p-4 text-sm font-body text-amber-800 dark:text-amber-300">
-            {tr('noVanshaId')}
-          </div>
-        )}
-
         {/* Announcements */}
         {announcements.length > 0 && (
           <div className="space-y-3">
