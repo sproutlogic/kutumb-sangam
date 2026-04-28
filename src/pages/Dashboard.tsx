@@ -30,9 +30,12 @@ const Dashboard = () => {
   const [prakritiScore, setPrakritiScore] = useState<PrakritiScore | null>(null);
   useEffect(() => {
     const vid = resolveVanshaIdForApi(null);
-    if (!vid) return;
-    fetchPrakritiScore(vid).then(setPrakritiScore).catch(() => null);
-  }, []);
+    if (!vid) {
+      setPrakritiScore(null);
+      return;
+    }
+    fetchPrakritiScore(vid).then(setPrakritiScore).catch(() => setPrakritiScore(null));
+  }, [state.nodes.length, appUser?.vansha_id]);
 
   const pendingCount = state.pendingActions.filter(a => a.status === 'pending').length;
   const activeDisputes = state.disputes.filter(d => d.status === 'active').length;
@@ -41,7 +44,7 @@ const Dashboard = () => {
     { icon: Users, label: tr('members'), value: `${membersUsed}/${plan.maxNodes}` },
     { icon: Layers, label: tr('generations'), value: `${generationsUsed}/${plan.generationCap}` },
     { icon: Mail, label: tr('pendingInvites'), value: `${pendingCount}` },
-    ...(hasEntitlement('ecoScore') ? [{ icon: Leaf, label: tr('prakritScoreLabel'), value: prakritiScore ? String(prakritiScore.score) : '—', eco: true }] : []),
+    { icon: Leaf, label: tr('prakritScoreLabel'), value: prakritiScore ? String(prakritiScore.score) : '—', eco: true },
   ];
 
   const milestones = [

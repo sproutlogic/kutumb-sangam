@@ -9,6 +9,7 @@ import TrustBadge from '@/components/ui/TrustBadge';
 import { fetchMatrimonyProfile, fetchVanshaTree, getApiBaseUrl, getPersistedVanshaId } from '@/services/api';
 import { backendPayloadToTreeState } from '@/services/mapVanshaPayload';
 import { mergeMatrimonyProfile } from '@/engine/matrimonyDefaults';
+import { canViewerSeeNodeDetails } from '@/engine/privacy';
 import { toast } from '@/hooks/use-toast';
 import type { PositionedTreeNode } from '@/engine/treeLayout';
 import { layoutTreeNodes, nodesForParentalUnionRow } from '@/engine/treeLayout';
@@ -247,6 +248,7 @@ const TreePage = () => {
   const [remoteError, setRemoteError] = useState<string | null>(null);
   const [retryToken, setRetryToken] = useState(0);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+  const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!useRemoteVansha) {
@@ -335,6 +337,19 @@ const TreePage = () => {
       return true;
     }
     return false;
+  };
+
+  const hoverDetailsForNode = (node: PositionedTreeNode): string[] => {
+    const canSee = canViewerSeeNodeDetails(node, state.currentUserId, state.edges);
+    if (!canSee) return ['Details hidden by node privacy settings.'];
+    const lines = [
+      `Name: ${node.name || '-'}`,
+      `Relation: ${node.relation || '-'}`,
+    ];
+    if (node.dateOfBirth) lines.push(`DOB: ${node.dateOfBirth}`);
+    if (node.ancestralPlace) lines.push(`Ancestral: ${node.ancestralPlace}`);
+    if (node.currentResidence) lines.push(`Residence: ${node.currentResidence}`);
+    return lines;
   };
 
   const treeCanvasBody = () => {
@@ -437,7 +452,6 @@ const TreePage = () => {
                   strokeWidth={adopted ? 2 : 2.5}
                   strokeOpacity={adopted ? 0.55 : 0.38}
                   strokeDasharray={adopted ? "5 4" : undefined}
-                  className="animate-fade-in"
                 />
               );
             })}
@@ -475,7 +489,7 @@ const TreePage = () => {
                 const xc = nodeMap[c.id]?.x ?? cx;
                 const yAttach = attachY(c.id);
                 return (
-                  <g key={`trunk-${u.id}`} className="animate-fade-in">
+                  <g key={`trunk-${u.id}`}>
                     <line
                       x1={cx}
                       y1={yTrunkStart}
@@ -495,7 +509,7 @@ const TreePage = () => {
               const right = Math.max(...xs);
 
               return (
-                <g key={`trunk-${u.id}`} className="animate-fade-in">
+                <g key={`trunk-${u.id}`}>
                   <line
                     x1={cx}
                     y1={yTrunkStart}
@@ -550,6 +564,7 @@ const TreePage = () => {
                   isSelected={selectedNodeId === node.id}
                   hasMatrimonialBridge={hasBridge}
                   containerVariant={getTreeNodeContainerVariant(node, state.unionRows ?? [])}
+                  onHoverChange={(isHovering) => setHoveredNodeId(isHovering ? node.id : null)}
                   onSelect={(e) => {
                     if (hasBridge && !e.shiftKey) {
                       openBirthVanshaIfPresent(node);
@@ -560,6 +575,49 @@ const TreePage = () => {
                 />
               );
             })}
+
+            {(() => {
+              if (!hoveredNodeId) return null;
+              const hovered = nodeMap[hoveredNodeId];
+              if (!hovered) return null;
+              const lines = hoverDetailsForNode(hovered);
+              const maxChars = lines.reduce((m, l) => Math.max(m, l.length), 0);
+              const width = Math.min(Math.max(170, maxChars * 6.2 + 18), 290);
+              const lineH = 14;
+              const height = 10 + lines.length * lineH;
+              const padX = 8;
+              const preferredX = hovered.x + 26;
+              const x = Math.max(8, Math.min(preferredX, viewWidth - width - 8));
+              const preferredY = hovered.y - height - 14;
+              const y = Math.max(8, Math.min(preferredY, viewHeight - height - 8));
+              return (
+                <g pointerEvents="none" aria-hidden>
+                  <rect
+                    x={x}
+                    y={y}
+                    width={width}
+                    height={height}
+                    rx={8}
+                    ry={8}
+                    fill="hsl(var(--card))"
+                    stroke="hsl(var(--border))"
+                    strokeWidth={1}
+                    opacity={0.98}
+                  />
+                  <text
+                    x={x + padX}
+                    y={y + 16}
+                    className="text-[10px] font-body fill-foreground"
+                  >
+                    {lines.map((line, idx) => (
+                      <tspan key={`hover-line-${idx}`} x={x + padX} dy={idx === 0 ? 0 : lineH}>
+                        {line}
+                      </tspan>
+                    ))}
+                  </text>
+                </g>
+              );
+            })()}
 
             {spouseEdges.map((e) => {
               const a = nodeMap[e.from];

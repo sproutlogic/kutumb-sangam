@@ -42,7 +42,7 @@ export function SpouseCoupleFrame({ left, right }: { left: PositionedTreeNode; r
   const w = x2 - x1;
   const h = y2 - y1;
   return (
-    <g className="pointer-events-none animate-fade-in" aria-hidden>
+    <g className="pointer-events-none" aria-hidden>
       <rect
         x={x1}
         y={y1}

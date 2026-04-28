@@ -6,6 +6,7 @@ type Props = {
   node: PositionedTreeNode;
   hasDispute: boolean;
   onSelect: (e: MouseEvent<SVGGElement>) => void;
+  onHoverChange?: (isHovering: boolean) => void;
   isSelected?: boolean;
   hasMatrimonialBridge?: boolean;
   containerVariant?: TreeNodeContainerVariant;
@@ -45,6 +46,7 @@ export function PersonNode({
   node,
   hasDispute,
   onSelect,
+  onHoverChange,
   isSelected,
   hasMatrimonialBridge,
   containerVariant = "default",
@@ -54,10 +56,16 @@ export function PersonNode({
   const isPh = Boolean(node.isPlaceholder);
   const label =
     isPh && (!node.name.trim() || node.name === "\u2014") ? "\u2014" : node.name;
-  const showLabel = label.length > 10 ? label.slice(0, 10) + "\u2026" : label;
-  const relationLabel = /^(wife|husband|spouse)$/i.test(node.relation.trim())
-    ? "Spouse"
-    : node.relation;
+  const initials = (() => {
+    if (label === "\u2014") return "\u2014";
+    const given = (node.givenName ?? "").trim();
+    const sur = (node.surname ?? "").trim();
+    if (given || sur) return `${given.slice(0, 1)}${sur.slice(0, 1)}`.toUpperCase();
+    const parts = label.split(/\s+/).filter(Boolean);
+    if (parts.length === 0) return "\u2014";
+    if (parts.length === 1) return parts[0].slice(0, 1).toUpperCase();
+    return `${parts[0].slice(0, 1)}${parts[parts.length - 1].slice(0, 1)}`.toUpperCase();
+  })();
 
   const strokeMain = hasDispute
     ? "hsl(var(--accent))"
@@ -133,7 +141,6 @@ export function PersonNode({
           stroke="hsl(var(--primary))"
           strokeWidth={isSelected ? 2 : 1}
           strokeOpacity={isSelected ? 0.45 : 0.15}
-          className={isSelected ? "" : "animate-pulse-warm"}
         />
       );
     }
@@ -147,7 +154,6 @@ export function PersonNode({
           stroke="hsl(var(--primary))"
           strokeWidth={isSelected ? 2 : 1}
           strokeOpacity={isSelected ? 0.45 : 0.15}
-          className={isSelected ? "" : "animate-pulse-warm"}
         />
       );
     }
@@ -159,13 +165,17 @@ export function PersonNode({
         strokeWidth={isSelected ? 2 : 1}
         strokeOpacity={isSelected ? 0.45 : 0.15}
         strokeLinejoin="round"
-        className={isSelected ? "" : "animate-pulse-warm"}
       />
     );
   })();
 
   return (
-    <g className="animate-fade-in cursor-pointer" onClick={(e) => onSelect(e)}>
+    <g
+      className="cursor-pointer"
+      onClick={(e) => onSelect(e)}
+      onMouseEnter={() => onHoverChange?.(true)}
+      onMouseLeave={() => onHoverChange?.(false)}
+    >
       {shapeOuter}
       {shapeInner}
       <text
@@ -174,15 +184,7 @@ export function PersonNode({
         textAnchor="middle"
         className={`text-[9px] font-body pointer-events-none ${isPh ? "fill-muted-foreground" : "fill-foreground"}`}
       >
-        {showLabel}
-      </text>
-      <text
-        x={node.x}
-        y={node.y + 34}
-        textAnchor="middle"
-        className="text-[7px] font-body fill-muted-foreground pointer-events-none"
-      >
-        {relationLabel}
+        {initials}
       </text>
       {hasMatrimonialBridge && (
         <text

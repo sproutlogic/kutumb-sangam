@@ -164,6 +164,35 @@ export function recipientAcceptsSos(
   }
 }
 
+/** Whether a viewer can see full node details under the node's privacy setting. */
+export function canViewerSeeNodeDetails(
+  node: TreeNode,
+  viewerNodeId: string,
+  edges: TreeEdge[],
+): boolean {
+  if (!viewerNodeId) return false;
+  if (viewerNodeId === node.id || viewerNodeId === node.ownerId) return true;
+
+  const level = migrateLegacyVisibility(node.visibility as string);
+  switch (level) {
+    case "private":
+      return false;
+    case "public":
+    case "tree_all_generations":
+      return true;
+    case "parents":
+      return childrenOf(node.id, edges).includes(viewerNodeId);
+    case "grandparents": {
+      const g = generationsToAncestor(viewerNodeId, node.id, edges, 3);
+      return g >= 1 && g <= 2;
+    }
+    case "custom_five_nodes":
+      return (node.privacyNodeIds ?? []).includes(viewerNodeId);
+    default:
+      return true;
+  }
+}
+
 /** Recipients = sender scope ∩ recipients willing to hear from sender. */
 export function resolveSosRecipients(
   senderId: string,

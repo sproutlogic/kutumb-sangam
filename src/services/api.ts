@@ -199,6 +199,7 @@ export async function bootstrapOnboardingTree(payload: BootstrapTreePayload): Pr
 export interface CreatePersonPayload {
   vansha_id: string;
   first_name: string;
+  middle_name?: string;
   last_name: string;
   /** ISO YYYY-MM-DD */
   date_of_birth: string;
@@ -240,6 +241,7 @@ export async function createPerson(payload: CreatePersonPayload): Promise<{ ok: 
     body: JSON.stringify({
       vansha_id: vid,
       first_name: payload.first_name,
+      middle_name: payload.middle_name?.trim() || null,
       last_name: payload.last_name,
       date_of_birth: payload.date_of_birth,
       ancestral_place: payload.ancestral_place,

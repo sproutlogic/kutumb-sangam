@@ -13,6 +13,8 @@ import { UPCOMING_SERVICES } from '@/config/upcomingServices.config';
 import { fetchVanshaTree, setPersistedVanshaId } from '@/services/api';
 import { backendPayloadToTreeState } from '@/services/mapVanshaPayload';
 
+const CURRENT_VANSHA_STORAGE_KEY = 'kutumb_current_vansha_id';
+
 const navItems = [
   { icon: Home,         labelKey: 'homeNav'          as const, path: '/dashboard' },
   { icon: TreePine,     labelKey: 'viewTree'         as const, path: '/tree' },
@@ -40,7 +42,7 @@ const AppShell: React.FC<AppShellProps> = ({ children }) => {
   const location = useLocation();
   const { tr, lang } = useLang();
   const { resetTree, loadTreeState, isTreeInitialized } = useTree();
-  const { appUser } = useAuth();
+  const { appUser, signOut } = useAuth();
   const hasPro = appUser?.kutumb_pro;
 
   // After login the local tree state is empty (localStorage was cleared on logout).
@@ -55,9 +57,10 @@ const AppShell: React.FC<AppShellProps> = ({ children }) => {
       .catch(() => { /* non-fatal — user can still proceed; tree may be empty */ });
   }, [appUser?.vansha_id, isTreeInitialized, loadTreeState]);
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    await signOut();
     resetTree();
-    localStorage.clear();
+    localStorage.removeItem(CURRENT_VANSHA_STORAGE_KEY);
     navigate('/');
     window.location.reload();
   };

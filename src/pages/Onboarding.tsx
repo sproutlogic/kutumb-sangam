@@ -4,7 +4,7 @@ import { useLang } from '@/i18n/LanguageContext';
 import { useTree } from '@/contexts/TreeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { backendPayloadToTreeState } from '@/services/mapVanshaPayload';
-import { bootstrapOnboardingTree, getApiBaseUrl } from '@/services/api';
+import { bootstrapOnboardingTree, fetchVanshaTree, getApiBaseUrl } from '@/services/api';
 import { toast } from '@/hooks/use-toast';
 import { supabase } from '@/lib/supabase';
 import { Loader2, Mail, ChevronDown, ChevronUp, CheckCircle2 } from 'lucide-react';
@@ -109,11 +109,11 @@ const Onboarding = () => {
   const { session, appUser, refreshAppUser } = useAuth();
   const navigate = useNavigate();
 
-  // Onboarding already completed → skip straight to the app home (Eco-Sewa).
-  // Users who have a vansha_id but onboarding_complete=false are allowed to stay
-  // here so they can finish entering their details.
+  // Onboarding is only skippable when user already has a linked vansha/tree.
+  // If vansha_id is missing, keep user in onboarding even when
+  // onboarding_complete was incorrectly set to true (self-recovery path).
   useEffect(() => {
-    if (appUser && appUser.onboarding_complete) {
+    if (appUser && appUser.onboarding_complete && appUser.vansha_id) {
       navigate('/dashboard', { replace: true });
     }
   }, [appUser, navigate]);
@@ -129,6 +129,8 @@ const Onboarding = () => {
   const [magicSent, setMagicSent] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [emailLoading, setEmailLoading] = useState(false);
+  const [recoveryVanshaId, setRecoveryVanshaId] = useState('');
+  const [linkingExisting, setLinkingExisting] = useState(false);
 
   // Advance from step 0 once session arrives
   useEffect(() => {
@@ -202,6 +204,50 @@ const Onboarding = () => {
     form.ancestralPlace,
     form.currentResidence,
   ].every((s) => String(s ?? '').trim().length > 0);
+  const relinkOnlyMode = Boolean(session && appUser?.onboarding_complete && !appUser?.vansha_id);
+
+  const handleLinkExistingTree = async () => {
+    const vid = recoveryVanshaId.trim();
+    if (!vid) {
+      toast({ title: 'Enter your Vansha ID (UUID)', variant: 'destructive' });
+      return;
+    }
+    const token = session?.access_token;
+    if (!token) {
+      toast({ title: 'Session expired. Please sign in again.', variant: 'destructive' });
+      return;
+    }
+
+    try {
+      setLinkingExisting(true);
+      const payload = await fetchVanshaTree(vid);
+
+      await fetch(`${getApiBaseUrl()}/api/auth/me`, {
+        method: 'PATCH',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ vansha_id: payload.vansha_id }),
+      });
+      await fetch(`${getApiBaseUrl()}/api/auth/complete-onboarding`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      loadTreeState(backendPayloadToTreeState(payload));
+      await refreshAppUser();
+      navigate('/dashboard', { replace: true });
+    } catch (err) {
+      toast({
+        title: 'Could not link existing tree',
+        description: err instanceof Error ? err.message : 'Please verify the Vansha ID.',
+        variant: 'destructive',
+      });
+    } finally {
+      setLinkingExisting(false);
+    }
+  };
 
   const handleCreate = async () => {
     // Never use disabled + pointer-events-none on this button: users get zero feedback when validation fails.
@@ -250,6 +296,15 @@ const Onboarding = () => {
       try {
         const token = session?.access_token;
         if (token) {
+          // Persist the newly created vansha on the user's profile so relogin can restore tree.
+          await fetch(`${getApiBaseUrl()}/api/auth/me`, {
+            method: 'PATCH',
+            headers: {
+              Authorization: `Bearer ${token}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ vansha_id: payload.vansha_id }),
+          });
           await fetch(`${getApiBaseUrl()}/api/auth/complete-onboarding`, {
             method: 'POST',
             headers: { Authorization: `Bearer ${token}` },
@@ -274,6 +329,41 @@ const Onboarding = () => {
   };
 
   const inputClass = "w-full px-4 py-2.5 rounded-lg border border-input bg-background font-body text-sm focus:outline-none focus:ring-2 focus:ring-ring/30";
+
+  if (relinkOnlyMode) {
+    return (
+      <div className="min-h-[calc(100vh-4rem)] flex items-center justify-center p-4">
+        <div className="w-full max-w-lg">
+          <div className="bg-card rounded-xl p-8 shadow-card border border-border/50 space-y-4">
+            <div className="text-center">
+              <h2 className="font-heading text-2xl font-bold">Link your existing family profile</h2>
+              <p className="text-muted-foreground font-body mt-1">
+                Your account is active but not linked to a Vansha. Enter your existing Vansha ID to recover your tree.
+              </p>
+            </div>
+            <div>
+              <label className="block text-sm font-medium font-body mb-1.5">Existing Vansha ID (UUID)</label>
+              <input
+                value={recoveryVanshaId}
+                onChange={(e) => setRecoveryVanshaId(e.target.value)}
+                className={inputClass}
+                placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+              />
+            </div>
+            <button
+              type="button"
+              onClick={() => void handleLinkExistingTree()}
+              disabled={linkingExisting}
+              className="w-full py-3 rounded-lg gradient-hero text-primary-foreground font-semibold font-body shadow-warm hover:opacity-90 transition-opacity disabled:opacity-60 flex items-center justify-center gap-2"
+            >
+              {linkingExisting && <Loader2 className="w-4 h-4 animate-spin" />}
+              Link Existing Profile
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-[calc(100vh-4rem)] flex items-center justify-center p-4">

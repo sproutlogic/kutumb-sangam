@@ -130,6 +130,7 @@ const NodePage = () => {
 
   const [form, setForm] = useState({
     givenName: '',
+    middleName: '',
     surname: '',
     dateOfBirth: '',
     ancestralPlace: '',
@@ -151,7 +152,7 @@ const NodePage = () => {
     form.ancestralPlace.trim() &&
     form.currentResidence.trim();
 
-  const displayName = [form.givenName, form.surname].filter(Boolean).join(' ').trim();
+  const displayName = [form.givenName, form.middleName, form.surname].filter(Boolean).join(' ').trim();
 
   const anchorNodeId = (searchParams.get('anchor_node_id') ?? '').trim();
   const effectiveVanshaId = resolveVanshaIdForApi(searchParams.get('vansha_id'));
@@ -171,6 +172,7 @@ const NodePage = () => {
       const sp = splitLegacyDisplayName(existingNode.name);
       setForm({
         givenName: existingNode.givenName ?? sp.given,
+        middleName: existingNode.middleName ?? '',
         surname: existingNode.surname ?? sp.sur,
         dateOfBirth: existingNode.dateOfBirth ?? '',
         ancestralPlace: existingNode.ancestralPlace ?? existingNode.moolNiwas ?? '',
@@ -257,6 +259,7 @@ const NodePage = () => {
       // Edit mode — run each changed field through the decision engine
       const fields = [
         'givenName',
+        'middleName',
         'surname',
         'dateOfBirth',
         'ancestralPlace',
@@ -327,6 +330,7 @@ const NodePage = () => {
 
     const relationLabel = form.relation.trim();
     const first_name = form.givenName.trim();
+    const middle_name = form.middleName.trim();
     const last_name = form.surname.trim();
 
     const canUseRemoteApi = Boolean(effectiveVanshaId);
@@ -350,6 +354,7 @@ const NodePage = () => {
         await createPerson({
           vansha_id: effectiveVanshaId,
           first_name,
+          middle_name: middle_name || undefined,
           last_name,
           date_of_birth: form.dateOfBirth.trim(),
           ancestral_place: form.ancestralPlace.trim(),
@@ -402,6 +407,7 @@ const NodePage = () => {
           moolNiwas: form.moolNiwas || form.ancestralPlace,
           generation: gen,
           givenName: form.givenName.trim(),
+          middleName: form.middleName.trim(),
           surname: form.surname.trim(),
           dateOfBirth: form.dateOfBirth.trim(),
           ancestralPlace: form.ancestralPlace.trim(),
@@ -415,6 +421,7 @@ const NodePage = () => {
           generation: gen,
           link: 'spouse',
           givenName: form.givenName.trim(),
+          middleName: form.middleName.trim(),
           surname: form.surname.trim(),
           dateOfBirth: form.dateOfBirth.trim(),
           ancestralPlace: form.ancestralPlace.trim(),
@@ -427,6 +434,7 @@ const NodePage = () => {
           moolNiwas: form.moolNiwas || form.ancestralPlace,
           generation: gen,
           givenName: form.givenName.trim(),
+          middleName: form.middleName.trim(),
           surname: form.surname.trim(),
           dateOfBirth: form.dateOfBirth.trim(),
           ancestralPlace: form.ancestralPlace.trim(),
@@ -458,6 +466,7 @@ const NodePage = () => {
       moolNiwas: form.moolNiwas || form.ancestralPlace,
       generation,
       givenName: form.givenName.trim(),
+      middleName: form.middleName.trim(),
       surname: form.surname.trim(),
       dateOfBirth: form.dateOfBirth.trim(),
       ancestralPlace: form.ancestralPlace.trim(),
@@ -496,6 +505,10 @@ const NodePage = () => {
           <div>
             <label className="block text-sm font-medium font-body mb-1.5">{tr('givenName')}</label>
             <input value={form.givenName} onChange={(e) => set('givenName', e.target.value)} className={inputClass} />
+          </div>
+          <div>
+            <label className="block text-sm font-medium font-body mb-1.5">{tr('middleName')}</label>
+            <input value={form.middleName} onChange={(e) => set('middleName', e.target.value)} className={inputClass} />
           </div>
           <div>
             <label className="block text-sm font-medium font-body mb-1.5">{tr('surname')}</label>

@@ -155,6 +155,7 @@ interface TreeContextType {
       /** Spouse link from anchor to new node (local tree only). */
       link?: 'child' | 'spouse';
       givenName?: string;
+      middleName?: string;
       surname?: string;
       dateOfBirth?: string;
       ancestralPlace?: string;
@@ -374,7 +375,19 @@ export const TreeProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const addNode = useCallback((
     name: string, relation: string, gender: 'male' | 'female' | 'other',
-    anchorOrParentId: string, opts?: { branch?: string; gotra?: string; moolNiwas?: string; generation?: number; link?: 'child' | 'spouse' }
+    anchorOrParentId: string, opts?: {
+      branch?: string;
+      gotra?: string;
+      moolNiwas?: string;
+      generation?: number;
+      link?: 'child' | 'spouse';
+      givenName?: string;
+      middleName?: string;
+      surname?: string;
+      dateOfBirth?: string;
+      ancestralPlace?: string;
+      currentResidence?: string;
+    }
   ) => {
     const nodeId = generateId();
     const anchorNode = state.nodes.find(n => n.id === anchorOrParentId);
@@ -416,6 +429,7 @@ export const TreeProvider: React.FC<{ children: React.ReactNode }> = ({ children
       id: nodeId,
       name,
       givenName: opts?.givenName,
+      middleName: opts?.middleName,
       surname: opts?.surname,
       dateOfBirth: opts?.dateOfBirth,
       ancestralPlace: opts?.ancestralPlace,

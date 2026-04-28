@@ -26,13 +26,12 @@ export default function ProtectedRoute({ children, requiredRole }: Props) {
     return <Navigate to="/signin" state={{ from: location }} replace />;
   }
 
-  // Gate: authenticated but onboarding not complete → send to onboarding form.
-  // appUser may briefly be null while fetching; only block when we have the row.
-  // If vansha_id is already set the user has an existing tree — treat as complete
-  // even if the DB column is NULL (migration 017 not yet applied).
+  // Recovery-safe gate:
+  // Any normal user without vansha_id must go through onboarding, regardless of
+  // onboarding_complete flag. This lets users repair accounts where the flag
+  // was set but the tree link is missing.
   if (
     appUser &&
-    !appUser.onboarding_complete &&
     !appUser.vansha_id &&
     !ONBOARDING_EXEMPT.has(appUser.role)
   ) {
