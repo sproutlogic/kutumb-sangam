@@ -1,2 +1,1 @@
-# Cloudflare Pages v2 handles SPA routing natively (serves index.html for unknown paths).
-# No explicit redirect rules needed.
+/* /index.html 200
