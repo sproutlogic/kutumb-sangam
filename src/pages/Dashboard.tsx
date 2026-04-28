@@ -125,11 +125,15 @@ const Dashboard = () => {
 
         {/* ── My Profile card — pre-fills saved personal details ── */}
         {isTreeInitialized && (() => {
-          // Root node = node with minimum generation (the person who did onboarding)
-          const rootNode = state.nodes.length > 0
-            ? [...state.nodes].sort((a, b) => (a.generation ?? 0) - (b.generation ?? 0))[0]
-            : null;
-          if (!rootNode) return null;
+          // Logged-in member's tree node — not "lowest generation" (that is often father / ancestors).
+          const profileNode =
+            (state.currentUserId
+              ? state.nodes.find((n) => n.id === state.currentUserId)
+              : undefined) ??
+            state.nodes.find((n) => n.relation.toLowerCase() === "self") ??
+            state.nodes.find((n) => (n.generation ?? 0) === 0) ??
+            null;
+          if (!profileNode) return null;
           return (
             <div className="bg-card rounded-xl p-5 shadow-card border border-border/50 animate-fade-in">
               <div className="flex items-center justify-between mb-4">
@@ -138,7 +142,7 @@ const Dashboard = () => {
                   मेरी प्रोफ़ाइल
                 </h3>
                 <button
-                  onClick={() => navigate(`/node/${rootNode.id}`)}
+                  onClick={() => navigate(`/node/${profileNode.id}`)}
                   className="text-xs text-primary font-body font-medium hover:underline"
                 >
                   संपादित करें →
@@ -147,7 +151,7 @@ const Dashboard = () => {
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-3 text-sm font-body">
                 <div>
                   <p className="text-xs text-muted-foreground mb-0.5">नाम</p>
-                  <p className="font-medium">{rootNode.name}</p>
+                  <p className="font-medium">{profileNode.name}</p>
                 </div>
                 {appUser?.phone && (
                   <div>
@@ -161,22 +165,22 @@ const Dashboard = () => {
                     <p className="font-medium font-mono text-xs">{appUser.kutumb_id}</p>
                   </div>
                 )}
-                {(rootNode as any).dateOfBirth && (
+                {profileNode.dateOfBirth && (
                   <div>
                     <p className="text-xs text-muted-foreground mb-0.5">जन्मतिथि</p>
-                    <p className="font-medium">{(rootNode as any).dateOfBirth}</p>
+                    <p className="font-medium">{profileNode.dateOfBirth}</p>
                   </div>
                 )}
-                {(rootNode as any).ancestralPlace && (
+                {profileNode.ancestralPlace && (
                   <div>
                     <p className="text-xs text-muted-foreground mb-0.5">पैतृक स्थान</p>
-                    <p className="font-medium">{(rootNode as any).ancestralPlace}</p>
+                    <p className="font-medium">{profileNode.ancestralPlace}</p>
                   </div>
                 )}
-                {(rootNode as any).currentResidence && (
+                {profileNode.currentResidence && (
                   <div>
                     <p className="text-xs text-muted-foreground mb-0.5">वर्तमान निवास</p>
-                    <p className="font-medium">{(rootNode as any).currentResidence}</p>
+                    <p className="font-medium">{profileNode.currentResidence}</p>
                   </div>
                 )}
               </div>
