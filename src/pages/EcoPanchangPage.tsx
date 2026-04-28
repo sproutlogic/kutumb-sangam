@@ -7,7 +7,7 @@
  */
 
 import { useEffect, useState, useRef } from "react";
-import { ChevronLeft, ChevronRight, Leaf, Droplets, Users, Eye, AlertCircle, TreePine, Loader2 } from "lucide-react";
+import { ChevronLeft, ChevronRight, Leaf, Droplets, Users, Eye, AlertCircle, TreePine, Loader2, BookOpen, Instagram, Youtube, Hash } from "lucide-react";
 import AppShell from "@/components/shells/AppShell";
 import { fetchPanchangCalendar, type PanchangCalendarRow } from "@/services/api";
 import { supabase } from "@/lib/supabase";
@@ -276,6 +276,72 @@ export default function EcoPanchangPage() {
                     <span className="text-xs bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300 px-2 py-0.5 rounded-full font-medium">
                       {tithi.ceremony_type_hint.replace(/_/g, " ")}
                     </span>
+                  </div>
+                )}
+
+                {/* ── Blog & Social Content ── */}
+                {(tithi.blog_title_template || tithi.ig_caption_template || tithi.yt_short_title_template) && (
+                  <div className="border-t border-green-200 dark:border-green-800 pt-4 space-y-3">
+                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">
+                      Content &amp; Social Media
+                    </p>
+
+                    {/* Blog */}
+                    {tithi.blog_title_template && (
+                      <div className="bg-white/70 dark:bg-black/20 rounded-lg p-3 border border-green-100 dark:border-green-900/40">
+                        <div className="flex items-center gap-1.5 mb-1.5">
+                          <BookOpen className="w-3.5 h-3.5 text-emerald-600" />
+                          <span className="text-xs font-semibold text-emerald-800 dark:text-emerald-300">Blog Post</span>
+                        </div>
+                        <p className="text-sm font-bold text-foreground leading-snug">
+                          {tithi.blog_title_template.replace(/\{[^}]+\}/g, "…")}
+                        </p>
+                        {tithi.blog_subtitle_template && (
+                          <p className="text-xs text-muted-foreground mt-0.5">
+                            {tithi.blog_subtitle_template.replace(/\{[^}]+\}/g, "…")}
+                          </p>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Instagram */}
+                    {tithi.ig_caption_template && (
+                      <div className="bg-white/70 dark:bg-black/20 rounded-lg p-3 border border-pink-100 dark:border-pink-900/40">
+                        <div className="flex items-center gap-1.5 mb-1.5">
+                          <Instagram className="w-3.5 h-3.5 text-pink-500" />
+                          <span className="text-xs font-semibold text-pink-700 dark:text-pink-300">Instagram Caption</span>
+                        </div>
+                        <p className="text-xs text-muted-foreground leading-relaxed whitespace-pre-line">
+                          {tithi.ig_caption_template.replace(/\{[^}]+\}/g, "…")}
+                        </p>
+                        {tithi.ig_hashtag_set && Array.isArray(tithi.ig_hashtag_set) && (
+                          <div className="flex items-center gap-1 flex-wrap mt-2">
+                            <Hash className="w-3 h-3 text-pink-400" />
+                            {(tithi.ig_hashtag_set as string[]).map(tag => (
+                              <span key={tag} className="text-[10px] text-pink-500 dark:text-pink-400">{tag}</span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* YouTube Short */}
+                    {tithi.yt_short_title_template && (
+                      <div className="bg-white/70 dark:bg-black/20 rounded-lg p-3 border border-red-100 dark:border-red-900/40">
+                        <div className="flex items-center gap-1.5 mb-1.5">
+                          <Youtube className="w-3.5 h-3.5 text-red-500" />
+                          <span className="text-xs font-semibold text-red-700 dark:text-red-300">YouTube Short</span>
+                        </div>
+                        <p className="text-sm font-bold text-foreground leading-snug">
+                          {tithi.yt_short_title_template.replace(/\{[^}]+\}/g, "…")}
+                        </p>
+                        {tithi.yt_short_desc_template && (
+                          <p className="text-xs text-muted-foreground mt-0.5">
+                            {tithi.yt_short_desc_template.replace(/\{[^}]+\}/g, "…")}
+                          </p>
+                        )}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
