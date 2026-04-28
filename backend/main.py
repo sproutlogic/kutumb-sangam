@@ -31,9 +31,15 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # create_matcher_scheduler() builds and returns the AsyncIOScheduler;
-    # we pass that same instance to the Eco-Panchang workers so all jobs
-    # run on one shared scheduler.
+    # Seed panchang on startup so the calendar is never empty after a deploy.
+    # The seeder skips dates already in DB, so this is fast on subsequent restarts.
+    try:
+        from workers.panchang_seeder import seed_panchang_window
+        seeded = seed_panchang_window(window_days=90)
+        logger.info("Startup panchang seed: %d rows upserted", seeded)
+    except Exception:
+        logger.exception("Startup panchang seed failed — calendar will compute on-demand")
+
     scheduler = create_matcher_scheduler()
     create_panchang_scheduler(scheduler)
     create_content_gen_scheduler(scheduler)
