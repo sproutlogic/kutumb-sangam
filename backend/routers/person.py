@@ -118,6 +118,26 @@ def _placeholder_name(raw: Optional[str], fallback: str = "\u2014") -> str:
     return s if s else fallback
 
 
+def _uuid_to_ltree_label(node_id: str) -> str:
+    return node_id.replace("-", "_")
+
+
+def _compute_lineage_path(sb: Any, node_id: str, father_node_id: Optional[str]) -> str:
+    own_label = _uuid_to_ltree_label(node_id)
+    if not father_node_id:
+        return own_label
+    res = (
+        sb.table(PERSONS_TABLE)
+        .select("lineage_path")
+        .eq("node_id", father_node_id)
+        .limit(1)
+        .execute()
+    )
+    if res.data and res.data[0].get("lineage_path"):
+        return f"{res.data[0]['lineage_path']}.{own_label}"
+    return own_label
+
+
 def _insert_placeholder_parent(
     sb: Any,
     vid: str,
@@ -316,6 +336,8 @@ def create_person(body: PersonCreateBody) -> dict[str, Any]:
                     detail="Parental union row is missing a union id.",
                 )
             row[PARENT_UNION_ID_COLUMN] = puid
+            row["father_node_id"] = _str_id(parental.get("male_node_id"))
+            row["mother_node_id"] = _str_id(parental.get("female_node_id"))
         elif relation_label in SPOUSE_RELATIONS:
             rel_idx = anchor_gen
             row["relative_gen_index"] = rel_idx
@@ -359,6 +381,12 @@ def create_person(body: PersonCreateBody) -> dict[str, Any]:
     except Exception:
         logger.exception("Failed to insert person into %s", PERSONS_TABLE)
         raise HTTPException(status_code=502, detail="Failed to insert person") from None
+
+    try:
+        lineage_path = _compute_lineage_path(sb, node_id, _str_id(row.get("father_node_id")))
+        sb.table(PERSONS_TABLE).update({"lineage_path": lineage_path}).eq("node_id", node_id).execute()
+    except Exception:
+        logger.warning("lineage_path update failed for node_id=%s (non-fatal)", node_id)
 
     if body.anchor_node_id is not None and update_anchor is not None and anchor_id_str:
         try:

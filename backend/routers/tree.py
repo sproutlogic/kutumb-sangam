@@ -12,7 +12,7 @@ import uuid
 from typing import Any
 from uuid import UUID
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field
 
 from constants import PERSONS_TABLE, UNIONS_TABLE, VANSHA_ID_COLUMN
@@ -107,19 +107,31 @@ def _split_name(full_name: str) -> tuple[str, str]:
     return parts[0], " ".join(parts[1:])
 
 
-def _fetch_tree_for_vansha(vansha_id: str) -> dict[str, Any]:
+def _fetch_tree_for_vansha(
+    vansha_id: str,
+    gen_min: int | None = None,
+    gen_max: int | None = None,
+) -> dict[str, Any]:
     sb = get_supabase()
 
-    unions_resp = (
+    unions_q = (
         sb.table(UNIONS_TABLE)
         .select("*")
         .eq(VANSHA_ID_COLUMN, vansha_id)
         .order("relative_gen_index", desc=False)
-        .execute()
     )
-    persons_resp = (
-        sb.table(PERSONS_TABLE).select("*").eq(VANSHA_ID_COLUMN, vansha_id).execute()
-    )
+    if gen_min is not None:
+        unions_q = unions_q.gte("relative_gen_index", gen_min)
+    if gen_max is not None:
+        unions_q = unions_q.lte("relative_gen_index", gen_max)
+    unions_resp = unions_q.execute()
+
+    persons_q = sb.table(PERSONS_TABLE).select("*").eq(VANSHA_ID_COLUMN, vansha_id)
+    if gen_min is not None:
+        persons_q = persons_q.gte("generation", gen_min)
+    if gen_max is not None:
+        persons_q = persons_q.lte("generation", gen_max)
+    persons_resp = persons_q.execute()
 
     unions = _filter_rows_for_vansha(
         list(unions_resp.data or []), vansha_id, UNIONS_TABLE
@@ -128,25 +140,33 @@ def _fetch_tree_for_vansha(vansha_id: str) -> dict[str, Any]:
         _filter_rows_for_vansha(list(persons_resp.data or []), vansha_id, PERSONS_TABLE)
     )
 
-    # Defensive sort if API order is not applied
     try:
         unions.sort(key=lambda u: (u.get("relative_gen_index") is None, u.get("relative_gen_index", 0)))
     except (TypeError, ValueError):
         logger.exception("Failed to sort unions for vansha_id=%s", vansha_id)
 
-    return {
-        "vansha_id": vansha_id,
-        "unions": unions,
-        "persons": persons,
-    }
+    payload: dict[str, Any] = {"vansha_id": vansha_id, "unions": unions, "persons": persons}
+    if gen_min is not None or gen_max is not None:
+        payload["gen_min"] = gen_min
+        payload["gen_max"] = gen_max
+    return payload
+
+
+@router.get("/{vansha_id}/page")
+def get_tree_page(
+    vansha_id: UUID,
+    gen_min: int = Query(default=-5, description="Inclusive lower generation bound"),
+    gen_max: int = Query(default=5, description="Inclusive upper generation bound"),
+) -> dict[str, Any]:
+    """Return persons and unions for a generation window (paginated by generation)."""
+    if gen_max - gen_min > 30:
+        raise HTTPException(status_code=400, detail="Generation window too large (max 30)")
+    return _fetch_tree_for_vansha(str(vansha_id), gen_min=gen_min, gen_max=gen_max)
 
 
 @router.get("/{vansha_id}")
 def get_tree(vansha_id: UUID) -> dict[str, Any]:
-    """
-    Return all unions (sorted by `relative_gen_index` ascending) and persons
-    for the given `Vansha_ID`.
-    """
+    """Return all unions and persons for the given vansha_id."""
     return _fetch_tree_for_vansha(str(vansha_id))
 
 
@@ -343,5 +363,21 @@ def bootstrap_onboarding_tree(body: OnboardingBootstrapBody) -> dict[str, Any]:
     except Exception:
         logger.exception("Failed onboarding bootstrap insert for vansha_id=%s", vansha_id)
         raise HTTPException(status_code=502, detail="Failed to create onboarding tree") from None
+
+    # Set lineage_path for each inserted person (best-effort).
+    try:
+        for p in persons_to_insert:
+            nid = p["node_id"]
+            father_nid = p.get("father_node_id")
+            label = nid.replace("-", "_")
+            if father_nid:
+                res = sb.table(PERSONS_TABLE).select("lineage_path").eq("node_id", father_nid).limit(1).execute()
+                parent_path = res.data[0].get("lineage_path") if res.data else None
+                path = f"{parent_path}.{label}" if parent_path else label
+            else:
+                path = label
+            sb.table(PERSONS_TABLE).update({"lineage_path": path}).eq("node_id", nid).execute()
+    except Exception:
+        logger.warning("lineage_path bootstrap update failed for vansha_id=%s (non-fatal)", vansha_id)
 
     return _fetch_tree_for_vansha(vansha_id)
