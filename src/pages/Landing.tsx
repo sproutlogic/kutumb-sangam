@@ -101,12 +101,12 @@ const Landing = () => {
       <div className="gold-line" />
 
       {/* ── Recognised & Supported By ─────────────────────────────── */}
-      <section className="bg-secondary/20 border-b border-border/40 py-6">
-        <div className="container px-6">
+      <section className="bg-white border-b border-border/40 py-6">
+        <div className="w-full px-6">
           <p className="text-center text-[10px] font-semibold font-body tracking-[0.25em] uppercase text-muted-foreground mb-5">
             Recognised &amp; Supported By
           </p>
-          <div className="flex flex-wrap items-center justify-center gap-6 md:gap-10">
+          <div className="flex items-center justify-between w-full">
             {[
               { src: '/logo-SIL-by-Citi.webp',     alt: 'Startup India Lab by Citi' },
               { src: '/logo-startup-india.webp',   alt: 'Startup India — DPIIT Recognised' },
@@ -114,11 +114,11 @@ const Landing = () => {
               { src: '/logo-start-in-up.webp',     alt: 'Start in UP — Govt. of Uttar Pradesh' },
               { src: '/logo-AIIDE-Coe.webp',       alt: 'AIIDE Centre of Excellence' },
             ].map(({ src, alt }) => (
-              <div key={src} className="flex items-center justify-center px-3 py-2 rounded-lg border border-border bg-card shadow-sm">
+              <div key={src} className="flex-1 flex items-center justify-center px-4 py-2">
                 <img
                   src={src}
                   alt={alt}
-                  className="h-10 w-auto object-contain"
+                  className="h-12 w-full object-contain"
                   loading="lazy"
                 />
               </div>
