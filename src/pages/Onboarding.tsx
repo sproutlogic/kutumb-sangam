@@ -109,11 +109,10 @@ const Onboarding = () => {
   const { session, appUser, refreshAppUser } = useAuth();
   const navigate = useNavigate();
 
-  // Onboarding already completed → skip straight to the app home (Eco-Sewa).
-  // Users who have a vansha_id but onboarding_complete=false are allowed to stay
-  // here so they can finish entering their details.
+  // Skip onboarding only when profile is actually linked to a vansha/tree.
+  // If onboarding flag is true but vansha_id is missing, allow user to fill form.
   useEffect(() => {
-    if (appUser && appUser.onboarding_complete) {
+    if (appUser && appUser.onboarding_complete && appUser.vansha_id) {
       navigate('/dashboard', { replace: true });
     }
   }, [appUser, navigate]);
@@ -250,6 +249,15 @@ const Onboarding = () => {
       try {
         const token = session?.access_token;
         if (token) {
+          // Persist the newly created vansha on the user's profile.
+          await fetch(`${getApiBaseUrl()}/api/auth/me`, {
+            method: 'PATCH',
+            headers: {
+              Authorization: `Bearer ${token}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ vansha_id: payload.vansha_id }),
+          });
           await fetch(`${getApiBaseUrl()}/api/auth/complete-onboarding`, {
             method: 'POST',
             headers: { Authorization: `Bearer ${token}` },

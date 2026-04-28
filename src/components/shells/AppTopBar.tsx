@@ -216,15 +216,15 @@ export function AppTopBar() {
 
   return (
     <>
-      <header className="sticky top-0 z-40 flex h-12 items-center gap-2 border-b border-border bg-card/95 px-2 md:px-4 backdrop-blur supports-[backdrop-filter]:bg-card/80">
-        <div className="flex min-w-0 flex-1 items-center gap-2 md:w-[180px] md:flex-none">
+      <header className="sticky top-0 z-40 flex h-14 items-center gap-2 border-b border-border bg-card/95 px-2 md:h-16 md:px-4 backdrop-blur supports-[backdrop-filter]:bg-card/80">
+        <div className="flex min-w-0 flex-1 items-center gap-2 md:w-[280px] md:flex-none">
           <button
             type="button"
             onClick={() => navigate(isTreeInitialized ? '/dashboard' : '/')}
-            className="inline-flex items-center"
+            className="inline-flex items-center rounded-md px-1 py-0.5 hover:bg-secondary/40 transition-colors"
             aria-label="Prakriti home"
           >
-            <img src="/prakriti.svg" alt="Prakriti" className="h-7 w-auto" />
+            <img src="/prakriti.svg" alt="Prakriti" className="h-10 w-auto md:h-12 drop-shadow-sm" />
           </button>
         </div>
 
@@ -272,7 +272,7 @@ export function AppTopBar() {
             className="hidden md:inline-flex items-center"
             aria-label="Aarush Eco Tech"
           >
-            <img src="/logo.svg" alt="Aarush Eco Tech" className="h-7 w-auto" />
+            <img src="/logo.svg" alt="Aarush Eco Tech" className="h-9 w-auto md:h-10" />
           </a>
           {planId === "beej" && (
             <button

@@ -27,8 +27,13 @@ class Settings(BaseSettings):
     matcher_cron_hour: int = 2
 
     # Comma-separated list of allowed CORS origins.
-    # Dev default allows Vite dev server; override in production.
-    allowed_origins: str = "http://localhost:5173,http://localhost:8080"
+    # Keep production domains in default so critical APIs still work even when env is missing.
+    allowed_origins: str = (
+        "http://localhost:5173,"
+        "http://localhost:8080,"
+        "https://prakriti.ecotech.co.in,"
+        "https://www.prakriti.ecotech.co.in"
+    )
 
     # ── Razorpay ──────────────────────────────────────────────────────────────
     # Set these in .env once you have live credentials from Razorpay dashboard.

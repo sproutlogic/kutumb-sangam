@@ -62,9 +62,14 @@ app = FastAPI(
 )
 
 _settings = get_settings()
+_mandatory_prod_origins = {
+    "https://prakriti.ecotech.co.in",
+    "https://www.prakriti.ecotech.co.in",
+}
+_cors_origins = sorted({*(_settings.allowed_origins_list or []), *_mandatory_prod_origins})
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=_settings.allowed_origins_list,
+    allow_origins=_cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

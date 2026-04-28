@@ -2,8 +2,8 @@
  * /services — Eco Service Packages page.
  *
  * Shows 3 package cards (Taruvara, Dashavruksha, Jala Setu) with runtime prices.
- * Users browse without auth; checkout requires login.
- * Scrolls to checkout form on "Buy" click.
+ * Users browse without auth; order placement requires login.
+ * Orders follow a managed plantation model (no delivery-address form).
  */
 
 import { useEffect, useState } from "react";
@@ -48,12 +48,7 @@ export default function EcoServicesPage() {
   const [selected, setSelected]       = useState<ServicePackageId | null>(null);
   const [ordering, setOrdering]       = useState(false);
 
-  // Checkout form
-  const [location, setLocation]       = useState("");
-  const [billedName, setBilledName]   = useState("");
-  const [billedEmail, setBilledEmail] = useState("");
-  const [billedPhone, setBilledPhone] = useState("");
-  const [prefDate, setPrefDate]       = useState("");
+  const MANAGED_LOCATION = "Prakriti managed plantation zone (Vrindavan/Ayodhya/Ashram/green-deficit communities)";
 
   useEffect(() => {
     fetchServicePackages()
@@ -62,24 +57,20 @@ export default function EcoServicesPage() {
   }, []);
 
   async function handleOrder() {
-    if (!selected || !location.trim()) {
-      toast({ title: "कृपया पता भरें।", variant: "destructive" });
+    if (!selected) {
+      toast({ title: "कृपया पहले पैकेज चुनें।", variant: "destructive" });
       return;
     }
     setOrdering(true);
     try {
       const payload: CreateServiceOrderPayload = {
         package_id: selected,
-        delivery_location_text: location.trim(),
-        billed_name:  billedName.trim() || undefined,
-        billed_email: billedEmail.trim() || undefined,
-        billed_phone: billedPhone.trim() || undefined,
-        preferred_date: prefDate || undefined,
+        delivery_location_text: MANAGED_LOCATION,
       };
       const res = await createServiceOrder(payload);
       toast({
         title: "✅ ऑर्डर बन गया!",
-        description: `कुल: ${res.display_total}. भुगतान के बाद vendor assign होगा।`,
+        description: `कुल: ${res.display_total}. Planting location, GPS, photos और ritual proof order timeline में साझा होंगे।`,
       });
       navigate(`/services/orders/${res.service_order_id}`);
     } catch (e) {
@@ -147,7 +138,7 @@ export default function EcoServicesPage() {
                     <div className="text-[10px] text-muted-foreground">+ GST 18%</div>
                   </div>
                   <button
-                    onClick={e => { e.stopPropagation(); setSelected(pkg.id as ServicePackageId); document.getElementById("checkout-form")?.scrollIntoView({ behavior: "smooth" }); }}
+                    onClick={e => { e.stopPropagation(); setSelected(pkg.id as ServicePackageId); document.getElementById("order-model")?.scrollIntoView({ behavior: "smooth" }); }}
                     className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-xl text-sm font-semibold transition-colors"
                   >
                     चुनें
@@ -176,9 +167,9 @@ export default function EcoServicesPage() {
           </div>
         </div>
 
-        {/* Checkout form */}
+        {/* Managed order model (no address/date/billing form) */}
         {selected && selectedPkg && (
-          <div id="checkout-form" className="border-2 border-green-400 dark:border-green-700 rounded-2xl p-6 space-y-4 bg-green-50/40 dark:bg-green-950/20">
+          <div id="order-model" className="border-2 border-green-400 dark:border-green-700 rounded-2xl p-6 space-y-4 bg-green-50/40 dark:bg-green-950/20">
             <div className="flex items-center gap-3">
               <ShoppingCart className="w-5 h-5 text-green-600" />
               <h2 className="font-semibold text-lg">
@@ -189,57 +180,13 @@ export default function EcoServicesPage() {
               </h2>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div className="sm:col-span-2">
-                <label className="block text-xs font-medium text-muted-foreground mb-1">डिलीवरी पता / स्थान *</label>
-                <textarea
-                  value={location}
-                  onChange={e => setLocation(e.target.value)}
-                  rows={2}
-                  placeholder="गाँव, तहसील, जिला..."
-                  className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm resize-none"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1">पसंदीदा तारीख (वैकल्पिक)</label>
-                <input
-                  type="date"
-                  value={prefDate}
-                  onChange={e => setPrefDate(e.target.value)}
-                  min={new Date().toISOString().slice(0, 10)}
-                  className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1">नाम (इनवॉइस के लिए)</label>
-                <input
-                  type="text"
-                  value={billedName}
-                  onChange={e => setBilledName(e.target.value)}
-                  placeholder="पूरा नाम"
-                  className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1">ईमेल</label>
-                <input
-                  type="email"
-                  value={billedEmail}
-                  onChange={e => setBilledEmail(e.target.value)}
-                  placeholder="email@example.com"
-                  className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1">मोबाइल</label>
-                <input
-                  type="tel"
-                  value={billedPhone}
-                  onChange={e => setBilledPhone(e.target.value)}
-                  placeholder="9876543210"
-                  className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
-                />
-              </div>
+            <div className="rounded-xl border border-border/60 bg-card/70 p-4 space-y-2">
+              <p className="text-sm font-semibold">Plantation model</p>
+              <ul className="list-disc pl-5 space-y-1 text-sm text-muted-foreground">
+                <li>स्थान हमारी टीम चुनती है — जैसे वृंदावन, अयोध्या, आश्रम, या हरित-विहीन विकसित होती बस्तियाँ।</li>
+                <li>रोपण के बाद आपको GPS location, पौधे की फोटो और पंडित जी द्वारा किए गए plantation ritual का प्रमाण मिलेगा।</li>
+                <li>हम पौधे की देखभाल 1 वर्ष तक (या renewal payment तक) करते हैं।</li>
+              </ul>
             </div>
 
             <button
@@ -248,10 +195,10 @@ export default function EcoServicesPage() {
               className="flex items-center gap-2 px-6 py-3 bg-green-600 hover:bg-green-700 text-white rounded-xl text-sm font-bold transition-colors disabled:opacity-50"
             >
               {ordering && <Loader2 className="w-4 h-4 animate-spin" />}
-              ऑर्डर करें (भुगतान अगले चरण में)
+              ऑर्डर प्लेस करें
             </button>
             <p className="text-xs text-muted-foreground">
-              💳 Razorpay gateway आने पर भुगतान यहीं होगा। अभी ऑर्डर बनता है, vendor बाद में assign होगा।
+              भुगतान/अगले चरण की जानकारी आपके order tracking में दिखाई जाएगी।
             </p>
           </div>
         )}
