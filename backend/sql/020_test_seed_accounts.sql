@@ -35,6 +35,10 @@ DECLARE
 BEGIN
     FOR acc IN SELECT * FROM jsonb_array_elements(accounts)
     LOOP
+        -- IMPORTANT: All *_token / email_change / phone_change columns must be ''
+        -- (empty string), NOT NULL. GoTrue's Go scanner cannot read NULL into a
+        -- string column and sign-in will fail with "Database error querying schema".
+        -- Ref: https://github.com/supabase/auth/issues/1940
         INSERT INTO auth.users (
             id,
             instance_id,
@@ -47,7 +51,15 @@ BEGIN
             raw_user_meta_data,
             is_super_admin,
             created_at,
-            updated_at
+            updated_at,
+            confirmation_token,
+            email_change,
+            email_change_token_new,
+            email_change_token_current,
+            recovery_token,
+            reauthentication_token,
+            phone_change,
+            phone_change_token
         ) VALUES (
             (acc->>'id')::UUID,
             '00000000-0000-0000-0000-000000000000',
@@ -60,12 +72,54 @@ BEGIN
             '{}',
             false,
             NOW(),
-            NOW()
+            NOW(),
+            '', '', '', '', '', '', '', ''
         ) ON CONFLICT (id) DO NOTHING;
     END LOOP;
 END $$;
 
+-- ── Step 1b: Create matching auth.identities rows ─────────────────────────────
+-- Required by Supabase GoTrue >= v2: signInWithPassword looks up users via
+-- auth.identities (provider='email'). Without this row, sign-in fails with
+-- "Database error querying schema".
+
+INSERT INTO auth.identities (
+    id,
+    user_id,
+    provider_id,
+    identity_data,
+    provider,
+    last_sign_in_at,
+    created_at,
+    updated_at
+)
+SELECT
+    gen_random_uuid(),
+    u.id,
+    u.id::text,
+    jsonb_build_object(
+        'sub',            u.id::text,
+        'email',          u.email,
+        'email_verified', true,
+        'phone_verified', false
+    ),
+    'email',
+    NOW(),
+    NOW(),
+    NOW()
+FROM auth.users u
+WHERE u.id::TEXT LIKE '0000000%'
+  AND NOT EXISTS (
+      SELECT 1 FROM auth.identities i
+      WHERE i.user_id = u.id AND i.provider = 'email'
+  );
+
 -- ── Step 2: Create public.users entries with correct roles ─────────────────────
+-- NOTE: requires migration 019_mfa_margdarshak_roles.sql to have been applied,
+-- since this seed inserts roles 'margdarshak', 'office', and 'finance' which
+-- are not present in the original users_role_check constraint defined in
+-- 000_master_migration.sql / 004_sales_dashboard.sql. If you see a
+-- check-constraint violation here, run 019 first, then re-run this file.
 
 INSERT INTO public.users (id, role, full_name, onboarding_complete) VALUES
     -- Regular users (must complete onboarding)

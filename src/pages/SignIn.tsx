@@ -81,7 +81,11 @@ const SignIn = () => {
   // ── Email + password (for Supabase test accounts) ────────────────────────
   const handlePassword = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email.trim() || !password || !supabase) return;
+    if (!email.trim() || !password) return;
+    if (!supabase) {
+      toast({ title: 'Auth not configured', description: 'Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in .env', variant: 'destructive' });
+      return;
+    }
     setPwdLoading(true);
     const { error } = await supabase.auth.signInWithPassword({
       email: email.trim(),
@@ -90,8 +94,10 @@ const SignIn = () => {
     setPwdLoading(false);
     if (error) {
       toast({ title: 'Sign-in failed', description: error.message, variant: 'destructive' });
+      return;
     }
-    // On success onAuthStateChange fires → AuthContext → Index.tsx redirects
+    // Password flow does not reload page; redirect explicitly on success.
+    navigate(postAuthPath === '/' ? '/dashboard' : postAuthPath, { replace: true });
   };
 
   return (
