@@ -243,8 +243,9 @@ def create_person(body: PersonCreateBody) -> dict[str, Any]:
     update_anchor: Optional[dict[str, Any]] = None
     insert_union: Optional[dict[str, Any]] = None
     unions_cache: Optional[list[dict[str, Any]]] = None
-    # After inserting the new person: pair Father/Mother with the anchor's other parent into a union.
     post_insert_parental: Optional[tuple[str, str, str, int]] = None
+    # (union_id, column_name, new_value) — update an existing union row after insert
+    post_insert_union_update: Optional[tuple[str, str, str]] = None
 
     def unions() -> list[dict[str, Any]]:
         nonlocal unions_cache
@@ -270,16 +271,40 @@ def create_person(body: PersonCreateBody) -> dict[str, Any]:
         anchor = res.data[0]
         anchor_gen = _anchor_generation(anchor)
 
-        if relation_label in PARENT_RELATIONS | SIBLING_RELATIONS:
+        if relation_label in SIBLING_RELATIONS:
             raise HTTPException(
                 status_code=400,
-                detail=(
-                    "Ancestral tree adds only link through parents: use Son, Daughter, Adopted child, "
-                    "or Wife/Husband — not Father, Mother, Brother, or Sister."
-                ),
+                detail="Adding siblings directly is not supported. Add them as children of the shared parents.",
             )
 
-        if relation_label in CHILD_RELATIONS:
+        if relation_label in PARENT_RELATIONS:
+            is_father = relation_label == "Father"
+            rel_idx = anchor_gen - 1
+            row["relative_gen_index"] = rel_idx
+            row["generation"] = rel_idx
+            row["gender"] = "male" if is_father else "female"
+            row[PARENT_UNION_ID_COLUMN] = None
+            last_sur = str(anchor.get("last_name") or "").strip() or " "
+            existing_puid = _str_id(anchor.get(PARENT_UNION_ID_COLUMN))
+            if existing_puid:
+                # Union already exists — update its male/female slot and anchor link
+                col = "male_node_id" if is_father else "female_node_id"
+                post_insert_union_update = (existing_puid, col, node_id)
+                update_anchor = {
+                    "father_node_id" if is_father else "mother_node_id": node_id
+                }
+            else:
+                # No union yet — create placeholder of opposite gender, union after insert
+                if is_father:
+                    ph_id = _insert_placeholder_parent(sb, vid, anchor, "female", "—", last_sur, rel_idx)
+                    post_insert_parental = ("father", anchor_id_str, ph_id, rel_idx)
+                    update_anchor = {"father_node_id": node_id, "mother_node_id": ph_id}
+                else:
+                    ph_id = _insert_placeholder_parent(sb, vid, anchor, "male", "—", last_sur, rel_idx)
+                    post_insert_parental = ("mother", anchor_id_str, ph_id, rel_idx)
+                    update_anchor = {"father_node_id": ph_id, "mother_node_id": node_id}
+
+        elif relation_label in CHILD_RELATIONS:
             rel_idx = anchor_gen + 1
             row["relative_gen_index"] = rel_idx
             row["generation"] = rel_idx
@@ -417,6 +442,17 @@ def create_person(body: PersonCreateBody) -> dict[str, Any]:
             raise HTTPException(
                 status_code=502,
                 detail="Person created but failed to form the parental union (couple) link.",
+            ) from None
+
+    if post_insert_union_update is not None:
+        u_id, col, val = post_insert_union_update
+        try:
+            sb.table(UNIONS_TABLE).update({col: val}).eq("union_id", u_id).execute()
+        except Exception:
+            logger.exception("Failed to update union %s col %s", u_id, col)
+            raise HTTPException(
+                status_code=502,
+                detail="Person created but failed to update parental union.",
             ) from None
 
     if insert_union is not None:
