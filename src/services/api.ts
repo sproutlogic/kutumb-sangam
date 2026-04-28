@@ -9,9 +9,24 @@ import { mergeMatrimonyProfile } from "@/engine/matrimonyDefaults";
 const DEFAULT_BASE = "http://127.0.0.1:8000";
 const CURRENT_VANSHA_STORAGE_KEY = "kutumb_current_vansha_id";
 
+/** When `VITE_API_BASE_URL` is unset in the browser build, infer a public API host from the page (override via env for custom backends). */
+function inferPublicApiBaseFromHost(): string | null {
+  if (typeof window === "undefined") return null;
+  const host = window.location.hostname.toLowerCase();
+  if (host === "prakriti.ecotech.co.in" || host === "www.prakriti.ecotech.co.in") {
+    return "https://api.prakriti.ecotech.co.in";
+  }
+  return null;
+}
+
 export function getApiBaseUrl(): string {
   const fromEnv = import.meta.env.VITE_API_BASE_URL;
-  return (typeof fromEnv === "string" && fromEnv.trim() !== "" ? fromEnv : DEFAULT_BASE).replace(/\/$/, "");
+  if (typeof fromEnv === "string" && fromEnv.trim() !== "") {
+    return fromEnv.replace(/\/$/, "");
+  }
+  const inferred = inferPublicApiBaseFromHost();
+  if (inferred) return inferred.replace(/\/$/, "");
+  return DEFAULT_BASE;
 }
 
 function readPersistedVanshaId(): string {

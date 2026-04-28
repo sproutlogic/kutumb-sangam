@@ -11,6 +11,7 @@ import { ChevronLeft, ChevronRight, Leaf, Droplets, Users, Eye, AlertCircle, Tre
 import AppShell from "@/components/shells/AppShell";
 import { fetchPanchangCalendar, type PanchangCalendarRow } from "@/services/api";
 import { supabase } from "@/lib/supabase";
+import { mergeTithiWithFallback, type Paksha } from "@/lib/tithiFallback";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -96,6 +97,11 @@ async function buildCalendarRows(dates: string[]): Promise<PanchangCalendarRow[]
   return dates.map(dateStr => {
     const { tithi_id, paksha, special_flag } = computeTithiForDate(dateStr);
     const tithiDef = tithis.find(t => Number(t.id) === tithi_id) ?? null;
+    const merged = mergeTithiWithFallback(
+      tithiDef as Record<string, unknown> | null,
+      tithi_id,
+      paksha as Paksha,
+    );
     return {
       id: dateStr,
       gregorian_date: dateStr,
@@ -108,7 +114,7 @@ async function buildCalendarRows(dates: string[]): Promise<PanchangCalendarRow[]
       samvat_year: null,
       is_kshaya: false,
       is_adhika: false,
-      tithis: tithiDef,
+      tithis: merged as unknown as PanchangCalendarRow["tithis"],
     } as unknown as PanchangCalendarRow;
   });
 }
@@ -135,7 +141,15 @@ export default function EcoPanchangPage() {
       if (abortRef.current) return;
 
       if (cal.length > 0) {
-        setRows(cal);
+        const enriched = cal.map((row) => {
+          const merged = mergeTithiWithFallback(
+            row.tithis as Record<string, unknown> | null | undefined,
+            row.tithi_id,
+            row.paksha as Paksha,
+          );
+          return { ...row, tithis: merged as unknown as PanchangCalendarRow["tithis"] };
+        });
+        setRows(enriched);
       } else {
         // Fallback: compute client-side for the 7-day window
         const dates = Array.from({ length: 7 }, (_, i) => addDays(windowStart, i));

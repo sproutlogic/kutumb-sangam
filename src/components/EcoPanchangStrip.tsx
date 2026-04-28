@@ -11,6 +11,11 @@ import { Leaf, Droplets, TreePine, Eye, Users, AlertCircle, Loader2, ChevronDown
 import { fetchTodayPanchang, type TodayPanchang } from "@/services/api";
 import { supabase } from "@/lib/supabase";
 import { useNavigate } from "react-router-dom";
+import {
+  ecoRecommendationFromTithiRecord,
+  mergeTithiWithFallback,
+  type Paksha,
+} from "@/lib/tithiFallback";
 
 // ── Client-side tithi computation (Meeus simplified, accurate to ~0.5°) ──────
 
@@ -103,45 +108,57 @@ export default function EcoPanchangStrip() {
     let cancelled = false;
 
     async function load() {
+      const tithiIdFallback = computeTithiIdToday();
+
       // 1. Try backend API first
       const apiData = await fetchTodayPanchang();
       if (apiData && !cancelled) {
-        setData(apiData);
-        setTithi(apiData.tithi as Record<string, string>);
+        const tid =
+          typeof (apiData.tithi as { id?: number } | null)?.id === "number"
+            ? (apiData.tithi as { id: number }).id
+            : tithiIdFallback;
+        const paksha: Paksha =
+          apiData.paksha ?? (tid <= 15 ? "shukla" : "krishna");
+        const merged = mergeTithiWithFallback(
+          apiData.tithi as Record<string, unknown> | null,
+          tid,
+          paksha,
+        );
+        const next: TodayPanchang = {
+          ...apiData,
+          paksha,
+          tithi: merged as TodayPanchang["tithi"],
+          eco_recommendation: ecoRecommendationFromTithiRecord(merged),
+        };
+        setData(next);
+        setTithi(merged);
         setLoading(false);
         return;
       }
 
-      // 2. Fallback: compute client-side + fetch tithi from Supabase
-      const tithiId = computeTithiIdToday();
+      // 2. Fallback: compute client-side + optional Supabase row + synthetic labels
+      const tithiId = tithiIdFallback;
       const tithiRow = await fetchTithiFromSupabase(tithiId);
       if (!cancelled) {
-        // Build a minimal TodayPanchang-shaped object from what we know
-        const paksha = tithiId <= 15 ? "shukla" : "krishna";
+        const paksha: Paksha = tithiId <= 15 ? "shukla" : "krishna";
+        const merged = mergeTithiWithFallback(tithiRow, tithiId, paksha);
         setData({
-          date:    new Date().toISOString().slice(0, 10),
-          tithi:   tithiRow ?? {},
+          date: new Date().toISOString().slice(0, 10),
+          tithi: merged as TodayPanchang["tithi"],
           paksha,
-          nakshatra:    null,
-          yoga:         null,
-          masa:         null,
-          samvat_year:  null,
+          nakshatra: null,
+          yoga: null,
+          masa: null,
+          samvat_year: null,
           special_flag: null,
-          is_kshaya:    false,
-          is_adhika:    false,
-          sunrise_ts:   null,
-          ref_lat:      23.1809,
-          ref_lon:      75.7771,
-          eco_recommendation: {
-            primary:   tithiRow?.eco_significance  ?? "",
-            plant:     tithiRow?.plant_action       ?? "",
-            water:     tithiRow?.water_action       ?? "",
-            avoid:     tithiRow?.avoid_action       ?? "",
-            observe:   tithiRow?.nature_observation ?? "",
-            community: tithiRow?.community_action   ?? "",
-          },
+          is_kshaya: false,
+          is_adhika: false,
+          sunrise_ts: null,
+          ref_lat: 23.1809,
+          ref_lon: 75.7771,
+          eco_recommendation: ecoRecommendationFromTithiRecord(merged),
         } as TodayPanchang);
-        setTithi(tithiRow);
+        setTithi(merged);
         setLoading(false);
       }
     }
@@ -162,7 +179,7 @@ export default function EcoPanchangStrip() {
   if (!data || !tithi) {
     return (
       <div className="border border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-950/30 rounded-xl p-4 mb-5 text-sm text-green-700 dark:text-green-400">
-        🌿 Eco-Panchang — आज की तिथि उपलब्ध नहीं है। कृपया पुनः प्रयास करें।
+        🌿 Eco-Panchang — लोड नहीं हो सका। पृष्ठ रीफ़्रेश करें या बाद में पुनः प्रयास करें।
       </div>
     );
   }
