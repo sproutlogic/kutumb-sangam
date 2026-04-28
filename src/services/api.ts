@@ -1061,3 +1061,37 @@ export async function fetchPublishedContent(params?: {
     return { items: [], content_type: params?.content_type ?? "blog_post" };
   }
 }
+
+// ── Notifications ─────────────────────────────────────────────────────────────
+
+export interface AppNotification {
+  id: string;
+  user_id: string;
+  title: string;
+  body: string | null;
+  type: string | null;
+  read: boolean;
+  created_at: string;
+  meta: Record<string, unknown> | null;
+}
+
+export async function fetchNotifications(limit = 30): Promise<AppNotification[]> {
+  try {
+    const res = await fetchApi(`${getApiBaseUrl()}/api/notifications?limit=${limit}`);
+    return (await parseJsonOrThrow(res)) as AppNotification[];
+  } catch {
+    return [];
+  }
+}
+
+export async function markNotificationRead(id: string): Promise<void> {
+  try {
+    await fetchApi(`${getApiBaseUrl()}/api/notifications/${id}/read`, { method: "PATCH" });
+  } catch { /* non-fatal */ }
+}
+
+export async function markAllNotificationsRead(): Promise<void> {
+  try {
+    await fetchApi(`${getApiBaseUrl()}/api/notifications/read-all`, { method: "POST" });
+  } catch { /* non-fatal */ }
+}

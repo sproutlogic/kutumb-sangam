@@ -238,9 +238,10 @@ const overrides: Record<string, TranslationEntry> = {
     hi: "दंपति जोड़ा",
   },
   /* ── Navigation labels ── */
+  homeNav:          { en: "Home",            hi: "होम" },
   timeBankNav:      { en: "Eco-Sewa",        hi: "इको-सेवा" },
-  sewaChakraNav:    { en: "Eco-Sewa",        hi: "इको-सेवा" },
-  startYourJourney: { en: "Start Your Journey", hi: "अपनी यात्रा शुरू करें" },
+  sewaChakraNav:    { en: "Sewa Chakra",     hi: "सेवा चक्र" },
+  startYourJourney: { en: "Home",            hi: "होम" },
   kutumbCalendar:   { en: "Prakriti Panchang", hi: "प्रकृति पंचांग" },
   kutumbRadar:      { en: "Kutumb Radar",    hi: "कुटुंब रडार" },
   legacyBox:        { en: "Dharti Sandesh",  hi: "धरती संदेश" },

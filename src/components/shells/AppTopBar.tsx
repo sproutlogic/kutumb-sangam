@@ -1,9 +1,16 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { AlertTriangle, Megaphone, Radio, Check } from "lucide-react";
+import { AlertTriangle, Megaphone, Radio, Check, Bell } from "lucide-react";
 import { useLang } from "@/i18n/LanguageContext";
 import { usePlan } from "@/contexts/PlanContext";
 import { useTree } from "@/contexts/TreeContext";
+import { useAuth } from "@/contexts/AuthContext";
+import {
+  fetchNotifications,
+  markNotificationRead,
+  markAllNotificationsRead,
+  type AppNotification,
+} from "@/services/api";
 import {
   Dialog,
   DialogContent,
@@ -41,6 +48,43 @@ export function AppTopBar() {
   const navigate = useNavigate();
   const { hasEntitlement, planId, plan } = usePlan();
   const { state, pushActivity, isTreeInitialized } = useTree();
+  const { appUser } = useAuth();
+
+  // ── Notifications ──────────────────────────────────────────────────────────
+  const [notifs, setNotifs] = useState<AppNotification[]>([]);
+  const [notifsOpen, setNotifsOpen] = useState(false);
+  const notifRef = useRef<HTMLDivElement>(null);
+
+  const unread = notifs.filter((n) => !n.read).length;
+
+  useEffect(() => {
+    if (!appUser) return;
+    fetchNotifications(20).then(setNotifs);
+    // Refresh every 2 minutes
+    const timer = setInterval(() => fetchNotifications(20).then(setNotifs), 120_000);
+    return () => clearInterval(timer);
+  }, [appUser]);
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (notifRef.current && !notifRef.current.contains(e.target as Node)) {
+        setNotifsOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, []);
+
+  async function handleMarkAllRead() {
+    await markAllNotificationsRead();
+    setNotifs((prev) => prev.map((n) => ({ ...n, read: true })));
+  }
+
+  async function handleMarkOne(id: string) {
+    await markNotificationRead(id);
+    setNotifs((prev) => prev.map((n) => n.id === id ? { ...n, read: true } : n));
+  }
 
   // SOS state
   const [sosOpen, setSosOpen] = useState(false);
@@ -241,6 +285,74 @@ export function AppTopBar() {
               {tr("privacyUpgradeHint")}
             </button>
           )}
+
+          {/* ── Notifications Bell ── */}
+          {appUser && (
+            <div ref={notifRef} className="relative">
+              <button
+                type="button"
+                onClick={() => setNotifsOpen((v) => !v)}
+                className="relative inline-flex items-center justify-center w-8 h-8 rounded-lg hover:bg-secondary transition-colors"
+                title="Notifications"
+              >
+                <Bell className="w-4 h-4 text-muted-foreground" />
+                {unread > 0 && (
+                  <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 rounded-full bg-red-500 text-[9px] font-bold text-white flex items-center justify-center px-0.5">
+                    {unread > 9 ? "9+" : unread}
+                  </span>
+                )}
+              </button>
+
+              {notifsOpen && (
+                <div className="absolute right-0 top-10 z-50 w-80 bg-card border border-border rounded-xl shadow-xl overflow-hidden">
+                  <div className="flex items-center justify-between px-4 py-2.5 border-b border-border">
+                    <span className="text-sm font-semibold">Notifications</span>
+                    {unread > 0 && (
+                      <button
+                        onClick={handleMarkAllRead}
+                        className="text-[10px] text-primary hover:underline font-medium"
+                      >
+                        Mark all read
+                      </button>
+                    )}
+                  </div>
+                  <div className="max-h-72 overflow-y-auto">
+                    {notifs.length === 0 ? (
+                      <div className="py-8 text-center text-xs text-muted-foreground">
+                        No notifications yet.
+                      </div>
+                    ) : (
+                      notifs.map((n) => (
+                        <button
+                          key={n.id}
+                          onClick={() => handleMarkOne(n.id)}
+                          className={`w-full text-left px-4 py-3 border-b border-border/50 hover:bg-secondary/50 transition-colors ${
+                            !n.read ? "bg-primary/5" : ""
+                          }`}
+                        >
+                          <div className="flex items-start gap-2">
+                            {!n.read && (
+                              <span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-primary flex-shrink-0" />
+                            )}
+                            <div className="min-w-0 flex-1">
+                              <p className="text-xs font-medium leading-snug">{n.title}</p>
+                              {n.body && (
+                                <p className="text-[11px] text-muted-foreground mt-0.5 line-clamp-2">{n.body}</p>
+                              )}
+                              <p className="text-[10px] text-muted-foreground/70 mt-1">
+                                {new Date(n.created_at).toLocaleString("en-IN", { dateStyle: "short", timeStyle: "short" })}
+                              </p>
+                            </div>
+                          </div>
+                        </button>
+                      ))
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
           <button
             type="button"
             onClick={handleSosClick}

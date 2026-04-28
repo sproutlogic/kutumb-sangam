@@ -46,12 +46,20 @@ async function fetchAppUser(accessToken: string): Promise<AppUser | null> {
   }
 }
 
-async function upsertSession(accessToken: string): Promise<void> {
+async function upsertSession(accessToken: string, supabaseUser?: import("@supabase/supabase-js").User | null): Promise<void> {
   try {
+    // Pass the Google / email display name so it gets stored in public.users
+    const fullName =
+      supabaseUser?.user_metadata?.full_name ??
+      supabaseUser?.user_metadata?.name ??
+      supabaseUser?.email?.split("@")[0] ??
+      null;
+    const phone = supabaseUser?.phone ?? supabaseUser?.user_metadata?.phone ?? null;
+
     await fetch(`${getApiBaseUrl()}/api/auth/session`, {
       method: "POST",
       headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
-      body: JSON.stringify({}),
+      body: JSON.stringify({ full_name: fullName, phone }),
     });
   } catch { /* non-fatal */ }
 }
@@ -68,7 +76,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setSession(s);
     setSupabaseUser(s?.user ?? null);
     if (s?.access_token) {
-      await upsertSession(s.access_token);
+      await upsertSession(s.access_token, s.user);
       const au = await fetchAppUser(s.access_token);
       setAppUser(au);
     } else {

@@ -114,7 +114,7 @@ const Onboarding = () => {
   // here so they can finish entering their details.
   useEffect(() => {
     if (appUser && appUser.onboarding_complete) {
-      navigate('/eco-sewa', { replace: true });
+      navigate('/dashboard', { replace: true });
     }
   }, [appUser, navigate]);
 
@@ -261,7 +261,7 @@ const Onboarding = () => {
       }
 
       // Onboarding complete — land on Eco-Sewa (the app home).
-      navigate('/eco-sewa', { replace: true });
+      navigate('/dashboard', { replace: true });
     } catch (err) {
       toast({
         title: tr('errorGeneric'),

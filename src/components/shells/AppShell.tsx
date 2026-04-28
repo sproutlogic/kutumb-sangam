@@ -4,7 +4,7 @@ import { useLang } from '@/i18n/LanguageContext';
 import {
   Hourglass, Home, TreePine, ShieldCheck, Search,
   HelpCircle, LogOut, CalendarDays, Radar, Archive, Receipt, Building2, Leaf, IndianRupee,
-  Sprout, ShoppingBag,
+  ShoppingBag,
 } from 'lucide-react';
 import { useTree } from '@/contexts/TreeContext';
 import { useAuth } from '@/contexts/AuthContext';
@@ -14,8 +14,7 @@ import { fetchVanshaTree, setPersistedVanshaId } from '@/services/api';
 import { backendPayloadToTreeState } from '@/services/mapVanshaPayload';
 
 const navItems = [
-  { icon: Hourglass,    labelKey: 'sewaChakraNav'   as const, path: '/time-bank' },
-  { icon: Home,         labelKey: 'startYourJourney' as const, path: '/dashboard' },
+  { icon: Home,         labelKey: 'homeNav'          as const, path: '/dashboard' },
   { icon: TreePine,     labelKey: 'viewTree'         as const, path: '/tree' },
   // Invite is now accessed from within the Tree page, not the sidebar
   { icon: ShieldCheck,  labelKey: 'verification'     as const, path: '/verification' },
@@ -23,13 +22,13 @@ const navItems = [
   { icon: CalendarDays, labelKey: 'kutumbCalendar'   as const, path: '/calendar' },
   { icon: Radar,        labelKey: 'kutumbRadar'      as const, path: '/radar' },
   { icon: Archive,      labelKey: 'legacyBox'        as const, path: '/legacy-box' },
-  { icon: Receipt,       labelKey: 'transactions'     as const, path: '/transactions' },
-  { icon: Leaf,          labelKey: 'haritCircleNav'  as const, path: '/harit-circle' },
-  { icon: IndianRupee,   labelKey: 'mitraEarningsNav' as const, path: '/mitra-earnings' },
-  // ── Eco-Panchang & Green Legacy ──
-  { icon: Sprout,        labelKey: 'ecoSewa'         as const, path: '/eco-sewa' },
-  { icon: ShoppingBag,   labelKey: 'ecoServices'     as const, path: '/services' },
-  { icon: HelpCircle,    labelKey: 'support'          as const, path: '/support' },
+  { icon: Receipt,      labelKey: 'transactions'     as const, path: '/transactions' },
+  { icon: Leaf,         labelKey: 'haritCircleNav'   as const, path: '/harit-circle' },
+  { icon: IndianRupee,  labelKey: 'mitraEarningsNav' as const, path: '/mitra-earnings' },
+  { icon: Hourglass,    labelKey: 'sewaChakraNav'    as const, path: '/time-bank' },
+  // ── Eco Services ──
+  { icon: ShoppingBag,  labelKey: 'ecoServices'      as const, path: '/services' },
+  { icon: HelpCircle,   labelKey: 'support'          as const, path: '/support' },
 ];
 
 interface AppShellProps {
