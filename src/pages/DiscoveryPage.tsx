@@ -11,13 +11,20 @@ import type { NodePrivacyLevel } from '@/engine/types';
 
 /** Human-readable label + icon for each privacy level. */
 const LEVEL_META: Record<NodePrivacyLevel, { label: string; icon: React.ComponentType<{ className?: string }> }> = {
-  private:            { label: 'Private (only you)',     icon: Lock },
-  parents:            { label: 'Parents',                icon: UserCheck },
-  grandparents:       { label: 'Grandparents',           icon: Users },
-  great_grandparents: { label: 'Great-grandparents',     icon: Users },
-  custom_five_nodes:  { label: 'Custom (5 people)',      icon: UserCheck },
-  public:             { label: 'Public',                 icon: Eye },
+  public:            { label: 'Public',            icon: Eye },
+  parents:           { label: 'Node',              icon: UserCheck },
+  custom_five_nodes: { label: '5 Family Members',  icon: Users },
+  tree_all_generations: { label: 'Tree',           icon: Users },
+  private:           { label: 'Private',           icon: Lock },
 };
+
+const DISCOVERY_LEVEL_ORDER: NodePrivacyLevel[] = [
+  'public',
+  'parents',
+  'custom_five_nodes',
+  'tree_all_generations',
+  'private',
+];
 
 const DiscoveryPage = () => {
   const { hasEntitlement, planId } = usePlan();
@@ -30,6 +37,7 @@ const DiscoveryPage = () => {
 
   // Plan-gated privacy levels: only show what the current plan allows
   const allowedLevels = privacyLevelsForPlan(planId);
+  const orderedAllowedLevels = DISCOVERY_LEVEL_ORDER.filter(level => allowedLevels.includes(level));
 
   const handleVisibilityChange = (nodeId: string, level: NodePrivacyLevel) => {
     setNodePrivacy(nodeId, level);
@@ -83,7 +91,7 @@ const DiscoveryPage = () => {
                       onChange={e => handleVisibilityChange(node.id, e.target.value as NodePrivacyLevel)}
                       className="px-3 py-1.5 rounded-lg border border-input bg-background text-sm font-body focus:outline-none focus:ring-2 focus:ring-ring/30 min-w-[160px]"
                     >
-                      {allowedLevels.map(level => (
+                      {orderedAllowedLevels.map(level => (
                         <option key={level} value={level}>
                           {LEVEL_META[level]?.label ?? level}
                         </option>
