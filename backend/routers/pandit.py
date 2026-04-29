@@ -112,7 +112,7 @@ def review_request(body: ReviewBody, pandit: MargdarshakUser) -> dict[str, Any]:
 
     if body.action == "approved":
         try:
-            sb.table(PERSONS_TABLE).update({"verification_tier": "expert"}).eq("node_id", req["node_id"]).execute()
+            sb.table(PERSONS_TABLE).update({"verification_tier": "expert-verified"}).eq("node_id", req["node_id"]).execute()
         except Exception:
             logger.exception("Failed to promote verification_tier for node_id=%s", req["node_id"])
 

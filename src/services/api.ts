@@ -348,7 +348,7 @@ export async function claimPersonNode(nodeId: string): Promise<{ ok: boolean; st
   return { ok: !!data.ok, status: data.status ?? "pending" };
 }
 
-/** Submit a peer verification endorsement for a node (POST /api/verification/request). */
+/** Queue a node for Paryavaran Mitra / Trust review (POST /api/verification/request). */
 export async function requestNodeVerification(vanshaId: string, nodeId: string): Promise<{ ok: boolean }> {
   const res = await fetchApi(`${getApiBaseUrl()}/api/verification/request`, {
     method: "POST",
@@ -357,6 +357,17 @@ export async function requestNodeVerification(vanshaId: string, nodeId: string):
   });
   const data = (await parseJsonOrThrow(res)) as { ok?: boolean };
   return { ok: !!data.ok };
+}
+
+/** Living family member endorses an ancestor node → promotes to family-endorsed tier. */
+export async function familyEndorseNode(vanshaId: string, nodeId: string): Promise<{ ok: boolean; tier?: string }> {
+  const res = await fetchApi(`${getApiBaseUrl()}/api/verification/family-endorse`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify({ vansha_id: vanshaId, node_id: nodeId }),
+  });
+  const data = (await parseJsonOrThrow(res)) as { ok?: boolean; tier?: string };
+  return { ok: !!data.ok, tier: data.tier };
 }
 
 export async function fetchMatrimonialBridge(origin_vansha_id: string): Promise<VanshaTreePayload> {

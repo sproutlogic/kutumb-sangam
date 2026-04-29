@@ -10,7 +10,7 @@ import ConsentToggle from '@/components/ui/ConsentToggle';
 import DisputeForkIndicator from '@/components/ui/DisputeForkIndicator';
 import TrustBadge from '@/components/ui/TrustBadge';
 import { toast } from '@/hooks/use-toast';
-import { createPerson, updatePerson, deletePerson, claimPersonNode, fetchVanshaTree, linkExistingSpouses, resolveVanshaIdForApi, requestNodeVerification } from '@/services/api';
+import { createPerson, updatePerson, deletePerson, claimPersonNode, fetchVanshaTree, linkExistingSpouses, resolveVanshaIdForApi, requestNodeVerification, familyEndorseNode } from '@/services/api';
 import { Trash2, UserCheck, ShieldCheck } from 'lucide-react';
 import { CityAutocomplete } from '@/components/ui/CityAutocomplete';
 import { backendPayloadToTreeState } from '@/services/mapVanshaPayload';
@@ -296,15 +296,29 @@ const NodePage = () => {
     }
   };
 
-  const handleVerifyEndorse = async () => {
+  const handleFamilyEndorse = async () => {
+    if (!existingNode || !effectiveVanshaId) return;
+    setVerifying(true);
+    try {
+      await familyEndorseNode(effectiveVanshaId, existingNode.id);
+      toast({ title: 'Node endorsed', description: 'This ancestor node is now family-endorsed.' });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Could not submit endorsement.';
+      toast({ title: 'Endorsement failed', description: msg, variant: 'destructive' });
+    } finally {
+      setVerifying(false);
+    }
+  };
+
+  const handleRequestExpertVerify = async () => {
     if (!existingNode || !effectiveVanshaId) return;
     setVerifying(true);
     try {
       await requestNodeVerification(effectiveVanshaId, existingNode.id);
-      toast({ title: 'Verification request submitted', description: 'A pandit/verifier will review this node.' });
+      toast({ title: 'Verification requested', description: 'A Paryavaran Mitra or Trust will review this node.' });
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Could not submit verification request.';
-      toast({ title: 'Verification failed', description: msg, variant: 'destructive' });
+      toast({ title: 'Request failed', description: msg, variant: 'destructive' });
     } finally {
       setVerifying(false);
     }
@@ -935,24 +949,43 @@ const NodePage = () => {
             {saving ? '…' : tr('saveMember')}
           </button>
 
-          {/* Peer verify — endorse a self-declared node for pandit review */}
-          {isEdit && existingNode && effectiveVanshaId && isSelfDeclared && !isOwnNode && (
-            <div className="rounded-lg border border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950/30 p-4 space-y-2">
+          {/* Verification actions — shown only in edit mode with a vansha */}
+          {isEdit && existingNode && effectiveVanshaId && isSelfDeclared && (
+            <div className="rounded-lg border border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950/30 p-4 space-y-3">
               <div className="flex items-center gap-2">
                 <ShieldCheck className="w-4 h-4 text-emerald-700 dark:text-emerald-400 flex-shrink-0" />
-                <p className="text-sm font-semibold font-body text-emerald-800 dark:text-emerald-300">Verify this node</p>
+                <p className="text-sm font-semibold font-body text-emerald-900 dark:text-emerald-300">Verify this node</p>
               </div>
-              <p className="text-xs text-muted-foreground font-body leading-relaxed">
-                If you personally know this person and can vouch for their details, request a pandit review to verify this node.
-              </p>
-              <button
-                type="button"
-                onClick={() => void handleVerifyEndorse()}
-                disabled={verifying}
-                className="w-full py-2 rounded-lg border border-emerald-600 text-emerald-700 dark:text-emerald-400 text-sm font-semibold font-body hover:bg-emerald-100 dark:hover:bg-emerald-900/30 transition-colors disabled:opacity-50"
-              >
-                {verifying ? '…' : 'Request Verification'}
-              </button>
+
+              {/* Tier 2 — Family endorsement (for ancestor nodes not owned by current user) */}
+              {!isOwnNode && (
+                <div className="space-y-1">
+                  <p className="text-xs font-medium font-body text-foreground">Family Endorsement</p>
+                  <p className="text-xs text-muted-foreground font-body">You personally know this ancestor — endorse their details as a living family member.</p>
+                  <button
+                    type="button"
+                    onClick={() => void handleFamilyEndorse()}
+                    disabled={verifying}
+                    className="w-full py-2 rounded-lg border border-emerald-600 text-emerald-700 dark:text-emerald-400 text-sm font-semibold font-body hover:bg-emerald-100 dark:hover:bg-emerald-900/30 transition-colors disabled:opacity-50"
+                  >
+                    {verifying ? '…' : 'Endorse as Family Member'}
+                  </button>
+                </div>
+              )}
+
+              {/* Tier 3/4 — Paryavaran Mitra or Trust review */}
+              <div className="space-y-1">
+                <p className="text-xs font-medium font-body text-foreground">Paryavaran Mitra / Trust Verification</p>
+                <p className="text-xs text-muted-foreground font-body">Request review by a certified Paryavaran Mitra or registered trust.</p>
+                <button
+                  type="button"
+                  onClick={() => void handleRequestExpertVerify()}
+                  disabled={verifying}
+                  className="w-full py-2 rounded-lg border border-emerald-600 text-emerald-700 dark:text-emerald-400 text-sm font-semibold font-body hover:bg-emerald-100 dark:hover:bg-emerald-900/30 transition-colors disabled:opacity-50"
+                >
+                  {verifying ? '…' : 'Request Expert Verification'}
+                </button>
+              </div>
             </div>
           )}
 

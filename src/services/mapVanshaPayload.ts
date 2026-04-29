@@ -107,7 +107,11 @@ function mapPerson(row: Row): TreeNode {
     ownerId: owner,
     createdBy: str(row, "created_by", "createdBy") || owner,
     createdAt: createdAtMs(row),
-    verificationTier: "self-declared",
+    verificationTier: ((): import("../engine/types").VerificationTier => {
+      const t = str(row, "verification_tier", "verificationTier");
+      if (t === "family-endorsed" || t === "expert-verified" || t === "community-endorsed") return t;
+      return "self-declared";
+    })(),
     borderStyle: "solid",
     status: "active",
     generation: lineageGenerationFromRow(row),

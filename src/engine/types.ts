@@ -1,4 +1,4 @@
-export type VerificationTier = 'self-declared' | 'expert-verified' | 'community-endorsed';
+export type VerificationTier = 'self-declared' | 'family-endorsed' | 'expert-verified' | 'community-endorsed';
 
 /** Who may follow this node’s data / SOS scope (monetized by plan). */
 export type NodePrivacyLevel =
