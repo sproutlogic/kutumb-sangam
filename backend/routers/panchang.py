@@ -17,7 +17,7 @@ from typing import Any, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 
-from constants import PANCHANG_CALENDAR_TABLE, TITHIS_TABLE, UJJAIN_LAT, UJJAIN_LON
+from constants import PANCHANG_ARTICLES_TABLE, PANCHANG_CALENDAR_TABLE, TITHIS_TABLE, UJJAIN_LAT, UJJAIN_LON
 from db import get_supabase
 from middleware.auth import get_current_user
 
@@ -189,3 +189,138 @@ def seed_calendar(
     from workers.panchang_seeder import seed_panchang_window
     inserted = seed_panchang_window(window_days=body.window_days, lat=body.lat, lon=body.lon)
     return {"ok": True, "rows_seeded": inserted, "window_days": body.window_days}
+
+
+# ── Prakriti Insights (panchang_articles) ─────────────────────────────────────
+
+class ArticleCreate(BaseModel):
+    title: str
+    body: str
+    related_date: Optional[str] = None   # YYYY-MM-DD or null
+
+
+class ArticleUpdate(BaseModel):
+    title: Optional[str] = None
+    body: Optional[str] = None
+    related_date: Optional[str] = None
+    author_name: Optional[str] = None
+    published: Optional[bool] = None
+
+
+@router.get("/articles")
+def list_articles(
+    month: Optional[str] = Query(default=None, description="YYYY-MM — filter by calendar month"),
+    current_user: dict[str, Any] = Depends(get_current_user),
+) -> list[dict[str, Any]]:
+    """
+    List Prakriti Insights.
+    Regular users: published only. Admins: all (drafts included).
+    ?month=YYYY-MM filters by related_date within that month.
+    """
+    sb = get_supabase()
+    q = sb.table(PANCHANG_ARTICLES_TABLE).select("*").order("related_date", desc=True).order("created_at", desc=True)
+
+    if not _is_admin(current_user):
+        q = q.eq("published", True)
+
+    if month:
+        try:
+            from datetime import date as _date
+            year, mon = int(month[:4]), int(month[5:7])
+            first = _date(year, mon, 1).isoformat()
+            import calendar as _cal
+            last_day = _cal.monthrange(year, mon)[1]
+            last = _date(year, mon, last_day).isoformat()
+            q = q.gte("related_date", first).lte("related_date", last)
+        except (ValueError, IndexError):
+            raise HTTPException(status_code=400, detail="month must be in YYYY-MM format.")
+
+    res = q.execute()
+    return res.data or []
+
+
+@router.post("/articles")
+def create_article(
+    body: ArticleCreate,
+    current_user: dict[str, Any] = Depends(get_current_user),
+) -> dict[str, Any]:
+    """Create a draft Prakriti Insight. Admin only."""
+    if not _is_admin(current_user):
+        raise HTTPException(status_code=403, detail="Admin role required.")
+
+    payload: dict[str, Any] = {
+        "title": body.title.strip(),
+        "body": body.body.strip(),
+        "published": False,
+        "created_by": current_user.get("id"),
+    }
+    if body.related_date:
+        try:
+            date.fromisoformat(body.related_date)
+            payload["related_date"] = body.related_date
+        except ValueError:
+            raise HTTPException(status_code=400, detail="related_date must be YYYY-MM-DD.")
+
+    sb = get_supabase()
+    res = sb.table(PANCHANG_ARTICLES_TABLE).insert(payload).execute()
+    if not res.data:
+        raise HTTPException(status_code=500, detail="Failed to create article.")
+    return res.data[0]
+
+
+@router.patch("/articles/{article_id}")
+def update_article(
+    article_id: str,
+    body: ArticleUpdate,
+    current_user: dict[str, Any] = Depends(get_current_user),
+) -> dict[str, Any]:
+    """Update a Prakriti Insight (including publishing). Admin only."""
+    if not _is_admin(current_user):
+        raise HTTPException(status_code=403, detail="Admin role required.")
+
+    sb = get_supabase()
+    existing = sb.table(PANCHANG_ARTICLES_TABLE).select("id").eq("id", article_id).limit(1).execute()
+    if not existing.data:
+        raise HTTPException(status_code=404, detail="Article not found.")
+
+    patch: dict[str, Any] = {}
+    if body.title is not None:
+        patch["title"] = body.title.strip()
+    if body.body is not None:
+        patch["body"] = body.body.strip()
+    if body.related_date is not None:
+        try:
+            date.fromisoformat(body.related_date)
+            patch["related_date"] = body.related_date
+        except ValueError:
+            raise HTTPException(status_code=400, detail="related_date must be YYYY-MM-DD.")
+    if body.author_name is not None:
+        patch["author_name"] = body.author_name.strip()
+    if body.published is not None:
+        patch["published"] = body.published
+
+    if not patch:
+        raise HTTPException(status_code=400, detail="No fields to update.")
+
+    res = sb.table(PANCHANG_ARTICLES_TABLE).update(patch).eq("id", article_id).execute()
+    if not res.data:
+        raise HTTPException(status_code=500, detail="Update failed.")
+    return res.data[0]
+
+
+@router.delete("/articles/{article_id}")
+def delete_article(
+    article_id: str,
+    current_user: dict[str, Any] = Depends(get_current_user),
+) -> dict[str, Any]:
+    """Hard-delete a Prakriti Insight. Admin only."""
+    if not _is_admin(current_user):
+        raise HTTPException(status_code=403, detail="Admin role required.")
+
+    sb = get_supabase()
+    existing = sb.table(PANCHANG_ARTICLES_TABLE).select("id").eq("id", article_id).limit(1).execute()
+    if not existing.data:
+        raise HTTPException(status_code=404, detail="Article not found.")
+
+    sb.table(PANCHANG_ARTICLES_TABLE).delete().eq("id", article_id).execute()
+    return {"ok": True}

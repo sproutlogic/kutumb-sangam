@@ -622,6 +622,65 @@ export async function fetchPanchangCalendar(
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Prakriti Insights (panchang_articles)
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface PanchangArticle {
+  id: string;
+  title: string;
+  body: string;
+  related_date: string | null;
+  author_name: string | null;
+  published: boolean;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export async function fetchPanchangArticles(month?: string): Promise<PanchangArticle[]> {
+  try {
+    const params = new URLSearchParams();
+    if (month) params.set("month", month);
+    const qs = params.toString() ? `?${params.toString()}` : "";
+    const res = await fetchApi(`${getApiBaseUrl()}/api/panchang/articles${qs}`, {
+      headers: { Accept: "application/json" },
+    });
+    return (await parseJsonOrThrow(res)) as PanchangArticle[];
+  } catch {
+    return [];
+  }
+}
+
+export async function createPanchangArticle(data: {
+  title: string;
+  body: string;
+  related_date?: string;
+}): Promise<PanchangArticle> {
+  const res = await fetchApi(`${getApiBaseUrl()}/api/panchang/articles`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify(data),
+  });
+  return (await parseJsonOrThrow(res)) as PanchangArticle;
+}
+
+export async function updatePanchangArticle(
+  id: string,
+  data: Partial<Pick<PanchangArticle, "title" | "body" | "related_date" | "author_name" | "published">>,
+): Promise<PanchangArticle> {
+  const res = await fetchApi(`${getApiBaseUrl()}/api/panchang/articles/${id}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify(data),
+  });
+  return (await parseJsonOrThrow(res)) as PanchangArticle;
+}
+
+export async function deletePanchangArticle(id: string): Promise<void> {
+  await fetchApi(`${getApiBaseUrl()}/api/panchang/articles/${id}`, { method: "DELETE" });
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Eco-Sewa APIs (Tier 1 self-reported)
 // ─────────────────────────────────────────────────────────────────────────────
 

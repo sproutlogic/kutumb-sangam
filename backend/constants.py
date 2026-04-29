@@ -69,6 +69,7 @@ PLATFORM_FEE_PCT = 20.0  # 20% platform commission
 # ── Eco-Panchang ──────────────────────────────────────────────────────────────
 TITHIS_TABLE               = "tithis"
 PANCHANG_CALENDAR_TABLE    = "panchang_calendar"
+PANCHANG_ARTICLES_TABLE    = "panchang_articles"
 GENERATED_CONTENT_TABLE    = "generated_content"
 
 # ── Two-Tier Trust Model ───────────────────────────────────────────────────────
