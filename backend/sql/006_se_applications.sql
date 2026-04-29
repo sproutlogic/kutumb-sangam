@@ -6,7 +6,7 @@
 CREATE TABLE IF NOT EXISTS public.se_applications (
     id              uuid        DEFAULT gen_random_uuid() PRIMARY KEY,
     user_id         text        NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
-    referral_code   text        NOT NULL,           -- Referrer's user_id supplied by applicant
+    referral_code   text        NOT NULL DEFAULT '', -- Referrer's Kutumb ID supplied by applicant (empty = no referral)
     referred_by_id  text        REFERENCES public.users(id) ON DELETE SET NULL,
 
     -- Aadhaar KYC (UIDAI-compliant: full number never stored)

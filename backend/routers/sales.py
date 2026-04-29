@@ -196,7 +196,7 @@ def apply_se(body: SEApplicationBody, user: CurrentUser) -> dict[str, Any]:
         sb.table(SE_APPLICATIONS_TABLE).insert(
             {
                 "user_id": applicant_id,
-                "referral_code": referral_code_stored,
+                "referral_code": referral_code_stored or "",
                 "referred_by_id": referred_by_id,
                 "aadhaar_last4": body.aadhaar_last4,
                 "aadhaar_name": body.aadhaar_name,
