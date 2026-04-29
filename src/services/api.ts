@@ -298,6 +298,56 @@ export async function createPerson(payload: CreatePersonPayload): Promise<{ ok: 
   return { ok: !!data.ok, node_id: data.node_id ?? "" };
 }
 
+/** Update a person's fields in the backend (PATCH /api/person/:id). */
+export async function updatePerson(
+  nodeId: string,
+  fields: {
+    first_name?: string;
+    middle_name?: string | null;
+    last_name?: string;
+    date_of_birth?: string;
+    ancestral_place?: string;
+    current_residence?: string;
+    gender?: string;
+    relation?: string;
+    branch?: string;
+    gotra?: string;
+    mool_niwas?: string;
+  },
+): Promise<{ ok: boolean }> {
+  requireValidVanshaUuid(nodeId);
+  const res = await fetchApi(`${getApiBaseUrl()}/api/person/${nodeId}`, {
+    method: "PATCH",
+    headers: { Accept: "application/json", "Content-Type": "application/json" },
+    body: JSON.stringify(fields),
+  });
+  const data = (await parseJsonOrThrow(res)) as { ok?: boolean };
+  return { ok: !!data.ok };
+}
+
+/** Delete a person node permanently (DELETE /api/person/:id). */
+export async function deletePerson(nodeId: string): Promise<{ ok: boolean }> {
+  requireValidVanshaUuid(nodeId);
+  const res = await fetchApi(`${getApiBaseUrl()}/api/person/${nodeId}`, {
+    method: "DELETE",
+    headers: { Accept: "application/json" },
+  });
+  if (res.status === 204) return { ok: true };
+  const data = (await parseJsonOrThrow(res)) as { ok?: boolean };
+  return { ok: !!data.ok };
+}
+
+/** Request to claim a node as your own identity (POST /api/person/:id/claim). */
+export async function claimPersonNode(nodeId: string): Promise<{ ok: boolean; status: string }> {
+  requireValidVanshaUuid(nodeId);
+  const res = await fetchApi(`${getApiBaseUrl()}/api/person/${nodeId}/claim`, {
+    method: "POST",
+    headers: { Accept: "application/json" },
+  });
+  const data = (await parseJsonOrThrow(res)) as { ok?: boolean; status?: string };
+  return { ok: !!data.ok, status: data.status ?? "pending" };
+}
+
 export async function fetchMatrimonialBridge(origin_vansha_id: string): Promise<VanshaTreePayload> {
   requireValidVanshaUuid(origin_vansha_id);
   const url = `${getApiBaseUrl()}/api/tree/bridge`;

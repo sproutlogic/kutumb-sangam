@@ -495,6 +495,39 @@ const Dashboard = () => {
 
 // ── Dashboard Week Strip ──────────────────────────────────────────────────────
 
+/**
+ * Approximate tithi ID (1–30) for a date using the synodic period.
+ * Reference new moon: 2000-01-06T18:14:00Z
+ */
+function estimateTithiForDate(dateStr: string): { tithi_id: number; paksha: Paksha } {
+  const REF_NEW_MOON_MS = 946_939_440_000; // 2000-01-06T18:14:00Z
+  const SYNODIC_MS = 29.530_588_67 * 86_400_000;
+  const t = new Date(dateStr + 'T12:00:00Z').getTime();
+  const phase = ((t - REF_NEW_MOON_MS) % SYNODIC_MS + SYNODIC_MS) % SYNODIC_MS;
+  const raw = Math.floor((phase / SYNODIC_MS) * 30) + 1;
+  const tithi_id = Math.min(30, Math.max(1, raw));
+  const paksha: Paksha = tithi_id <= 15 ? 'shukla' : 'krishna';
+  return { tithi_id, paksha };
+}
+
+/** Returns a vrat/festival label for a tithi + special_flag. */
+function getVratLabel(tithi_id: number, special_flag?: string | null): string {
+  if (special_flag) {
+    const map: Record<string, string> = {
+      ekadashi: 'एकादशी व्रत', purnima: 'पूर्णिमा', amavasya: 'अमावस्या',
+      pradosh: 'प्रदोष व्रत', chaturthi: 'चतुर्थी व्रत', ashtami: 'अष्टमी',
+      navami: 'नवमी', sankranti: 'संक्रांति',
+    };
+    if (map[special_flag]) return map[special_flag];
+  }
+  const tithiVrats: Record<number, string> = {
+    11: 'एकादशी', 26: 'एकादशी', 15: 'पूर्णिमा', 30: 'अमावस्या',
+    4: 'चतुर्थी', 19: 'चतुर्थी', 14: 'प्रदोष', 29: 'प्रदोष',
+    8: 'अष्टमी', 23: 'अष्टमी',
+  };
+  return tithiVrats[tithi_id] ?? '';
+}
+
 function addDaysLocal(dateStr: string, days: number): string {
   const d = new Date(dateStr + 'T00:00:00');
   d.setDate(d.getDate() + days);
@@ -554,12 +587,6 @@ function DashboardWeekStrip() {
     return () => document.removeEventListener('mousedown', handler);
   }, []);
 
-  const SPECIAL_LABELS: Record<string, string> = {
-    ekadashi: 'एकादशी', purnima: 'पूर्णिमा', amavasya: 'अमावस्या',
-    pradosh: 'प्रदोष', chaturthi: 'चतुर्थी', ashtami: 'अष्टमी',
-    navami: 'नवमी', sankranti: 'संक्रांति',
-  };
-
   return (
     <div className="border border-green-200 dark:border-green-800 bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-950/30 dark:to-emerald-950/20 rounded-xl overflow-hidden">
       <div className="px-3 py-2 border-b border-green-100 dark:border-green-900 flex items-center justify-between">
@@ -614,10 +641,21 @@ function DashboardWeekStrip() {
         {Array.from({ length: 7 }).map((_, i) => {
           const d = addDaysLocal(weekStart, i);
           const row = rows.find(r => r.gregorian_date === d);
-          const t = row?.tithis as Record<string, string> | undefined;
           const isToday = d === today;
-          const tithiName = t?.name_sanskrit || t?.name_common || '';
-          const specialLabel = row?.special_flag ? SPECIAL_LABELS[row.special_flag] : '';
+
+          // Always compute tithi — use API row when available, else offline estimate
+          const { tithi_id: estId, paksha: estPaksha } = estimateTithiForDate(d);
+          const apiTithi_id = row?.tithi_id ?? estId;
+          const apiPaksha = (row?.paksha ?? estPaksha) as Paksha;
+          const tithiObj = mergeTithiWithFallback(
+            row?.tithis as Record<string, unknown> | null | undefined,
+            apiTithi_id,
+            apiPaksha,
+          );
+          const tithiName = tithiObj.name_sanskrit || tithiObj.name_common || '';
+          const vratLabel = getVratLabel(apiTithi_id, row?.special_flag);
+          const pakshaSymbol = apiPaksha === 'shukla' ? '☀' : '🌙';
+
           return (
             <button
               key={d}
@@ -636,18 +674,18 @@ function DashboardWeekStrip() {
               <span className={`text-sm font-bold leading-tight ${isToday ? 'text-white' : 'text-foreground'}`}>
                 {new Date(d + 'T00:00:00').getDate()}
               </span>
-              {tithiName && (
-                <span className={`text-[8px] sm:text-[9px] font-semibold leading-tight line-clamp-2 px-0.5 ${isToday ? 'text-white' : 'text-green-800 dark:text-green-300'}`}>
-                  {tithiName}
+              {/* Tithi — always shown */}
+              <span className={`text-[8px] sm:text-[9px] font-semibold leading-tight line-clamp-2 px-0.5 ${isToday ? 'text-white' : 'text-green-800 dark:text-green-300'}`}>
+                {pakshaSymbol} {tithiName}
+              </span>
+              {/* Vrat / festival label */}
+              {vratLabel && (
+                <span className={`text-[7px] font-bold leading-tight px-1 py-0.5 rounded-full mt-0.5 ${isToday ? 'bg-white/20 text-white' : 'bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300'}`}>
+                  {vratLabel}
                 </span>
               )}
-              {specialLabel && (
-                <span className={`text-[7px] font-bold leading-tight px-1 py-0.5 rounded-full ${isToday ? 'bg-white/20 text-white' : 'bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300'}`}>
-                  {specialLabel}
-                </span>
-              )}
-              {isToday && !tithiName && (
-                <span className="text-[7px] bg-white/25 text-white rounded-full px-1 leading-tight">आज</span>
+              {isToday && (
+                <span className="text-[7px] bg-white/25 text-white rounded-full px-1 leading-tight mt-0.5">आज</span>
               )}
             </button>
           );

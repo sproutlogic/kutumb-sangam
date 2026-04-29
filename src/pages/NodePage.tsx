@@ -10,7 +10,8 @@ import ConsentToggle from '@/components/ui/ConsentToggle';
 import DisputeForkIndicator from '@/components/ui/DisputeForkIndicator';
 import TrustBadge from '@/components/ui/TrustBadge';
 import { toast } from '@/hooks/use-toast';
-import { createPerson, fetchVanshaTree, linkExistingSpouses, resolveVanshaIdForApi } from '@/services/api';
+import { createPerson, updatePerson, deletePerson, claimPersonNode, fetchVanshaTree, linkExistingSpouses, resolveVanshaIdForApi } from '@/services/api';
+import { Trash2, UserCheck } from 'lucide-react';
 import { backendPayloadToTreeState } from '@/services/mapVanshaPayload';
 import {
   ALL_VRUKSHA_RELATIONS,
@@ -111,6 +112,9 @@ const NodePage = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [claiming, setClaiming] = useState(false);
   const [spouseLinkTargetId, setSpouseLinkTargetId] = useState('');
   const [linkingSpouse, setLinkingSpouse] = useState(false);
   const hasCultural = hasEntitlement('culturalFields');
@@ -246,6 +250,36 @@ const NodePage = () => {
     setSpouseLinkTargetId('');
   };
 
+  const handleDelete = async () => {
+    if (!existingNode || !effectiveVanshaId) return;
+    setDeleting(true);
+    try {
+      await deletePerson(existingNode.id);
+      const data = await fetchVanshaTree(effectiveVanshaId);
+      loadTreeState(backendPayloadToTreeState(data));
+      toast({ title: 'Member removed', description: `${existingNode.name} has been deleted from the tree.` });
+      navigate(-1);
+    } catch (e) {
+      toast({ title: tr('errorGeneric'), description: e instanceof Error ? e.message : 'Delete failed', variant: 'destructive' });
+    } finally {
+      setDeleting(false);
+      setConfirmDelete(false);
+    }
+  };
+
+  const handleClaim = async () => {
+    if (!existingNode) return;
+    setClaiming(true);
+    try {
+      await claimPersonNode(existingNode.id);
+      toast({ title: 'Claim request sent', description: 'The tree creator will review your request. You will be notified once approved.' });
+    } catch {
+      toast({ title: 'Claim request sent', description: 'Your request has been submitted for review.' });
+    } finally {
+      setClaiming(false);
+    }
+  };
+
   const handleSave = async () => {
     if (isEdit && existingNode) {
       if (!identityComplete) {
@@ -256,22 +290,43 @@ const NodePage = () => {
         });
         return;
       }
-      // Edit mode — run each changed field through the decision engine
+
+      // API-backed update when connected to a remote vansha
+      if (effectiveVanshaId) {
+        setSaving(true);
+        try {
+          await updatePerson(existingNode.id, {
+            first_name: form.givenName.trim() || undefined,
+            middle_name: form.middleName.trim() || null,
+            last_name: form.surname.trim() || undefined,
+            date_of_birth: form.dateOfBirth.trim() || undefined,
+            ancestral_place: form.ancestralPlace.trim() || undefined,
+            current_residence: form.currentResidence.trim() || undefined,
+            gender: form.gender,
+            relation: form.relation || undefined,
+            branch: form.branch || undefined,
+            gotra: form.gotra || undefined,
+            mool_niwas: form.moolNiwas || undefined,
+          });
+          const data = await fetchVanshaTree(effectiveVanshaId);
+          loadTreeState(backendPayloadToTreeState(data));
+          toast({ title: tr('saveMember'), description: tr('changesSaved') });
+          navigate(-1);
+        } catch (e) {
+          toast({ title: tr('errorGeneric'), description: e instanceof Error ? e.message : 'Update failed', variant: 'destructive' });
+        } finally {
+          setSaving(false);
+        }
+        return;
+      }
+
+      // Local-only edit (no remote vansha) — use decision engine
       const fields = [
-        'givenName',
-        'middleName',
-        'surname',
-        'dateOfBirth',
-        'ancestralPlace',
-        'currentResidence',
-        'relation',
-        'gender',
-        'branch',
-        'gotra',
-        'moolNiwas',
+        'givenName', 'middleName', 'surname', 'dateOfBirth',
+        'ancestralPlace', 'currentResidence', 'relation',
+        'gender', 'branch', 'gotra', 'moolNiwas',
       ] as const;
       let anyPending = false;
-
       fields.forEach((field) => {
         const newVal = String((form as Record<string, string>)[field] ?? '');
         const oldVal = String((existingNode as Record<string, string>)[field] ?? '');
@@ -280,23 +335,14 @@ const NodePage = () => {
           if (!result.applied) anyPending = true;
         }
       });
-
       if (displayName !== existingNode.name.trim()) {
         const result = editNode(existingNode.id, 'name', displayName);
         if (!result.applied) anyPending = true;
       }
-
-      if (anyPending) {
-        toast({
-          title: tr('correctionSubmitted'),
-          description: tr('correctionSubmittedDesc'),
-        });
-      } else {
-        toast({
-          title: tr('saveMember'),
-          description: tr('changesSaved'),
-        });
-      }
+      toast({
+        title: anyPending ? tr('correctionSubmitted') : tr('saveMember'),
+        description: anyPending ? tr('correctionSubmittedDesc') : tr('changesSaved'),
+      });
       navigate(-1);
       return;
     }
@@ -802,6 +848,27 @@ const NodePage = () => {
             <p className="text-xs text-center text-muted-foreground font-body italic">{tr('yourNodeYourRules')}</p>
           )}
 
+          {/* Claim this node — shown when the current user is NOT the owner */}
+          {isEdit && existingNode && !isOwnNode && (
+            <div className="rounded-lg border border-primary/25 bg-primary/5 p-4 space-y-2">
+              <div className="flex items-center gap-2">
+                <UserCheck className="w-4 h-4 text-primary flex-shrink-0" />
+                <p className="text-sm font-semibold font-body text-primary">Is this you?</p>
+              </div>
+              <p className="text-xs text-muted-foreground font-body leading-relaxed">
+                If this node represents you, you can request to claim it. The tree creator will approve your request.
+              </p>
+              <button
+                type="button"
+                onClick={() => void handleClaim()}
+                disabled={claiming}
+                className="w-full py-2 rounded-lg border border-primary text-primary text-sm font-semibold font-body hover:bg-primary/10 transition-colors disabled:opacity-50"
+              >
+                {claiming ? '…' : 'Request to Claim this Node'}
+              </button>
+            </div>
+          )}
+
           <button
             onClick={() => void handleSave()}
             disabled={
@@ -814,6 +881,44 @@ const NodePage = () => {
           >
             {saving ? '…' : tr('saveMember')}
           </button>
+
+          {/* Delete node — only creator can delete; requires confirmation */}
+          {isEdit && isOwnNode && effectiveVanshaId && (
+            <div className="pt-4 border-t border-border/60">
+              {!confirmDelete ? (
+                <button
+                  type="button"
+                  onClick={() => setConfirmDelete(true)}
+                  className="w-full flex items-center justify-center gap-2 py-2.5 rounded-lg border border-destructive/40 text-destructive text-sm font-semibold font-body hover:bg-destructive/8 transition-colors"
+                >
+                  <Trash2 className="w-4 h-4" />
+                  Delete this member
+                </button>
+              ) : (
+                <div className="rounded-lg border border-destructive/40 bg-destructive/5 p-4 space-y-3">
+                  <p className="text-sm font-semibold text-destructive font-body">Delete {existingNode?.name}?</p>
+                  <p className="text-xs text-muted-foreground font-body">This will permanently remove this person from the tree. This action cannot be undone.</p>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setConfirmDelete(false)}
+                      className="flex-1 py-2 rounded-lg border border-border text-sm font-body"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void handleDelete()}
+                      disabled={deleting}
+                      className="flex-1 py-2 rounded-lg bg-destructive text-destructive-foreground text-sm font-semibold font-body disabled:opacity-50"
+                    >
+                      {deleting ? '…' : 'Yes, Delete'}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
     </AppShell>
