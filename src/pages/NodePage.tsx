@@ -10,8 +10,8 @@ import ConsentToggle from '@/components/ui/ConsentToggle';
 import DisputeForkIndicator from '@/components/ui/DisputeForkIndicator';
 import TrustBadge from '@/components/ui/TrustBadge';
 import { toast } from '@/hooks/use-toast';
-import { createPerson, updatePerson, deletePerson, claimPersonNode, fetchVanshaTree, linkExistingSpouses, resolveVanshaIdForApi } from '@/services/api';
-import { Trash2, UserCheck } from 'lucide-react';
+import { createPerson, updatePerson, deletePerson, claimPersonNode, fetchVanshaTree, linkExistingSpouses, resolveVanshaIdForApi, requestNodeVerification } from '@/services/api';
+import { Trash2, UserCheck, ShieldCheck } from 'lucide-react';
 import { CityAutocomplete } from '@/components/ui/CityAutocomplete';
 import { backendPayloadToTreeState } from '@/services/mapVanshaPayload';
 import {
@@ -116,6 +116,7 @@ const NodePage = () => {
   const [deleting, setDeleting] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [claiming, setClaiming] = useState(false);
+  const [verifying, setVerifying] = useState(false);
   const [spouseLinkTargetId, setSpouseLinkTargetId] = useState('');
   const [linkingSpouse, setLinkingSpouse] = useState(false);
   const hasCultural = hasEntitlement('culturalFields');
@@ -292,6 +293,20 @@ const NodePage = () => {
       toast({ title: 'Claim failed', description: msg, variant: 'destructive' });
     } finally {
       setClaiming(false);
+    }
+  };
+
+  const handleVerifyEndorse = async () => {
+    if (!existingNode || !effectiveVanshaId) return;
+    setVerifying(true);
+    try {
+      await requestNodeVerification(effectiveVanshaId, existingNode.id);
+      toast({ title: 'Verification request submitted', description: 'A pandit/verifier will review this node.' });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Could not submit verification request.';
+      toast({ title: 'Verification failed', description: msg, variant: 'destructive' });
+    } finally {
+      setVerifying(false);
     }
   };
 
@@ -552,6 +567,11 @@ const NodePage = () => {
     : [];
 
   const isOwnNode = existingNode?.ownerId === state.currentUserId;
+  // Unclaimed = ownerId fell back to node_id (no real user owns it yet)
+  const isUnclaimed = existingNode ? existingNode.ownerId === existingNode.id : false;
+  const isSelfDeclared = existingNode?.verificationTier === 'self-declared';
+  // Creator can delete any unclaimed+unverified node in their tree
+  const canDeleteNode = isEdit && !!existingNode && !!effectiveVanshaId && (isOwnNode || (isUnclaimed && isSelfDeclared));
 
   const inputClass = "w-full px-4 py-2.5 rounded-lg border border-input bg-background font-body text-sm focus:outline-none focus:ring-2 focus:ring-ring/30";
 
@@ -915,8 +935,29 @@ const NodePage = () => {
             {saving ? '…' : tr('saveMember')}
           </button>
 
-          {/* Delete node — only creator can delete; requires confirmation */}
-          {isEdit && isOwnNode && effectiveVanshaId && (
+          {/* Peer verify — endorse a self-declared node for pandit review */}
+          {isEdit && existingNode && effectiveVanshaId && isSelfDeclared && !isOwnNode && (
+            <div className="rounded-lg border border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950/30 p-4 space-y-2">
+              <div className="flex items-center gap-2">
+                <ShieldCheck className="w-4 h-4 text-emerald-700 dark:text-emerald-400 flex-shrink-0" />
+                <p className="text-sm font-semibold font-body text-emerald-800 dark:text-emerald-300">Verify this node</p>
+              </div>
+              <p className="text-xs text-muted-foreground font-body leading-relaxed">
+                If you personally know this person and can vouch for their details, request a pandit review to verify this node.
+              </p>
+              <button
+                type="button"
+                onClick={() => void handleVerifyEndorse()}
+                disabled={verifying}
+                className="w-full py-2 rounded-lg border border-emerald-600 text-emerald-700 dark:text-emerald-400 text-sm font-semibold font-body hover:bg-emerald-100 dark:hover:bg-emerald-900/30 transition-colors disabled:opacity-50"
+              >
+                {verifying ? '…' : 'Request Verification'}
+              </button>
+            </div>
+          )}
+
+          {/* Delete node — creator can delete unclaimed+unverified nodes */}
+          {canDeleteNode && (
             <div className="pt-4 border-t border-border/60">
               {!confirmDelete ? (
                 <button
