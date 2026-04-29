@@ -219,7 +219,7 @@ export function AppTopBar() {
   return (
     <>
       <header className="sticky top-0 z-40 flex h-14 items-center gap-2 border-b border-border bg-card/95 px-2 md:h-16 md:px-4 backdrop-blur supports-[backdrop-filter]:bg-card/80">
-        <div className="flex min-w-0 flex-1 items-center gap-2 md:w-[280px] md:flex-none">
+        <div className="flex min-w-0 items-center gap-2 md:w-[320px] md:flex-none">
           <button
             type="button"
             onClick={() => navigate(isTreeInitialized ? '/dashboard' : '/')}
@@ -227,7 +227,7 @@ export function AppTopBar() {
             aria-label="Prakriti home"
           >
             <img src="/prakriti.svg" alt="Prakriti" className="h-10 w-auto md:h-12 drop-shadow-sm" />
-            <img src="/prakriti-text-logo.svg" alt="" className="h-6 md:h-7 ml-2 drop-shadow-sm w-[132px] md:w-[156px]" />
+            <img src="/prakriti-text-logo.svg" alt="" className="h-7 md:h-9 ml-2 drop-shadow-sm w-auto max-w-[160px] md:max-w-[200px]" />
           </button>
         </div>
 
@@ -277,25 +277,6 @@ export function AppTopBar() {
             >
               <HandHeart className="h-4 w-4" aria-hidden />
               <span className="hidden sm:inline">Join Our Team</span>
-            </button>
-          )}
-
-          <a
-            href="https://ecotech.co.in"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="hidden md:inline-flex items-center"
-            aria-label="Aarush Eco Tech"
-          >
-            <img src="/logo.svg" alt="Aarush Eco Tech" className="h-9 w-auto md:h-10" />
-          </a>
-          {planId === "beej" && (
-            <button
-              type="button"
-              onClick={() => navigate("/upgrade")}
-              className="hidden text-[10px] text-muted-foreground underline hover:text-foreground sm:inline"
-            >
-              {tr("privacyUpgradeHint")}
             </button>
           )}
 
@@ -380,6 +361,15 @@ export function AppTopBar() {
             <AlertTriangle className="h-4 w-4" aria-hidden />
             SOS
           </button>
+          <a
+            href="https://ecotech.co.in"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="hidden md:inline-flex items-center"
+            aria-label="Aarush Eco Tech"
+          >
+            <img src="/logo.svg" alt="Aarush Eco Tech" className="h-9 w-auto md:h-10" />
+          </a>
         </div>
       </header>
 
