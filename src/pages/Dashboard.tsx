@@ -220,7 +220,7 @@ const Dashboard = () => {
             <div key={i} className={`rounded-xl p-5 shadow-card border text-center animate-fade-in ${'eco' in s && s.eco ? 'bg-emerald-50 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-800' : 'bg-card border-border/50'}`} style={{ animationDelay: `${i * 80}ms` }}>
               <s.icon className={`w-6 h-6 mx-auto mb-2 ${'eco' in s && s.eco ? 'text-emerald-600' : 'text-primary'}`} />
               <p className={`text-2xl font-bold font-heading ${'eco' in s && s.eco ? 'text-emerald-900 dark:text-white' : ''}`}>{s.value}</p>
-              <p className={`text-sm font-body ${'eco' in s && s.eco ? 'text-emerald-700 dark:text-emerald-400 font-medium' : 'text-muted-foreground'}`}>{s.label}</p>
+              <p className={`text-sm font-body ${'eco' in s && s.eco ? 'text-emerald-900 dark:text-emerald-300 font-semibold' : 'text-muted-foreground'}`}>{s.label}</p>
             </div>
           ))}
           <div className="bg-card rounded-xl p-5 shadow-card border border-border/50 flex items-center justify-center animate-fade-in" style={{ animationDelay: '240ms' }}>
