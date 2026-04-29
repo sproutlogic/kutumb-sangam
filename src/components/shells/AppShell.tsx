@@ -4,7 +4,7 @@ import { useLang } from '@/i18n/LanguageContext';
 import {
   Hourglass, Home, TreePine, ShieldCheck, Search,
   HelpCircle, LogOut, CalendarDays, Radar, Archive, Receipt, Building2, Leaf, IndianRupee,
-  ShoppingBag,
+  ShoppingBag, HandHeart,
 } from 'lucide-react';
 import { useTree } from '@/contexts/TreeContext';
 import { useAuth } from '@/contexts/AuthContext';
@@ -28,6 +28,7 @@ const navItems = [
   { icon: Leaf,         labelKey: 'haritCircleNav'   as const, path: '/harit-circle' },
   { icon: IndianRupee,  labelKey: 'mitraEarningsNav' as const, path: '/mitra-earnings' },
   { icon: Hourglass,    labelKey: 'sewaChakraNav'    as const, path: '/time-bank' },
+  { icon: HandHeart,    label: 'Join Our Team',      path: '/dashboard?join-team=1' },
   // ── Eco Services ──
   { icon: ShoppingBag,  labelKey: 'ecoServices'      as const, path: '/services' },
   { icon: HelpCircle,   labelKey: 'support'          as const, path: '/support' },
@@ -72,7 +73,10 @@ const AppShell: React.FC<AppShellProps> = ({ children }) => {
         {/* Sidebar — hidden on mobile, shown md+ */}
         <aside className="hidden md:flex flex-col w-56 border-r border-border bg-card/60 py-4 px-3 gap-1 flex-shrink-0">
           {navItems.map((item) => {
-            const active = location.pathname === item.path;
+            const itemUrl = new URL(item.path, window.location.origin);
+            const active =
+              location.pathname === itemUrl.pathname &&
+              location.search === itemUrl.search;
             return (
               <button
                 key={item.path}
@@ -84,7 +88,7 @@ const AppShell: React.FC<AppShellProps> = ({ children }) => {
                 }`}
               >
                 <item.icon className="w-4 h-4 flex-shrink-0" />
-                {tr(item.labelKey)}
+                {'label' in item ? item.label : tr(item.labelKey)}
               </button>
             );
           })}

@@ -1,4 +1,4 @@
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { resolveVanshaIdForApi, fetchPrakritiScore, type PrakritiScore, fetchPanchangCalendar, type PanchangCalendarRow } from '@/services/api';
 import { mergeTithiWithFallback, type Paksha } from '@/lib/tithiFallback';
 import { useLang } from '@/i18n/LanguageContext';
@@ -21,6 +21,7 @@ const SALES_ROLES = new Set(['se', 'cp', 'rp', 'zp', 'np', 'admin', 'superadmin'
 const Dashboard = () => {
   const { tr, lang } = useLang();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [showJoinSE, setShowJoinSE] = useState(false);
   const { plan, planId, membersUsed, generationsUsed, hasEntitlement } = usePlan();
   const { state, trustScore, isTreeInitialized, approvePending, objectPending } = useTree();
@@ -37,6 +38,19 @@ const Dashboard = () => {
     }
     fetchPrakritiScore(vid).then(setPrakritiScore).catch(() => setPrakritiScore(null));
   }, [state.nodes.length, appUser?.vansha_id]);
+
+  useEffect(() => {
+    if (searchParams.get('join-team') !== '1' || isSalesMember) return;
+    setShowJoinSE(true);
+  }, [searchParams, isSalesMember]);
+
+  const closeJoinSE = () => {
+    setShowJoinSE(false);
+    if (searchParams.get('join-team') !== '1') return;
+    const nextParams = new URLSearchParams(searchParams);
+    nextParams.delete('join-team');
+    setSearchParams(nextParams, { replace: true });
+  };
 
   const pendingCount = state.pendingActions.filter(a => a.status === 'pending').length;
   const activeDisputes = state.disputes.filter(d => d.status === 'active').length;
@@ -488,7 +502,7 @@ const Dashboard = () => {
         </div>
       </div>
 
-      {showJoinSE && <JoinSEModal onClose={() => setShowJoinSE(false)} />}
+      {showJoinSE && <JoinSEModal onClose={closeJoinSE} />}
     </AppShell>
   );
 };

@@ -10,7 +10,7 @@ const Index = () => {
   // OAuth callback lands here (redirectTo points to /).
   // Once the session + appUser are resolved:
   //   • No personal record yet (no vansha_id) → go to onboarding to create one
-  //   • Personal record exists → go to /eco-sewa (the new app home)
+  //   • Personal record exists → go to /dashboard
   useEffect(() => {
     if (loading) return;
     if (!session) return;
@@ -19,7 +19,7 @@ const Index = () => {
     if (!appUser.vansha_id) {
       navigate("/onboarding", { replace: true });
     } else {
-      navigate("/eco-sewa", { replace: true });
+      navigate("/dashboard", { replace: true });
     }
   }, [session, appUser, loading, navigate]);
 

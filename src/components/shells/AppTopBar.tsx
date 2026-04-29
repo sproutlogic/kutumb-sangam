@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { AlertTriangle, Megaphone, Radio, Check, Bell } from "lucide-react";
+import { AlertTriangle, Megaphone, Radio, Check, Bell, HandHeart } from "lucide-react";
 import { useLang } from "@/i18n/LanguageContext";
 import { usePlan } from "@/contexts/PlanContext";
 import { useTree } from "@/contexts/TreeContext";
@@ -22,6 +22,7 @@ import {
 import { toast } from "@/hooks/use-toast";
 
 const SOS_CONTACTS_KEY = "kutumb_sos_contacts";
+const SALES_ROLES = new Set(["se", "cp", "rp", "zp", "np", "admin", "superadmin"]);
 
 function getSavedSosContacts(): string[] | null {
   try {
@@ -49,6 +50,7 @@ export function AppTopBar() {
   const { hasEntitlement, planId, plan } = usePlan();
   const { state, pushActivity, isTreeInitialized } = useTree();
   const { appUser } = useAuth();
+  const isSalesMember = appUser ? SALES_ROLES.has(appUser.role) : false;
 
   // ── Notifications ──────────────────────────────────────────────────────────
   const [notifs, setNotifs] = useState<AppNotification[]>([]);
@@ -266,6 +268,18 @@ export function AppTopBar() {
         </div>
 
         <div className="flex flex-1 items-center justify-end gap-2 md:w-[180px] md:flex-none">
+          {!isSalesMember && (
+            <button
+              type="button"
+              onClick={() => navigate("/dashboard?join-team=1")}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-primary/25 bg-primary/8 px-2.5 py-1.5 text-xs font-semibold text-primary hover:bg-primary/12"
+              title="Join Our Team"
+            >
+              <HandHeart className="h-4 w-4" aria-hidden />
+              <span className="hidden sm:inline">Join Our Team</span>
+            </button>
+          )}
+
           <a
             href="https://ecotech.co.in"
             target="_blank"
