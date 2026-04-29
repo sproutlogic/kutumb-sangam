@@ -25,6 +25,7 @@ SAMAY_RATINGS_TABLE         = "samay_ratings"
 SAMAY_PROFILES_TABLE        = "samay_profiles"
 
 REFERRAL_EVENTS_TABLE  = "referral_events"
+NODE_CLAIMS_TABLE      = "node_claims"
 
 # Kutumb Pro — Community OS
 ORGANIZATIONS_TABLE    = "organizations"

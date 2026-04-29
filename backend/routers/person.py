@@ -11,7 +11,7 @@ import logging
 import uuid
 from typing import Any, Optional
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Response, status
 from pydantic import BaseModel, Field
 
 from constants import (
@@ -21,6 +21,7 @@ from constants import (
     VANSHA_ID_COLUMN,
 )
 from db import get_supabase
+from middleware.auth import CurrentUser
 
 logger = logging.getLogger(__name__)
 
@@ -65,6 +66,20 @@ class PersonCreateBody(BaseModel):
         default=None,
         description="When inferring a missing mother placeholder, preferred given name (optional).",
     )
+
+
+class PersonUpdateBody(BaseModel):
+    first_name: Optional[str] = None
+    middle_name: Optional[str] = None
+    last_name: Optional[str] = None
+    date_of_birth: Optional[str] = None
+    ancestral_place: Optional[str] = None
+    current_residence: Optional[str] = None
+    gender: Optional[str] = None
+    relation: Optional[str] = None
+    branch: Optional[str] = None
+    gotra: Optional[str] = None
+    mool_niwas: Optional[str] = None
 
 
 def _normalize_gender(raw: Any) -> str:
@@ -466,3 +481,86 @@ def create_person(body: PersonCreateBody) -> dict[str, Any]:
             ) from None
 
     return {"ok": True, "node_id": node_id, "vansha_id": vid}
+
+
+@router.patch("/person/{node_id}")
+def update_person(node_id: uuid.UUID, body: PersonUpdateBody, user: CurrentUser) -> dict[str, Any]:
+    sb = get_supabase()
+    nid = str(node_id)
+    existing = (
+        sb.table(PERSONS_TABLE)
+        .select("node_id,owner_id")
+        .eq("node_id", nid)
+        .limit(1)
+        .execute()
+    )
+    if not existing.data:
+        raise HTTPException(status_code=404, detail="Person not found.")
+
+    owner_id = _str_id(existing.data[0].get("owner_id"))
+    user_id = str(user["id"])
+    if owner_id and owner_id != user_id:
+        raise HTTPException(status_code=403, detail="Only the node owner can edit this member.")
+
+    updates: dict[str, Any] = {}
+    if body.first_name is not None:
+        updates["first_name"] = body.first_name.strip()
+    if body.middle_name is not None:
+        updates["middle_name"] = body.middle_name.strip() or None
+    if body.last_name is not None:
+        updates["last_name"] = body.last_name.strip()
+    if body.date_of_birth is not None:
+        updates["date_of_birth"] = body.date_of_birth.strip()
+    if body.ancestral_place is not None:
+        updates["ancestral_place"] = body.ancestral_place.strip()
+    if body.current_residence is not None:
+        updates["current_residence"] = body.current_residence.strip()
+    if body.gender is not None:
+        updates["gender"] = _normalize_gender(body.gender)
+    if body.relation is not None:
+        updates["relation"] = body.relation.strip() or "member"
+    if body.branch is not None:
+        updates["branch"] = body.branch.strip() or "main"
+    if body.gotra is not None:
+        updates["gotra"] = body.gotra.strip()
+    if body.mool_niwas is not None:
+        updates["mool_niwas"] = body.mool_niwas.strip()
+
+    if not updates:
+        raise HTTPException(status_code=400, detail="No fields to update.")
+
+    try:
+        sb.table(PERSONS_TABLE).update(updates).eq("node_id", nid).execute()
+    except Exception:
+        logger.exception("Failed to update person node_id=%s", nid)
+        raise HTTPException(status_code=502, detail="Failed to update person.") from None
+
+    return {"ok": True}
+
+
+@router.delete("/person/{node_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_person(node_id: uuid.UUID, user: CurrentUser) -> Response:
+    sb = get_supabase()
+    nid = str(node_id)
+    existing = (
+        sb.table(PERSONS_TABLE)
+        .select("node_id,owner_id")
+        .eq("node_id", nid)
+        .limit(1)
+        .execute()
+    )
+    if not existing.data:
+        raise HTTPException(status_code=404, detail="Person not found.")
+
+    owner_id = _str_id(existing.data[0].get("owner_id"))
+    user_id = str(user["id"])
+    if owner_id and owner_id != user_id:
+        raise HTTPException(status_code=403, detail="Only the node owner can delete this member.")
+
+    try:
+        sb.table(PERSONS_TABLE).delete().eq("node_id", nid).execute()
+    except Exception:
+        logger.exception("Failed to delete person node_id=%s", nid)
+        raise HTTPException(status_code=502, detail="Failed to delete person.") from None
+
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
