@@ -9,7 +9,7 @@ import LockedBanner from '@/components/states/LockedBanner';
 import TrustBadge from '@/components/ui/TrustBadge';
 import TreeCompletionScore from '@/components/ui/TreeCompletionScore';
 import ClanMilestone from '@/components/ui/ClanMilestone';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Users, Layers, Mail, TreePine, UserPlus, ShieldCheck, Clock, Search, Heart, Check, X, GitFork, ArrowUpCircle, BarChart3, Rocket, HandHeart, Leaf, UserCircle2, Loader2 } from 'lucide-react';
 import { UPCOMING_SERVICES } from '@/config/upcomingServices.config';
 import { JoinSEModal } from '@/components/sales/JoinSEModal';
@@ -205,7 +205,7 @@ const Dashboard = () => {
           {stats.map((s, i) => (
             <div key={i} className={`rounded-xl p-5 shadow-card border text-center animate-fade-in ${'eco' in s && s.eco ? 'bg-emerald-50 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-800' : 'bg-card border-border/50'}`} style={{ animationDelay: `${i * 80}ms` }}>
               <s.icon className={`w-6 h-6 mx-auto mb-2 ${'eco' in s && s.eco ? 'text-emerald-600' : 'text-primary'}`} />
-              <p className="text-2xl font-bold font-heading">{s.value}</p>
+              <p className={`text-2xl font-bold font-heading ${'eco' in s && s.eco ? 'text-emerald-900 dark:text-white' : ''}`}>{s.value}</p>
               <p className={`text-sm font-body ${'eco' in s && s.eco ? 'text-emerald-700 dark:text-emerald-400 font-medium' : 'text-muted-foreground'}`}>{s.label}</p>
             </div>
           ))}
@@ -311,21 +311,21 @@ const Dashboard = () => {
             Trust Seals
           </p>
           <div className="grid grid-cols-3 gap-3">
-            <div className="flex flex-col items-center gap-1.5 p-3 rounded-lg border border-border/50 bg-secondary/20 text-center">
+            <div className="flex flex-col items-center gap-1.5 p-3 rounded-lg border-2 border-green-300 dark:border-green-700 bg-green-50/50 dark:bg-green-950/20 text-center">
               <div className="w-9 h-9 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
                 <Leaf className="w-5 h-5 text-green-600" />
               </div>
               <p className="text-xs font-semibold font-body leading-tight">Paryavaran Mitra</p>
               <span className="text-[9px] px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300 font-medium">Pending</span>
             </div>
-            <div className="flex flex-col items-center gap-1.5 p-3 rounded-lg border border-border/50 bg-secondary/20 text-center">
+            <div className="flex flex-col items-center gap-1.5 p-3 rounded-lg border-2 border-blue-300 dark:border-blue-700 bg-blue-50/50 dark:bg-blue-950/20 text-center">
               <div className="w-9 h-9 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
                 <ShieldCheck className="w-5 h-5 text-blue-600" />
               </div>
               <p className="text-xs font-semibold font-body leading-tight">Trust / NGO</p>
               <span className="text-[9px] px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300 font-medium">Pending</span>
             </div>
-            <div className="flex flex-col items-center gap-1.5 p-3 rounded-lg border border-border/50 bg-secondary/20 text-center">
+            <div className="flex flex-col items-center gap-1.5 p-3 rounded-lg border-2 border-purple-300 dark:border-purple-700 bg-purple-50/50 dark:bg-purple-950/20 text-center">
               <div className="w-9 h-9 rounded-full bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center">
                 <UserCircle2 className="w-5 h-5 text-purple-600" />
               </div>
@@ -501,9 +501,19 @@ function addDaysLocal(dateStr: string, days: number): string {
   return d.toISOString().slice(0, 10);
 }
 
+const ECO_SEWA_ITEMS = [
+  { emoji: '🌳', label: 'पेड़ लगाएं', sub: 'Plant a Tree', path: '/eco-sewa' },
+  { emoji: '💧', label: 'जल संरक्षण', sub: 'Water Body Restoration', path: '/eco-sewa' },
+  { emoji: '🧹', label: 'स्वच्छता अभियान', sub: 'Cleanliness Drive', path: '/eco-sewa' },
+  { emoji: '🌾', label: 'जैविक खेती', sub: 'Organic Farming', path: '/eco-sewa' },
+  { emoji: '🦋', label: 'वन्यजीव सेवा', sub: 'Wildlife Care', path: '/eco-sewa' },
+];
+
 function DashboardWeekStrip() {
   const navigate = useNavigate();
   const today = new Date().toISOString().slice(0, 10);
+  const [showEcoMenu, setShowEcoMenu] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
 
   // Start from Monday of current week
   const weekStart = (() => {
@@ -535,6 +545,15 @@ function DashboardWeekStrip() {
       .catch(() => setLoading(false));
   }, [weekStart]);
 
+  // Close menu on outside click
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setShowEcoMenu(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
   const SPECIAL_LABELS: Record<string, string> = {
     ekadashi: 'एकादशी', purnima: 'पूर्णिमा', amavasya: 'अमावस्या',
     pradosh: 'प्रदोष', chaturthi: 'चतुर्थी', ashtami: 'अष्टमी',
@@ -545,7 +564,51 @@ function DashboardWeekStrip() {
     <div className="border border-green-200 dark:border-green-800 bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-950/30 dark:to-emerald-950/20 rounded-xl overflow-hidden">
       <div className="px-3 py-2 border-b border-green-100 dark:border-green-900 flex items-center justify-between">
         <span className="text-xs font-semibold text-green-800 dark:text-green-300">🌿 साप्ताहिक तिथि पंचांग</span>
-        {loading && <Loader2 className="w-3.5 h-3.5 animate-spin text-green-600" />}
+        <div className="flex items-center gap-2">
+          {loading && <Loader2 className="w-3.5 h-3.5 animate-spin text-green-600" />}
+          {/* Commit Environmental Service CTA */}
+          <div ref={menuRef} className="relative">
+            <button
+              onClick={() => setShowEcoMenu(v => !v)}
+              className="flex items-center gap-1 text-[10px] font-semibold px-2 py-1 rounded-md bg-green-600 hover:bg-green-700 text-white transition-colors"
+            >
+              🌱 पर्यावरण सेवा
+              <svg className="w-3 h-3 ml-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+            </button>
+            {showEcoMenu && (
+              <div className="absolute right-0 top-8 z-50 w-56 bg-card border border-border rounded-xl shadow-xl overflow-hidden">
+                <div className="px-3 py-2 border-b border-border/60">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">स्वयं करें</p>
+                </div>
+                {ECO_SEWA_ITEMS.map(item => (
+                  <button
+                    key={item.label}
+                    onClick={() => { setShowEcoMenu(false); navigate(item.path); }}
+                    className="w-full flex items-center gap-2.5 px-3 py-2 hover:bg-secondary/60 text-left transition-colors"
+                  >
+                    <span className="text-base">{item.emoji}</span>
+                    <div className="min-w-0">
+                      <p className="text-xs font-medium text-foreground leading-tight">{item.label}</p>
+                      <p className="text-[10px] text-muted-foreground leading-tight">{item.sub}</p>
+                    </div>
+                  </button>
+                ))}
+                <div className="border-t border-border/60">
+                  <button
+                    onClick={() => { setShowEcoMenu(false); navigate('/services'); }}
+                    className="w-full flex items-center gap-2.5 px-3 py-2.5 hover:bg-primary/5 text-left transition-colors"
+                  >
+                    <span className="text-base">🛍️</span>
+                    <div>
+                      <p className="text-xs font-semibold text-primary leading-tight">Prakriti के साथ बुक करें</p>
+                      <p className="text-[10px] text-muted-foreground leading-tight">Book with Prakriti</p>
+                    </div>
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
       </div>
       <div className="grid grid-cols-7 divide-x divide-green-100 dark:divide-green-900/50">
         {Array.from({ length: 7 }).map((_, i) => {
@@ -554,6 +617,7 @@ function DashboardWeekStrip() {
           const t = row?.tithis as Record<string, string> | undefined;
           const isToday = d === today;
           const tithiName = t?.name_sanskrit || t?.name_common || '';
+          const specialLabel = row?.special_flag ? SPECIAL_LABELS[row.special_flag] : '';
           return (
             <button
               key={d}
@@ -573,16 +637,16 @@ function DashboardWeekStrip() {
                 {new Date(d + 'T00:00:00').getDate()}
               </span>
               {tithiName && (
-                <span className={`text-[8px] sm:text-[9px] leading-tight line-clamp-2 px-0.5 ${isToday ? 'text-green-100' : 'text-green-900 dark:text-green-200'}`}>
+                <span className={`text-[8px] sm:text-[9px] font-semibold leading-tight line-clamp-2 px-0.5 ${isToday ? 'text-white' : 'text-green-800 dark:text-green-300'}`}>
                   {tithiName}
                 </span>
               )}
-              {row?.special_flag && SPECIAL_LABELS[row.special_flag] && (
-                <span className={`text-[7px] leading-tight ${isToday ? 'text-green-100' : 'text-amber-600 dark:text-amber-400'}`}>
-                  {SPECIAL_LABELS[row.special_flag]}
+              {specialLabel && (
+                <span className={`text-[7px] font-bold leading-tight px-1 py-0.5 rounded-full ${isToday ? 'bg-white/20 text-white' : 'bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300'}`}>
+                  {specialLabel}
                 </span>
               )}
-              {isToday && (
+              {isToday && !tithiName && (
                 <span className="text-[7px] bg-white/25 text-white rounded-full px-1 leading-tight">आज</span>
               )}
             </button>

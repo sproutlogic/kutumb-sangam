@@ -20,6 +20,105 @@ const GoogleIcon = () => (
 
 const ONBOARDING_DRAFT_KEY = 'kutumb_onboarding_draft';
 
+interface NominatimResult {
+  place_id: number;
+  display_name: string;
+  address: { city?: string; town?: string; village?: string; state?: string; country?: string };
+}
+
+function buildCityLabel(r: NominatimResult): string {
+  const a = r.address;
+  const city = a.city || a.town || a.village || '';
+  const state = a.state || '';
+  return [city, state].filter(Boolean).join(', ');
+}
+
+/** Debounced Nominatim city autocomplete for Indian cities. */
+function CityAutocomplete({
+  value, onChange, className, placeholder, required,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  className?: string;
+  placeholder?: string;
+  required?: boolean;
+}) {
+  const [query, setQuery] = useState(value);
+  const [suggestions, setSuggestions] = useState<string[]>([]);
+  const [open, setOpen] = useState(false);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const wrapRef = useRef<HTMLDivElement>(null);
+
+  // Sync external value changes (e.g. draft restore)
+  useEffect(() => { setQuery(value); }, [value]);
+
+  // Close on outside click
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  const fetchSuggestions = (q: string) => {
+    if (q.trim().length < 2) { setSuggestions([]); setOpen(false); return; }
+    const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&addressdetails=1&countrycodes=in&featuretype=city&limit=6`;
+    fetch(url, { headers: { 'Accept-Language': 'en' } })
+      .then(r => r.json())
+      .then((results: NominatimResult[]) => {
+        const labels = [...new Set(results.map(buildCityLabel).filter(Boolean))];
+        setSuggestions(labels);
+        setOpen(labels.length > 0);
+      })
+      .catch(() => { setSuggestions([]); setOpen(false); });
+  };
+
+  const handleChange = (v: string) => {
+    setQuery(v);
+    onChange(v);
+    if (timerRef.current) clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(() => fetchSuggestions(v), 300);
+  };
+
+  const handleSelect = (label: string) => {
+    setQuery(label);
+    onChange(label);
+    setSuggestions([]);
+    setOpen(false);
+  };
+
+  return (
+    <div ref={wrapRef} className="relative">
+      <input
+        type="text"
+        value={query}
+        onChange={e => handleChange(e.target.value)}
+        onFocus={() => suggestions.length > 0 && setOpen(true)}
+        placeholder={placeholder}
+        required={required}
+        autoComplete="off"
+        className={className}
+      />
+      {open && suggestions.length > 0 && (
+        <ul className="absolute z-50 top-full left-0 right-0 mt-1 bg-card border border-border rounded-lg shadow-xl overflow-hidden text-sm">
+          {suggestions.map((s, i) => (
+            <li key={i}>
+              <button
+                type="button"
+                onMouseDown={() => handleSelect(s)}
+                className="w-full text-left px-4 py-2.5 hover:bg-secondary/60 font-body text-sm transition-colors"
+              >
+                📍 {s}
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 /** Three-field DD / MM / YYYY date-of-birth input. Emits YYYY-MM-DD strings. */
 function DOBInput({ value, onChange, className }: { value: string; onChange: (v: string) => void; className?: string }) {
   const currentYear = new Date().getFullYear();
@@ -398,11 +497,11 @@ const Onboarding = () => {
               </div>
               <div>
                 <label className="block text-sm font-medium font-body mb-1.5">{tr('ancestralPlace')}</label>
-                <input value={form.ancestralPlace} onChange={(e) => set('ancestralPlace', e.target.value)} className={inputClass} required />
+                <CityAutocomplete value={form.ancestralPlace} onChange={v => set('ancestralPlace', v)} className={inputClass} placeholder="e.g. Varanasi, Uttar Pradesh" required />
               </div>
               <div>
                 <label className="block text-sm font-medium font-body mb-1.5">{tr('currentResidence')}</label>
-                <input value={form.currentResidence} onChange={(e) => set('currentResidence', e.target.value)} className={inputClass} required />
+                <CityAutocomplete value={form.currentResidence} onChange={v => set('currentResidence', v)} className={inputClass} placeholder="e.g. Mumbai, Maharashtra" required />
               </div>
 
 
@@ -472,11 +571,11 @@ const Onboarding = () => {
                 </div>
                 <div>
                   <label className="block text-sm font-medium font-body mb-1.5">{tr('ancestralPlace')}</label>
-                  <input value={form.ancestralPlace} onChange={(e) => set('ancestralPlace', e.target.value)} className={inputClass} />
+                  <CityAutocomplete value={form.ancestralPlace} onChange={v => set('ancestralPlace', v)} className={inputClass} placeholder="e.g. Varanasi, Uttar Pradesh" />
                 </div>
                 <div>
                   <label className="block text-sm font-medium font-body mb-1.5">{tr('currentResidence')}</label>
-                  <input value={form.currentResidence} onChange={(e) => set('currentResidence', e.target.value)} className={inputClass} />
+                  <CityAutocomplete value={form.currentResidence} onChange={v => set('currentResidence', v)} className={inputClass} placeholder="e.g. Mumbai, Maharashtra" />
                 </div>
               </div>
 

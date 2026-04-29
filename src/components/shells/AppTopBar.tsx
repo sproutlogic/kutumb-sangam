@@ -225,7 +225,7 @@ export function AppTopBar() {
             aria-label="Prakriti home"
           >
             <img src="/prakriti.svg" alt="Prakriti" className="h-10 w-auto md:h-12 drop-shadow-sm" />
-            <img src="/prakriti-text-logo.svg" alt="" className="h-6 w-auto md:h-7 ml-2 drop-shadow-sm" />
+            <img src="/prakriti-text-logo.svg" alt="" className="h-6 md:h-7 ml-2 drop-shadow-sm w-[132px] md:w-[156px]" />
           </button>
         </div>
 

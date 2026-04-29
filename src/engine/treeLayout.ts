@@ -183,7 +183,12 @@ function buildLayoutUnitsForBand(
   }
   for (const [, group] of puMap) {
     if (group.length >= 2) {
-      group.sort((a, b) => a.createdAt - b.createdAt);
+      group.sort((a, b) => {
+        if (!a.dateOfBirth && !b.dateOfBirth) return a.createdAt - b.createdAt;
+        if (!a.dateOfBirth) return 1;
+        if (!b.dateOfBirth) return -1;
+        return a.dateOfBirth.localeCompare(b.dateOfBirth);
+      });
       units.push({ kind: "siblings", nodes: group });
     } else if (group.length === 1) {
       units.push({ kind: "single", node: group[0] });
@@ -252,7 +257,12 @@ function repositionChildrenByUnion(
 
     const cx = (m.x + f.x) / 2;
     const k = group.length;
-    group.sort((a, b) => a.createdAt - b.createdAt);
+    group.sort((a, b) => {
+      if (!a.dateOfBirth && !b.dateOfBirth) return a.createdAt - b.createdAt;
+      if (!a.dateOfBirth) return 1;
+      if (!b.dateOfBirth) return -1;
+      return a.dateOfBirth.localeCompare(b.dateOfBirth);
+    });
 
     // Use wider spread when any child is also a spouse (prevents couple-frame overlap).
     const anyChildIsSpouse = group.some(
