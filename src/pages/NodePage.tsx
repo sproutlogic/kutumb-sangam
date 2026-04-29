@@ -287,8 +287,9 @@ const NodePage = () => {
     try {
       await claimPersonNode(existingNode.id);
       toast({ title: 'Claim request sent', description: 'The tree creator will review your request. You will be notified once approved.' });
-    } catch {
-      toast({ title: 'Claim request sent', description: 'Your request has been submitted for review.' });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Could not submit claim. Please try again.';
+      toast({ title: 'Claim failed', description: msg, variant: 'destructive' });
     } finally {
       setClaiming(false);
     }
