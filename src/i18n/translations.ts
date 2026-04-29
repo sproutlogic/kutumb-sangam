@@ -51,7 +51,7 @@ const overrides: Record<string, TranslationEntry> = {
   ancestralPlace: { en: "Ancestral place", hi: "पैतृक स्थान" },
   currentResidence: { en: "Current residence", hi: "वर्तमान निवास" },
   fillRequiredIdentity: {
-    en: "Please fill in first name, surname, date of birth, ancestral place, and current residence.",
+    en: "Please fill in first name, surname, date of birth, and ancestral place.",
     hi: "कृपया सभी आवश्यक विवरण भरें।",
   },
   yourProfile: { en: "Your profile (required)", hi: "आपकी प्रोफ़ाइल (आवश्यक)" },

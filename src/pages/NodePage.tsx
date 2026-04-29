@@ -12,6 +12,7 @@ import TrustBadge from '@/components/ui/TrustBadge';
 import { toast } from '@/hooks/use-toast';
 import { createPerson, updatePerson, deletePerson, claimPersonNode, fetchVanshaTree, linkExistingSpouses, resolveVanshaIdForApi } from '@/services/api';
 import { Trash2, UserCheck } from 'lucide-react';
+import { CityAutocomplete } from '@/components/ui/CityAutocomplete';
 import { backendPayloadToTreeState } from '@/services/mapVanshaPayload';
 import {
   ALL_VRUKSHA_RELATIONS,
@@ -149,12 +150,12 @@ const NodePage = () => {
     motherName: '',
   });
 
+  // currentResidence is optional — deceased members may not have one
   const identityComplete =
     form.givenName.trim() &&
     form.surname.trim() &&
     form.dateOfBirth.trim() &&
-    form.ancestralPlace.trim() &&
-    form.currentResidence.trim();
+    form.ancestralPlace.trim();
 
   const displayName = [form.givenName, form.middleName, form.surname].filter(Boolean).join(' ').trim();
 
@@ -205,6 +206,19 @@ const NodePage = () => {
     if (inferred) set('gender', inferred);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [form.relation]);
+
+  // Auto-fill ancestralPlace from anchor/tree for non-spouse new members
+  useEffect(() => {
+    if (isEdit || form.ancestralPlace.trim()) return; // don't overwrite if already set or editing
+    if (isSpouseRelation(form.relation)) return; // spouse comes from different family
+    const source =
+      anchorNode?.ancestralPlace ||
+      state.nodes.find(n => n.relation?.toLowerCase() === 'self')?.ancestralPlace ||
+      state.nodes[0]?.ancestralPlace ||
+      '';
+    if (source) set('ancestralPlace', source);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form.relation, anchorNode?.id]);
 
   const handleLinkSpouse = async () => {
     if (!existingNode || !spouseLinkTargetId) return;
@@ -565,12 +579,30 @@ const NodePage = () => {
             <DOBInput value={form.dateOfBirth} onChange={v => set('dateOfBirth', v)} className="w-full" />
           </div>
           <div>
-            <label className="block text-sm font-medium font-body mb-1.5">{tr('ancestralPlace')}</label>
-            <input value={form.ancestralPlace} onChange={(e) => set('ancestralPlace', e.target.value)} className={inputClass} />
+            <label className="block text-sm font-medium font-body mb-1.5">
+              {tr('ancestralPlace')}
+              {!isEdit && !isSpouseRelation(form.relation) && form.ancestralPlace && (
+                <span className="ml-2 text-[10px] text-emerald-600 font-normal">auto-filled · edit to override</span>
+              )}
+            </label>
+            <CityAutocomplete
+              value={form.ancestralPlace}
+              onChange={v => set('ancestralPlace', v)}
+              className={inputClass}
+              placeholder="e.g. Varanasi, Uttar Pradesh"
+            />
           </div>
           <div>
-            <label className="block text-sm font-medium font-body mb-1.5">{tr('currentResidence')}</label>
-            <input value={form.currentResidence} onChange={(e) => set('currentResidence', e.target.value)} className={inputClass} />
+            <label className="block text-sm font-medium font-body mb-1.5">
+              {tr('currentResidence')}
+              <span className="ml-2 text-[10px] text-muted-foreground font-normal">optional</span>
+            </label>
+            <CityAutocomplete
+              value={form.currentResidence}
+              onChange={v => set('currentResidence', v)}
+              className={inputClass}
+              placeholder="e.g. Mumbai, Maharashtra"
+            />
           </div>
 
           <div>
