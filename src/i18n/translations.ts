@@ -245,7 +245,7 @@ const overrides: Record<string, TranslationEntry> = {
   timeBankNav:      { en: "Eco-Sewa",        hi: "इको-सेवा" },
   sewaChakraNav:    { en: "Sewa Chakra",     hi: "सेवा चक्र" },
   startYourJourney: { en: "Home",            hi: "होम" },
-  kutumbCalendar:   { en: "Prakriti Panchang", hi: "प्रकृति पंचांग" },
+  kutumbCalendar:   { en: "Prakriti Calendar", hi: "प्रकृति कैलेंडर" },
   kutumbRadar:      { en: "Kutumb Radar",    hi: "कुटुंब रडार" },
   legacyBox:        { en: "Dharti Sandesh",  hi: "धरती संदेश" },
   transactions:     { en: "Transactions",    hi: "लेन-देन" },
@@ -380,7 +380,7 @@ const overrides: Record<string, TranslationEntry> = {
   },
 
   /* ── Kutumb Calendar ── */
-  calendarTitle: { en: "Prakriti Panchang", hi: "प्रकृति पंचांग" },
+  calendarTitle: { en: "Prakriti Calendar", hi: "प्रकृति कैलेंडर" },
   calendarSubtitle: { en: "Eco-events, Van Mahotsav, Nadee Shuddhi & family ceremonies", hi: "इको-इवेंट, वन महोत्सव, नदी शुद्धि और पारिवारिक समारोह" },
   announce: { en: "Announce", hi: "घोषणा करें" },
   addEvent: { en: "Add Event", hi: "इवेंट जोड़ें" },

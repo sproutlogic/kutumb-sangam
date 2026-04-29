@@ -6,19 +6,64 @@
  */
 
 import { useEffect, useState, useRef } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   ChevronLeft, ChevronRight, Leaf, Droplets, Users, Eye, AlertCircle,
   TreePine, Loader2, BookOpen, Instagram, Youtube, Hash, Plus, X,
+  Megaphone, Bell, Trash2, CalendarDays,
 } from "lucide-react";
 import AppShell from "@/components/shells/AppShell";
 import { useAuth } from "@/contexts/AuthContext";
 import {
   fetchPanchangCalendar, type PanchangCalendarRow,
   fetchPanchangArticles, createPanchangArticle, updatePanchangArticle, deletePanchangArticle,
-  type PanchangArticle,
+  type PanchangArticle, getApiBaseUrl, resolveVanshaIdForApi,
 } from "@/services/api";
+import { toast } from "@/hooks/use-toast";
 import { supabase } from "@/lib/supabase";
 import { mergeTithiWithFallback, type Paksha } from "@/lib/tithiFallback";
+
+// ── Calendar event types (mirrored from KutumbCalendarPage) ──────────────────
+
+interface CalendarEvent {
+  id: string;
+  title: string;
+  event_date: string;
+  event_type: "birthday" | "anniversary" | "event" | "announcement";
+  description?: string;
+  recurs_yearly: boolean;
+  is_announcement: boolean;
+  created_at: string;
+}
+
+function getAuthToken(): string {
+  try {
+    for (const k of Object.keys(localStorage).filter(k => k.endsWith("-auth-token"))) {
+      const p = JSON.parse(localStorage.getItem(k) || "{}");
+      if (p?.access_token) return p.access_token;
+    }
+  } catch { /* ignore */ }
+  return "";
+}
+
+function formatEventDate(d: string): string {
+  return new Date(d + "T00:00:00").toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
+}
+
+function daysUntil(dateStr: string): number {
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  return Math.ceil((new Date(dateStr + "T00:00:00").getTime() - today.getTime()) / 86400000);
+}
+
+const EVENT_EMOJI: Record<string, string> = {
+  birthday: "🎂", anniversary: "💍", event: "📅", announcement: "📢",
+};
+const EVENT_COLOR: Record<string, string> = {
+  birthday: "bg-pink-100 text-pink-700 dark:bg-pink-950/40 dark:text-pink-300",
+  anniversary: "bg-purple-100 text-purple-700 dark:bg-purple-950/40 dark:text-purple-300",
+  event: "bg-blue-100 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300",
+  announcement: "bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300",
+};
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -152,11 +197,15 @@ async function buildCalendarRows(dates: string[]): Promise<PanchangCalendarRow[]
 
 export default function EcoPanchangPage() {
   const today = todayStr();
+  const navigate = useNavigate();
   const { appUser } = useAuth();
   const isAdmin = appUser?.role === "admin" || appUser?.role === "superadmin";
+  const vanshaId = resolveVanshaIdForApi(null);
+  const token = getAuthToken();
+  const authHeaders = { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) };
 
-  // View mode
-  const [viewMode, setViewMode] = useState<"week" | "month">("month");
+  // View mode — default to week
+  const [viewMode, setViewMode] = useState<"week" | "month">("week");
 
   // Week view state
   const [windowStart, setWindowStart] = useState(today);
@@ -189,6 +238,21 @@ export default function EcoPanchangPage() {
   const [publishTarget, setPublishTarget] = useState<PanchangArticle | null>(null);
   const [authorName, setAuthorName] = useState("");
   const [publishing, setPublishing] = useState(false);
+
+  // Calendar events
+  const [events, setEvents] = useState<CalendarEvent[]>([]);
+  const [eventsLoading, setEventsLoading] = useState(true);
+  const [showEventModal, setShowEventModal] = useState(false);
+  const [isAnnouncement, setIsAnnouncement] = useState(false);
+  const [evtTitle, setEvtTitle] = useState("");
+  const [evtDate, setEvtDate] = useState("");
+  const [evtType, setEvtType] = useState("event");
+  const [evtDesc, setEvtDesc] = useState("");
+  const [evtRecurs, setEvtRecurs] = useState(false);
+  const [evtSaving, setEvtSaving] = useState(false);
+
+  // Social media visibility (admin-controlled)
+  const [showSocialMedia, setShowSocialMedia] = useState(true);
 
   const windowEnd = addDays(windowStart, 6);
 
@@ -259,6 +323,52 @@ export default function EcoPanchangPage() {
     });
   }, [viewMode, windowStart, currentMonth.year, currentMonth.month]);
 
+  // ── Load calendar events ─────────────────────────────────────────────────
+  useEffect(() => {
+    if (!vanshaId) { setEventsLoading(false); return; }
+    fetch(`${getApiBaseUrl()}/api/calendar/events?vansha_id=${vanshaId}`, { headers: authHeaders })
+      .then(r => r.ok ? r.json() : [])
+      .then(setEvents)
+      .catch(() => {})
+      .finally(() => setEventsLoading(false));
+  }, [vanshaId]);
+
+  // ── Events CRUD ──────────────────────────────────────────────────────────
+  async function saveEvent() {
+    if (!evtTitle.trim() || !evtDate) { toast({ title: "शीर्षक और तिथि आवश्यक है", variant: "destructive" }); return; }
+    setEvtSaving(true);
+    try {
+      const res = await fetch(`${getApiBaseUrl()}/api/calendar/events`, {
+        method: "POST", headers: authHeaders,
+        body: JSON.stringify({
+          vansha_id: vanshaId,
+          title: evtTitle.trim(), event_date: evtDate,
+          event_type: isAnnouncement ? "announcement" : evtType,
+          description: evtDesc || null,
+          recurs_yearly: evtRecurs,
+          is_announcement: isAnnouncement,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.detail || "Error");
+      setEvents(prev => [...prev, data].sort((a, b) => a.event_date.localeCompare(b.event_date)));
+      toast({ title: isAnnouncement ? "घोषणा पोस्ट की गई!" : "इवेंट जोड़ा गया!" });
+      setShowEventModal(false);
+      setEvtTitle(""); setEvtDate(""); setEvtDesc(""); setEvtType("event"); setEvtRecurs(false);
+    } catch (e) {
+      toast({ title: String(e), variant: "destructive" });
+    } finally { setEvtSaving(false); }
+  }
+
+  async function removeEvent(id: string) {
+    await fetch(`${getApiBaseUrl()}/api/calendar/events/${id}`, { method: "DELETE", headers: authHeaders });
+    setEvents(prev => prev.filter(e => e.id !== id));
+    toast({ title: "इवेंट हटाया गया" });
+  }
+
+  const upcomingEvents = events.filter(e => daysUntil(e.event_date) >= 0).slice(0, 10);
+  const announcements = events.filter(e => e.is_announcement);
+
   const selected = rows.find(r => r.gregorian_date === selectedDate);
   const tithi    = selected?.tithis as TithiDef | undefined;
 
@@ -312,15 +422,95 @@ export default function EcoPanchangPage() {
       {/* Hero */}
       <div className="relative gradient-hero text-primary-foreground py-8 overflow-hidden">
         <div className="container">
-          <div className="flex items-center gap-2 mb-1">
-            <TreePine className="w-6 h-6" />
-            <h1 className="font-heading text-2xl font-bold">Eco-Panchang Calendar</h1>
+          <div className="flex items-center justify-between gap-4 flex-wrap">
+            <div>
+              <div className="flex items-center gap-2 mb-1">
+                <TreePine className="w-6 h-6" />
+                <h1 className="font-heading text-2xl font-bold">Prakriti Calendar</h1>
+              </div>
+              <p className="text-sm opacity-70">हर तिथि पर प्रकृति और परिवार के लिए शुभ कार्य जानें</p>
+            </div>
+            <div className="flex items-center gap-2 flex-wrap">
+              <button
+                onClick={() => navigate("/services")}
+                className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-green-500/20 hover:bg-green-500/30 border border-primary-foreground/20 text-primary-foreground text-sm font-semibold transition-colors"
+              >
+                🌿 पर्यावरण सेवा बुक करें →
+              </button>
+              {appUser && (
+                <>
+                  <button
+                    onClick={() => { setIsAnnouncement(true); setShowEventModal(true); }}
+                    className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-primary-foreground/15 text-primary-foreground text-sm font-semibold hover:bg-primary-foreground/25 transition-colors"
+                  >
+                    <Megaphone className="w-4 h-4" /> घोषणा
+                  </button>
+                  <button
+                    onClick={() => { setIsAnnouncement(false); setShowEventModal(true); }}
+                    className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-primary-foreground/15 text-primary-foreground text-sm font-semibold hover:bg-primary-foreground/25 transition-colors"
+                  >
+                    <Plus className="w-4 h-4" /> इवेंट जोड़ें
+                  </button>
+                </>
+              )}
+            </div>
           </div>
-          <p className="text-sm opacity-70">हर तिथि पर प्रकृति और परिवार के लिए शुभ कार्य जानें</p>
         </div>
       </div>
 
       <div className="container py-6 space-y-6">
+        {/* Upcoming Events + Announcements */}
+        {(announcements.length > 0 || upcomingEvents.filter(e => !e.is_announcement).length > 0 || !eventsLoading) && (
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <h2 className="font-heading font-bold text-sm flex items-center gap-2">
+                <Bell className="w-4 h-4 text-primary" /> आगामी इवेंट
+              </h2>
+            </div>
+            {eventsLoading ? (
+              <div className="flex items-center gap-2 text-muted-foreground text-xs py-2">
+                <Loader2 className="w-3.5 h-3.5 animate-spin" /> लोड हो रहा है…
+              </div>
+            ) : upcomingEvents.filter(e => !e.is_announcement).length === 0 && announcements.length === 0 ? (
+              <div className="bg-card rounded-xl p-5 text-center border border-border/50">
+                <CalendarDays className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
+                <p className="text-xs text-muted-foreground font-body">कोई आगामी इवेंट नहीं।</p>
+                {appUser && (
+                  <button onClick={() => { setIsAnnouncement(false); setShowEventModal(true); }} className="mt-2 text-primary text-xs font-medium hover:underline">
+                    पहला इवेंट जोड़ें →
+                  </button>
+                )}
+              </div>
+            ) : (
+              <div className="flex gap-2 overflow-x-auto pb-1">
+                {announcements.map(e => (
+                  <div key={e.id} className="flex-shrink-0 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800/40 rounded-xl p-3 w-48 sm:w-56">
+                    <p className="text-[10px] font-bold text-amber-700 dark:text-amber-300 mb-0.5">📢 घोषणा</p>
+                    <p className="font-semibold text-xs leading-tight">{e.title}</p>
+                    {appUser && <button onClick={() => removeEvent(e.id)} className="mt-1 text-[9px] text-muted-foreground hover:text-destructive"><Trash2 className="w-3 h-3 inline" /></button>}
+                  </div>
+                ))}
+                {upcomingEvents.filter(e => !e.is_announcement).map(e => {
+                  const days = daysUntil(e.event_date);
+                  return (
+                    <div key={e.id} className="flex-shrink-0 bg-card border border-border/50 rounded-xl p-3 w-48 sm:w-56 flex items-start gap-2">
+                      <span className="text-lg">{EVENT_EMOJI[e.event_type] || "📅"}</span>
+                      <div className="min-w-0 flex-1">
+                        <p className="font-semibold text-xs leading-tight truncate">{e.title}</p>
+                        <p className="text-[10px] text-muted-foreground">{formatEventDate(e.event_date)}</p>
+                        <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-medium ${EVENT_COLOR[e.event_type]}`}>
+                          {days === 0 ? "आज!" : days === 1 ? "कल" : `${days} दिन`}
+                        </span>
+                      </div>
+                      {appUser && <button onClick={() => removeEvent(e.id)} className="text-muted-foreground hover:text-destructive flex-shrink-0"><Trash2 className="w-3 h-3" /></button>}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+
         {/* View toggle + navigation */}
         <div className="flex items-center justify-between gap-2 flex-wrap">
           {/* Toggle */}
@@ -410,9 +600,50 @@ export default function EcoPanchangPage() {
           />
         )}
 
-        {/* Detail panel */}
+        {/* Detail panel + Blog preview + Social Media (two-column on large screens) */}
         {tithi ? (
-          <DetailPanel selected={selected!} tithi={tithi} />
+          <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
+            <div className="lg:col-span-3">
+              <DetailPanel selected={selected!} tithi={tithi} />
+            </div>
+            <div className="lg:col-span-2 space-y-3">
+              {/* Blog preview — latest article */}
+              {articles.length > 0 && (
+                <div className="border border-border rounded-xl p-4 bg-card space-y-2">
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-widest flex items-center gap-1.5">
+                    <BookOpen className="w-3.5 h-3.5" /> प्रकृति इनसाइट
+                  </p>
+                  <h3 className="font-semibold text-sm leading-snug line-clamp-2">{articles[0].title}</h3>
+                  <p className="text-xs text-muted-foreground leading-relaxed line-clamp-3">{articles[0].body}</p>
+                  <button
+                    onClick={() => setExpandedArticle(articles[0].id)}
+                    className="text-xs text-green-600 hover:text-green-700 font-medium"
+                  >
+                    और पढ़ें →
+                  </button>
+                </div>
+              )}
+              {/* Content & Social Media — separated from detail panel */}
+              {(tithi as TithiDef).blog_title_template || (tithi as TithiDef).ig_caption_template || (tithi as TithiDef).yt_short_title_template ? (
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">
+                      Content &amp; Social Media
+                    </p>
+                    {isAdmin && (
+                      <button
+                        onClick={() => setShowSocialMedia(v => !v)}
+                        className={`text-[10px] px-2 py-1 rounded border transition-colors ${showSocialMedia ? "border-green-400 text-green-700 dark:text-green-300 bg-green-50 dark:bg-green-950/30" : "border-border text-muted-foreground"}`}
+                      >
+                        {showSocialMedia ? "👁 Visible" : "🙈 Hidden"}
+                      </button>
+                    )}
+                  </div>
+                  {showSocialMedia && <ContentSocialSection tithi={tithi as TithiDef} />}
+                </div>
+              ) : null}
+            </div>
+          </div>
         ) : (
           <div className="text-center text-muted-foreground py-6 text-sm">
             कोई तिथि चुनें।
@@ -467,6 +698,57 @@ export default function EcoPanchangPage() {
           )}
         </div>
       </div>
+
+      {/* Event / Announce Modal */}
+      {showEventModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="bg-card w-full max-w-md rounded-2xl shadow-2xl border border-border/50">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-border/50">
+              <h3 className="font-heading font-bold">{isAnnouncement ? "कुटुंब को घोषणा करें" : "इवेंट जोड़ें"}</h3>
+              <button onClick={() => setShowEventModal(false)}><X className="w-4 h-4 text-muted-foreground" /></button>
+            </div>
+            <div className="px-6 py-5 space-y-4">
+              <div>
+                <label className="block text-xs font-medium mb-1.5">शीर्षक</label>
+                <input value={evtTitle} onChange={e => setEvtTitle(e.target.value)} maxLength={200}
+                  className="w-full px-3 py-2.5 rounded-lg border border-border bg-background text-sm font-body focus:outline-none focus:ring-2 focus:ring-primary/40" />
+              </div>
+              {!isAnnouncement && (
+                <div>
+                  <label className="block text-xs font-medium mb-1.5">प्रकार</label>
+                  <select value={evtType} onChange={e => setEvtType(e.target.value)}
+                    className="w-full px-3 py-2.5 rounded-lg border border-border bg-background text-sm font-body focus:outline-none focus:ring-2 focus:ring-primary/40">
+                    {["birthday", "anniversary", "event"].map(t => <option key={t} value={t}>{t}</option>)}
+                  </select>
+                </div>
+              )}
+              <div>
+                <label className="block text-xs font-medium mb-1.5">तिथि</label>
+                <input type="date" value={evtDate} onChange={e => setEvtDate(e.target.value)}
+                  className="w-full px-3 py-2.5 rounded-lg border border-border bg-background text-sm font-body focus:outline-none focus:ring-2 focus:ring-primary/40" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium mb-1.5">विवरण <span className="text-muted-foreground font-normal">(��ैकल्पिक)</span></label>
+                <textarea value={evtDesc} onChange={e => setEvtDesc(e.target.value)} rows={3} maxLength={1000}
+                  className="w-full px-3 py-2.5 rounded-lg border border-border bg-background text-sm font-body resize-none focus:outline-none focus:ring-2 focus:ring-primary/40" />
+              </div>
+              {!isAnnouncement && (
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input type="checkbox" checked={evtRecurs} onChange={e => setEvtRecurs(e.target.checked)} className="accent-primary" />
+                  <span className="text-sm font-body">हर वर्ष दोहराएँ</span>
+                </label>
+              )}
+            </div>
+            <div className="px-6 py-4 border-t border-border/50 flex gap-3">
+              <button onClick={() => setShowEventModal(false)} className="flex-1 py-2.5 rounded-lg border border-border text-sm font-body">रद्द करें</button>
+              <button onClick={saveEvent} disabled={evtSaving}
+                className="flex-1 py-2.5 rounded-lg gradient-hero text-primary-foreground font-semibold text-sm shadow-warm hover:opacity-90 disabled:opacity-50">
+                {evtSaving ? "सहेज रहे हैं…" : isAnnouncement ? "घोषणा भेजें" : "सहेजें"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Add Article Modal */}
       {showAddModal && (
@@ -595,18 +877,18 @@ function WeekView({
             onClick={() => onSelectDate(d)}
             className={[
               "rounded-xl border p-2 text-center transition-all flex flex-col items-center gap-1",
-              isSel    ? "border-green-500 bg-green-50 dark:bg-green-950/50 shadow-md"
-              : isToday ? "border-emerald-300 bg-emerald-50/60 dark:bg-emerald-950/30"
+              isSel    ? "border-green-500 bg-green-600 text-white shadow-md"
+              : isToday ? "border-green-500 bg-green-50 dark:bg-green-950/50 ring-2 ring-green-400"
                        : "border-border hover:bg-muted",
             ].join(" ")}
           >
-            <span className="text-[10px] text-muted-foreground">
+            <span className={`text-[10px] ${isSel ? "text-white/80" : "text-muted-foreground"}`}>
               {new Date(d + "T00:00:00").toLocaleDateString("en-IN", { weekday: "short" })}
             </span>
-            <span className={`text-lg font-bold ${isToday ? "text-green-700 dark:text-green-400" : ""}`}>
+            <span className={`text-base font-bold leading-tight ${isSel ? "text-white" : isToday ? "text-green-700 dark:text-green-400" : "text-foreground"}`}>
               {new Date(d + "T00:00:00").getDate()}
             </span>
-            <span className="text-[9px] leading-tight text-center font-medium text-green-800 dark:text-green-300 line-clamp-2">
+            <span className={`text-[9px] leading-tight text-center font-medium line-clamp-2 ${isToday ? "text-white/90" : "text-foreground/80"}`}>
               {t?.name_sanskrit || t?.name_common || (row ? "—" : "N/A")}
             </span>
             {row?.special_flag && (
@@ -754,61 +1036,63 @@ function DetailPanel({ selected, tithi }: { selected: PanchangCalendarRow; tithi
         </div>
       )}
 
-      {(tithi.blog_title_template || tithi.ig_caption_template || tithi.yt_short_title_template) && (
-        <div className="border-t border-green-200 dark:border-green-800 pt-4 space-y-3">
-          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">
-            Content &amp; Social Media
+    </div>
+  );
+}
+
+// ── Content & Social Media Section (standalone, outside DetailPanel) ──────────
+
+function ContentSocialSection({ tithi }: { tithi: TithiDef }) {
+  return (
+    <div className="space-y-3">
+      {tithi.blog_title_template && (
+        <div className="bg-white/70 dark:bg-black/20 rounded-lg p-3 border border-green-100 dark:border-green-900/40">
+          <div className="flex items-center gap-1.5 mb-1.5">
+            <BookOpen className="w-3.5 h-3.5 text-emerald-600" />
+            <span className="text-xs font-semibold text-emerald-800 dark:text-emerald-300">Blog Post</span>
+          </div>
+          <p className="text-sm font-bold text-foreground leading-snug">
+            {tithi.blog_title_template.replace(/\{[^}]+\}/g, "…")}
           </p>
-          {tithi.blog_title_template && (
-            <div className="bg-white/70 dark:bg-black/20 rounded-lg p-3 border border-green-100 dark:border-green-900/40">
-              <div className="flex items-center gap-1.5 mb-1.5">
-                <BookOpen className="w-3.5 h-3.5 text-emerald-600" />
-                <span className="text-xs font-semibold text-emerald-800 dark:text-emerald-300">Blog Post</span>
-              </div>
-              <p className="text-sm font-bold text-foreground leading-snug">
-                {tithi.blog_title_template.replace(/\{[^}]+\}/g, "…")}
-              </p>
-              {tithi.blog_subtitle_template && (
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  {tithi.blog_subtitle_template.replace(/\{[^}]+\}/g, "…")}
-                </p>
-              )}
+          {tithi.blog_subtitle_template && (
+            <p className="text-xs text-muted-foreground mt-0.5">
+              {tithi.blog_subtitle_template.replace(/\{[^}]+\}/g, "…")}
+            </p>
+          )}
+        </div>
+      )}
+      {tithi.ig_caption_template && (
+        <div className="bg-white/70 dark:bg-black/20 rounded-lg p-3 border border-pink-100 dark:border-pink-900/40">
+          <div className="flex items-center gap-1.5 mb-1.5">
+            <Instagram className="w-3.5 h-3.5 text-pink-500" />
+            <span className="text-xs font-semibold text-pink-700 dark:text-pink-300">Instagram Caption</span>
+          </div>
+          <p className="text-xs text-muted-foreground leading-relaxed whitespace-pre-line">
+            {tithi.ig_caption_template.replace(/\{[^}]+\}/g, "…")}
+          </p>
+          {tithi.ig_hashtag_set && Array.isArray(tithi.ig_hashtag_set) && (
+            <div className="flex items-center gap-1 flex-wrap mt-2">
+              <Hash className="w-3 h-3 text-pink-400" />
+              {(tithi.ig_hashtag_set as string[]).map(tag => (
+                <span key={tag} className="text-[10px] text-pink-500 dark:text-pink-400">{tag}</span>
+              ))}
             </div>
           )}
-          {tithi.ig_caption_template && (
-            <div className="bg-white/70 dark:bg-black/20 rounded-lg p-3 border border-pink-100 dark:border-pink-900/40">
-              <div className="flex items-center gap-1.5 mb-1.5">
-                <Instagram className="w-3.5 h-3.5 text-pink-500" />
-                <span className="text-xs font-semibold text-pink-700 dark:text-pink-300">Instagram Caption</span>
-              </div>
-              <p className="text-xs text-muted-foreground leading-relaxed whitespace-pre-line">
-                {tithi.ig_caption_template.replace(/\{[^}]+\}/g, "…")}
-              </p>
-              {tithi.ig_hashtag_set && Array.isArray(tithi.ig_hashtag_set) && (
-                <div className="flex items-center gap-1 flex-wrap mt-2">
-                  <Hash className="w-3 h-3 text-pink-400" />
-                  {(tithi.ig_hashtag_set as string[]).map(tag => (
-                    <span key={tag} className="text-[10px] text-pink-500 dark:text-pink-400">{tag}</span>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-          {tithi.yt_short_title_template && (
-            <div className="bg-white/70 dark:bg-black/20 rounded-lg p-3 border border-red-100 dark:border-red-900/40">
-              <div className="flex items-center gap-1.5 mb-1.5">
-                <Youtube className="w-3.5 h-3.5 text-red-500" />
-                <span className="text-xs font-semibold text-red-700 dark:text-red-300">YouTube Short</span>
-              </div>
-              <p className="text-sm font-bold text-foreground leading-snug">
-                {tithi.yt_short_title_template.replace(/\{[^}]+\}/g, "…")}
-              </p>
-              {tithi.yt_short_desc_template && (
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  {tithi.yt_short_desc_template.replace(/\{[^}]+\}/g, "…")}
-                </p>
-              )}
-            </div>
+        </div>
+      )}
+      {tithi.yt_short_title_template && (
+        <div className="bg-white/70 dark:bg-black/20 rounded-lg p-3 border border-red-100 dark:border-red-900/40">
+          <div className="flex items-center gap-1.5 mb-1.5">
+            <Youtube className="w-3.5 h-3.5 text-red-500" />
+            <span className="text-xs font-semibold text-red-700 dark:text-red-300">YouTube Short</span>
+          </div>
+          <p className="text-sm font-bold text-foreground leading-snug">
+            {tithi.yt_short_title_template.replace(/\{[^}]+\}/g, "…")}
+          </p>
+          {tithi.yt_short_desc_template && (
+            <p className="text-xs text-muted-foreground mt-0.5">
+              {tithi.yt_short_desc_template.replace(/\{[^}]+\}/g, "…")}
+            </p>
           )}
         </div>
       )}

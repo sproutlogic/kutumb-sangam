@@ -1,5 +1,6 @@
 import { useNavigate } from 'react-router-dom';
-import { resolveVanshaIdForApi, fetchPrakritiScore, type PrakritiScore } from '@/services/api';
+import { resolveVanshaIdForApi, fetchPrakritiScore, type PrakritiScore, fetchPanchangCalendar, type PanchangCalendarRow } from '@/services/api';
+import { mergeTithiWithFallback, type Paksha } from '@/lib/tithiFallback';
 import { useLang } from '@/i18n/LanguageContext';
 import { usePlan } from '@/contexts/PlanContext';
 import { useTree } from '@/contexts/TreeContext';
@@ -9,8 +10,7 @@ import TrustBadge from '@/components/ui/TrustBadge';
 import TreeCompletionScore from '@/components/ui/TreeCompletionScore';
 import ClanMilestone from '@/components/ui/ClanMilestone';
 import { useState, useEffect } from 'react';
-import EcoPanchangStrip from '@/components/EcoPanchangStrip';
-import { Users, Layers, Mail, TreePine, UserPlus, ShieldCheck, Clock, Search, Heart, Check, X, GitFork, ArrowUpCircle, BarChart3, Rocket, Briefcase, HandHeart, Leaf, UserCircle2 } from 'lucide-react';
+import { Users, Layers, Mail, TreePine, UserPlus, ShieldCheck, Clock, Search, Heart, Check, X, GitFork, ArrowUpCircle, BarChart3, Rocket, HandHeart, Leaf, UserCircle2, Loader2 } from 'lucide-react';
 import { UPCOMING_SERVICES } from '@/config/upcomingServices.config';
 import { JoinSEModal } from '@/components/sales/JoinSEModal';
 import { EarningsWallet } from '@/components/sales/EarningsWallet';
@@ -67,6 +67,16 @@ const Dashboard = () => {
     return `${days}d`;
   };
 
+  // Compute profile node (onboarding name) for hero greeting
+  const profileNode =
+    (state.currentUserId ? state.nodes.find(n => n.id === state.currentUserId) : undefined) ??
+    state.nodes.find(n => n.relation.toLowerCase() === 'self') ??
+    state.nodes.find(n => (n.generation ?? 0) === 0) ??
+    null;
+  const profileNodeName = profileNode
+    ? [profileNode.givenName, profileNode.middleName, profileNode.surname].filter(Boolean).join(' ')
+    : null;
+
   return (
     <AppShell>
       {/* Hero Banner */}
@@ -77,24 +87,18 @@ const Dashboard = () => {
           <div className="flex items-center justify-between flex-wrap gap-4">
             <div>
               <p className="text-xs tracking-[0.2em] uppercase opacity-60 font-body mb-1">{tr('haritVanshavali')}</p>
-              {/* Greet by name if available */}
-              {appUser?.full_name && (
+              {/* Greet by onboarding form name, fallback to Gmail name */}
+              {(profileNodeName || appUser?.full_name) && (
                 <p className="text-sm opacity-75 font-body mb-0.5">
-                  नमस्ते, {appUser.full_name} 🌿
+                  नमस्ते, {profileNodeName || appUser?.full_name} 🌿
                 </p>
               )}
-              <h1 className="font-heading text-3xl font-bold mb-0">{isTreeInitialized ? state.treeName : tr('dashboardTitle')}</h1>
-              {isTreeInitialized && (() => {
-                const selfNode = state.nodes.find(n => n.id === state.currentUserId)
-                  ?? state.nodes.find(n => n.relation?.toLowerCase() === 'self')
-                  ?? state.nodes.find(n => (n.generation ?? 0) === 0);
-                const fullName = selfNode
-                  ? [selfNode.givenName, selfNode.middleName, selfNode.surname].filter(Boolean).join(' ')
-                  : null;
-                return fullName ? (
-                  <p className="text-[11px] opacity-60 font-body mt-0.5 tracking-wide">{fullName}</p>
-                ) : null;
-              })()}
+              <h1 className="font-heading text-3xl font-bold mb-0">{tr('dashboardTitle')}</h1>
+              {appUser?.kutumb_id && (
+                <p className="text-[11px] opacity-60 font-body mt-0.5 tracking-wide font-mono">
+                  Kutumb ID: {appUser.kutumb_id}
+                </p>
+              )}
             </div>
             <div className="flex items-center gap-2">
               <span className="text-xs px-3 py-1.5 rounded-full bg-primary-foreground/10 border border-primary-foreground/25 text-primary-foreground font-semibold font-body backdrop-blur-sm">
@@ -107,18 +111,14 @@ const Dashboard = () => {
         <div className="absolute inset-x-0 bottom-0 gold-line opacity-60" />
       </div>
 
-      {/* Encrypted Strip */}
-      <div className="bg-card/80 border-b border-border/50 backdrop-blur-sm">
-        <div className="container py-2.5 flex items-center justify-center gap-4 flex-wrap">
-          <TrustBadge variant="encrypted" compact />
-          <span className="text-xs text-muted-foreground font-body">{tr('encryptedDesc')}</span>
-        </div>
-      </div>
-
-      {/* Panchang Strip */}
-      <EcoPanchangStrip />
-
       <div className="container py-8 space-y-8">
+        {/* Weekly Panchang Strip */}
+        <div>
+          <DashboardWeekStrip />
+          <p className="text-xs text-muted-foreground text-center mt-2 font-body">
+            किसी तिथि पर क्लिक करें — अधिक जानकारी और अनुशंसाओं के लिए
+          </p>
+        </div>
         {/* Not initialized banner */}
         {!isTreeInitialized && (
           <div className="bg-primary/5 border border-primary/20 rounded-xl p-6 text-center">
@@ -304,19 +304,35 @@ const Dashboard = () => {
           </div>
         )}
 
-        {/* Pandit Verified Badge */}
-        <div className="bg-card rounded-xl p-5 shadow-card border border-border/50 flex items-center gap-4 animate-fade-in">
-          <div className="w-12 h-12 rounded-lg bg-gold/10 flex items-center justify-center flex-shrink-0">
-            <ShieldCheck className="w-6 h-6 text-gold" />
+        {/* Trust Seal Strip */}
+        <div className="bg-card rounded-xl p-5 shadow-card border border-border/50 animate-fade-in">
+          <p className="font-heading text-sm font-semibold mb-3 flex items-center gap-2">
+            <ShieldCheck className="w-4 h-4 text-primary" />
+            Trust Seals
+          </p>
+          <div className="grid grid-cols-3 gap-3">
+            <div className="flex flex-col items-center gap-1.5 p-3 rounded-lg border border-border/50 bg-secondary/20 text-center">
+              <div className="w-9 h-9 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
+                <Leaf className="w-5 h-5 text-green-600" />
+              </div>
+              <p className="text-xs font-semibold font-body leading-tight">Paryavaran Mitra</p>
+              <span className="text-[9px] px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300 font-medium">Pending</span>
+            </div>
+            <div className="flex flex-col items-center gap-1.5 p-3 rounded-lg border border-border/50 bg-secondary/20 text-center">
+              <div className="w-9 h-9 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
+                <ShieldCheck className="w-5 h-5 text-blue-600" />
+              </div>
+              <p className="text-xs font-semibold font-body leading-tight">Trust / NGO</p>
+              <span className="text-[9px] px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300 font-medium">Pending</span>
+            </div>
+            <div className="flex flex-col items-center gap-1.5 p-3 rounded-lg border border-border/50 bg-secondary/20 text-center">
+              <div className="w-9 h-9 rounded-full bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center">
+                <UserCircle2 className="w-5 h-5 text-purple-600" />
+              </div>
+              <p className="text-xs font-semibold font-body leading-tight">KYC</p>
+              <span className="text-[9px] px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300 font-medium">Pending</span>
+            </div>
           </div>
-          <div className="flex-1">
-            <p className="font-semibold font-body flex items-center gap-2">
-              {tr('panditVerified')}
-              <span className="text-xs px-2 py-0.5 rounded-full bg-gold/10 text-gold font-medium">✓ {tr('noPanditAssigned')}</span>
-            </p>
-            <p className="text-sm text-muted-foreground font-body">{tr('trustSeal')}</p>
-          </div>
-          <TrustBadge variant="verified" compact />
         </div>
 
         {/* Clan Milestones */}
@@ -476,5 +492,105 @@ const Dashboard = () => {
     </AppShell>
   );
 };
+
+// ── Dashboard Week Strip ──────────────────────────────────────────────────────
+
+function addDaysLocal(dateStr: string, days: number): string {
+  const d = new Date(dateStr + 'T00:00:00');
+  d.setDate(d.getDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
+function DashboardWeekStrip() {
+  const navigate = useNavigate();
+  const today = new Date().toISOString().slice(0, 10);
+
+  // Start from Monday of current week
+  const weekStart = (() => {
+    const d = new Date(today + 'T00:00:00');
+    const day = d.getDay();
+    const offset = day === 0 ? -6 : 1 - day;
+    d.setDate(d.getDate() + offset);
+    return d.toISOString().slice(0, 10);
+  })();
+
+  const [rows, setRows] = useState<PanchangCalendarRow[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchPanchangCalendar(weekStart, addDaysLocal(weekStart, 6))
+      .then(cal => {
+        if (cal.length > 0) {
+          setRows(cal.map(row => ({
+            ...row,
+            tithis: mergeTithiWithFallback(
+              row.tithis as Record<string, unknown> | null | undefined,
+              row.tithi_id,
+              row.paksha as Paksha,
+            ) as unknown as PanchangCalendarRow['tithis'],
+          })));
+        }
+        setLoading(false);
+      })
+      .catch(() => setLoading(false));
+  }, [weekStart]);
+
+  const SPECIAL_LABELS: Record<string, string> = {
+    ekadashi: 'एकादशी', purnima: 'पूर्णिमा', amavasya: 'अमावस्या',
+    pradosh: 'प्रदोष', chaturthi: 'चतुर्थी', ashtami: 'अष्टमी',
+    navami: 'नवमी', sankranti: 'संक्रांति',
+  };
+
+  return (
+    <div className="border border-green-200 dark:border-green-800 bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-950/30 dark:to-emerald-950/20 rounded-xl overflow-hidden">
+      <div className="px-3 py-2 border-b border-green-100 dark:border-green-900 flex items-center justify-between">
+        <span className="text-xs font-semibold text-green-800 dark:text-green-300">🌿 साप्ताहिक तिथि पंचांग</span>
+        {loading && <Loader2 className="w-3.5 h-3.5 animate-spin text-green-600" />}
+      </div>
+      <div className="grid grid-cols-7 divide-x divide-green-100 dark:divide-green-900/50">
+        {Array.from({ length: 7 }).map((_, i) => {
+          const d = addDaysLocal(weekStart, i);
+          const row = rows.find(r => r.gregorian_date === d);
+          const t = row?.tithis as Record<string, string> | undefined;
+          const isToday = d === today;
+          const tithiName = t?.name_sanskrit || t?.name_common || '';
+          return (
+            <button
+              key={d}
+              onClick={() => navigate('/eco-panchang')}
+              title="पूरा पंचांग देखें"
+              className={[
+                'flex flex-col items-center gap-0.5 py-2 px-0.5 text-center transition-all',
+                isToday
+                  ? 'bg-green-600 hover:bg-green-700 text-white'
+                  : 'hover:bg-green-100/70 dark:hover:bg-green-900/30',
+              ].join(' ')}
+            >
+              <span className={`text-[9px] sm:text-[10px] font-medium leading-none ${isToday ? 'text-green-100' : 'text-muted-foreground'}`}>
+                {new Date(d + 'T00:00:00').toLocaleDateString('en-IN', { weekday: 'short' })}
+              </span>
+              <span className={`text-sm font-bold leading-tight ${isToday ? 'text-white' : 'text-foreground'}`}>
+                {new Date(d + 'T00:00:00').getDate()}
+              </span>
+              {tithiName && (
+                <span className={`text-[8px] sm:text-[9px] leading-tight line-clamp-2 px-0.5 ${isToday ? 'text-green-100' : 'text-green-900 dark:text-green-200'}`}>
+                  {tithiName}
+                </span>
+              )}
+              {row?.special_flag && SPECIAL_LABELS[row.special_flag] && (
+                <span className={`text-[7px] leading-tight ${isToday ? 'text-green-100' : 'text-amber-600 dark:text-amber-400'}`}>
+                  {SPECIAL_LABELS[row.special_flag]}
+                </span>
+              )}
+              {isToday && (
+                <span className="text-[7px] bg-white/25 text-white rounded-full px-1 leading-tight">आज</span>
+              )}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
 
 export default Dashboard;

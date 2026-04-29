@@ -21,7 +21,7 @@ const navItems = [
   // Invite is now accessed from within the Tree page, not the sidebar
   { icon: ShieldCheck,  labelKey: 'verification'     as const, path: '/verification' },
   { icon: Search,       labelKey: 'discovery'        as const, path: '/discovery' },
-  { icon: CalendarDays, labelKey: 'kutumbCalendar'   as const, path: '/calendar' },
+  { icon: CalendarDays, labelKey: 'kutumbCalendar'   as const, path: '/eco-panchang' },
   { icon: Radar,        labelKey: 'kutumbRadar'      as const, path: '/radar' },
   { icon: Archive,      labelKey: 'legacyBox'        as const, path: '/legacy-box' },
   { icon: Receipt,      labelKey: 'transactions'     as const, path: '/transactions' },
