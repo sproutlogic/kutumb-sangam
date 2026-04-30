@@ -29,15 +29,68 @@ const Landing = () => {
         </div>
       </nav>
 
+      {/* ── Social Proof Bar ──────────────────────────────────────── */}
+      <div className="bg-primary/95 text-primary-foreground py-2.5 px-6 text-center text-sm font-body mt-[65px]">
+        <span className="opacity-90">
+          🌳 <strong>100+ Founding Families</strong> · Across India · Founding Family status — free, forever
+        </span>
+      </div>
+
+      {/* ── Loss Narrative ────────────────────────────────────────── */}
+      <section className="bg-stone-950 text-stone-100 py-16 px-6 text-center">
+        <p className="text-xs font-body tracking-[0.3em] uppercase text-stone-500 mb-6">Before it's too late</p>
+        <h2 className="font-heading text-2xl md:text-4xl font-bold max-w-2xl mx-auto leading-snug mb-10">
+          "When the last elder goes,<br />
+          <span className="text-amber-400">the whole forest falls."</span>
+        </h2>
+
+        <div className="max-w-lg mx-auto mb-10 space-y-1">
+          <p className="text-stone-300 font-body text-lg md:text-xl leading-relaxed">
+            Remember the smell of Dadi's kitchen.
+          </p>
+          <p className="text-stone-300 font-body text-lg md:text-xl leading-relaxed">
+            Dada's stories on winter nights.
+          </p>
+          <p className="text-stone-200 font-body text-lg md:text-xl leading-relaxed italic mt-2">
+            The way they said your name —
+          </p>
+          <p className="text-stone-200 font-body text-lg md:text-xl leading-relaxed italic">
+            like it was the most precious thing in the world.
+          </p>
+        </div>
+
+        <div className="max-w-md mx-auto mb-10">
+          <p className="text-stone-400 font-body text-base md:text-lg leading-relaxed mb-1">
+            They gave you your roots.
+          </p>
+          <p className="text-white font-body text-lg md:text-xl font-semibold">
+            But who is preserving theirs?
+          </p>
+        </div>
+
+        <p className="text-stone-400 font-body text-base md:text-lg max-w-xl mx-auto mb-8 italic">
+          How much of your family's Prakriti is already lost?
+        </p>
+
+        <button
+          onClick={() => window.location.href = '/onboarding'}
+          className="inline-flex items-center gap-2 px-8 py-4 rounded-xl bg-amber-500 hover:bg-amber-400 text-stone-950 font-semibold font-body text-lg transition-all hover:-translate-y-0.5 shadow-lg"
+        >
+          🌱 Plant the first root — today
+        </button>
+
+        <div className="mt-10 w-px h-12 bg-stone-700 mx-auto" />
+      </section>
+
       {/* ── Hero: Vasudhaiv Kutumbakam ────────────────────────────── */}
-      <section className="relative min-h-screen flex items-center justify-center overflow-hidden gradient-hero text-primary-foreground pt-16">
+      <section className="relative min-h-screen flex items-center justify-center overflow-hidden gradient-hero text-primary-foreground">
         {/* Background pattern */}
         <div className="absolute inset-0 opacity-5" style={{
           backgroundImage: `radial-gradient(circle at 20% 30%, white 0%, transparent 50%),
                             radial-gradient(circle at 80% 70%, white 0%, transparent 50%)`
         }} />
         {/* Large banyan silhouette */}
-        <div className="absolute inset-0 flex items-end justify-center opacity-[0.05] pointer-events-none">
+        <div className="absolute inset-0 flex items-end justify-center opacity-[0.07] pointer-events-none">
           <svg viewBox="0 0 600 400" className="w-full max-w-4xl" fill="currentColor">
             <path d="M300 30 C280 60 240 90 200 130 C160 170 120 200 100 250 C80 300 70 340 80 380 L520 380 C530 340 520 300 500 250 C480 200 440 170 400 130 C360 90 320 60 300 30Z" />
             <rect x="285" y="280" width="30" height="100" rx="5" />
@@ -55,21 +108,21 @@ const Landing = () => {
               वसुधैव कुटुम्बकम्
             </p>
             <p className="text-sm text-primary-foreground/70 font-body italic tracking-wide">
-              Vasudhaiv Kutumbakam
+              Every family a forest.
             </p>
           </div>
 
           <h1 className="font-heading text-4xl md:text-6xl lg:text-7xl font-bold leading-tight mb-6 max-w-4xl mx-auto animate-fade-in" style={{ animationDelay: '100ms' }}>
-            The World Is<br />
-            <span className="text-gold">One Family</span>
+            Your Family's Nature.<br />
+            <span className="text-gold">Your Family's Soul.</span>
           </h1>
 
           <p className="text-lg md:text-xl opacity-80 max-w-2xl mx-auto mb-4 font-body leading-relaxed animate-fade-in" style={{ animationDelay: '200ms' }}>
-            Build your <strong>Harit Vanshavali</strong> — your family's green legacy across generations.
-            Earn Eco-Sewa Credits, earn your Prakriti Score, and preserve what matters most.
+            Build your living <strong>Banyan tree</strong> — ancestors as roots, your generation as branches, new births as flowers.
+            Your <strong>Prakriti Score</strong> is how green your forest grows.
           </p>
           <p className="text-base md:text-lg opacity-60 max-w-xl mx-auto mb-10 font-body italic animate-fade-in" style={{ animationDelay: '250ms' }}>
-            "One who is rooted in the self, sees all beings as kin, and the world as one home."
+            India's only place where family legacy, nature, and community identity live as one.
           </p>
 
           <div className="flex flex-col sm:flex-row gap-4 justify-center animate-fade-in" style={{ animationDelay: '300ms' }}>
@@ -77,7 +130,7 @@ const Landing = () => {
               onClick={() => navigate('/onboarding')}
               className="shimmer px-8 py-4 rounded-xl gradient-gold text-white font-semibold font-body text-lg shadow-gold hover:opacity-90 transition-all hover:-translate-y-0.5"
             >
-              Start Your Green Journey
+              Claim your family's Prakriti — free
             </button>
             <button
               onClick={() => navigate('/signin')}
@@ -128,27 +181,18 @@ const Landing = () => {
       </section>
 
       {/* ── The Vision ────────────────────────────────────────────── */}
-      <section className="container py-20 md:py-28 px-6">
-        <div className="max-w-3xl mx-auto text-center">
-          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-primary/10 text-primary text-xs tracking-[0.2em] uppercase font-body mb-6">
+      <section className="container py-14 md:py-20 px-6">
+        <div className="max-w-2xl mx-auto text-center">
+          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-primary/10 text-primary text-xs tracking-[0.2em] uppercase font-body mb-5">
             <Globe2 className="w-3.5 h-3.5" />
-            The Vision
+            Why Prakriti
           </div>
-          <h2 className="font-heading text-3xl md:text-4xl font-bold mb-6">
-            Why Vasudhaiv Kutumbakam Matters Now More Than Ever
+          <h2 className="font-heading text-2xl md:text-3xl font-bold mb-4">
+            India's only place where family legacy, nature, and community identity live as one.
           </h2>
-          <p className="text-muted-foreground font-body text-lg leading-relaxed mb-6">
-            In an age of fragmentation — where borders divide, screens disconnect, and communities scatter —
-            the ancient wisdom of Vasudhaiv Kutumbakam calls us back to our deepest truth:
-            <strong className="text-foreground"> we are all one family</strong>.
-          </p>
-          <p className="text-muted-foreground font-body text-lg leading-relaxed mb-6">
-            This isn't merely a philosophical ideal. It is a living practice — a way of seeing every
-            neighbour as kin, every stranger as cousin, every community as an extension of your own
-            family tree rooted in the same soil.
-          </p>
-          <p className="text-muted-foreground font-body text-lg leading-relaxed">
-            Prakriti by Aarush Eco Tech exists to make this vision tangible — through your Harit Vanshavali, Eco-Sewa Credits, and Prakriti Score. Discover, reconnect, and nurture the invisible threads that bind you to the great human family, starting with your own.
+          <p className="text-muted-foreground font-body text-base leading-relaxed">
+            Your ancestors shaped your nature. Your nature shapes your descendants.
+            <strong className="text-foreground"> Prakriti</strong> makes that living truth visible — for the first time.
           </p>
         </div>
       </section>
@@ -274,11 +318,11 @@ const Landing = () => {
               The Role of Family
             </div>
             <h2 className="font-heading text-3xl md:text-4xl font-bold mb-4">
-              The Family is the First Circle of Kutumbakam
+              Your Family's Forest
             </h2>
             <p className="text-muted-foreground font-body max-w-2xl mx-auto text-lg">
-              You cannot love the world without first learning to love your family.
-              The practice of Vasudhaiv Kutumbakam begins at home — in your vansha.
+              Every great forest begins with one root. Your family's Prakriti begins with one elder,
+              one story, one tree — preserved forever.
             </p>
           </div>
           <div className="grid md:grid-cols-3 gap-8">
@@ -315,28 +359,28 @@ const Landing = () => {
       <section className="gradient-hero text-primary-foreground">
         <div className="gold-line opacity-50" />
         <div className="container py-20 md:py-28 text-center px-6">
-          <p className="text-primary-foreground/60 font-body tracking-[0.3em] uppercase text-xs mb-4">Begin Today</p>
+          <p className="text-primary-foreground/60 font-body tracking-[0.3em] uppercase text-xs mb-4">Your forest is waiting</p>
           <h2 className="font-heading text-3xl md:text-5xl font-bold mb-6 max-w-2xl mx-auto">
-            Join the Family That Spans the World
+            Every family a forest.<br />Start yours today.
           </h2>
           <p className="text-primary-foreground/70 font-body text-lg mb-10 max-w-xl mx-auto">
-            Every family tree you build, every hour you share, every connection you discover —
-            is Vasudhaiv Kutumbakam made real.
+            100+ Founding Families have already planted their roots.
+            Founding Family status is free — forever.
           </p>
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
+          <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
             <button
               onClick={() => navigate('/onboarding')}
               className="shimmer px-10 py-4 rounded-xl gradient-gold text-white font-semibold font-body text-lg shadow-gold hover:opacity-90 transition-all"
             >
-              Start Your Journey
-            </button>
-            <button
-              onClick={() => navigate('/code')}
-              className="px-10 py-4 rounded-xl border border-primary-foreground/30 text-primary-foreground font-semibold font-body text-lg hover:bg-primary-foreground/10 transition-all"
-            >
-              I Have an Invite Code
+              🌱 Plant your family's first root — free
             </button>
           </div>
+          <button
+            onClick={() => navigate('/code')}
+            className="mt-4 text-sm text-primary-foreground/40 hover:text-primary-foreground/70 transition-colors font-body"
+          >
+            Have an invite code? →
+          </button>
         </div>
       </section>
 

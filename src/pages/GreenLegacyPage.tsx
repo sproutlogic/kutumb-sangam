@@ -7,7 +7,7 @@
 
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { TreePine, Leaf, Droplets, CheckCircle2, Share2, Loader2, ArrowLeft } from "lucide-react";
+import { TreePine, Leaf, Droplets, CheckCircle2, Share2, Loader2, ArrowLeft, Award } from "lucide-react";
 import AppShell from "@/components/shells/AppShell";
 import {
   fetchGreenLegacyProfile,
@@ -16,6 +16,19 @@ import {
   type GreenLegacyEvent,
 } from "@/services/api";
 import { toast } from "@/hooks/use-toast";
+
+function getPrakritiContext(score: number, location: string): string {
+  if (score >= 80) return `Top 10% families in ${location}`;
+  if (score >= 60) return `Higher than 70% of families in ${location}`;
+  if (score >= 40) return `Higher than 50% of families in ${location}`;
+  return `Growing fast — your forest is taking root`;
+}
+
+function getWhatsAppMessage(profile: GreenLegacyProfile, pageUrl: string): string {
+  const score = profile.prakriti_score.toFixed(0);
+  const context = getPrakritiContext(profile.prakriti_score, profile.location);
+  return `🌳 *${profile.family_name} की Prakriti Score: ${score}*\n\n${context}\n\n_"When the last elder goes, the whole forest falls."_\n\nHamara parivaar apni jaḍẽ mazboot kar raha hai — kya aap bhi apne parivaar ki Prakriti jaante hain?\n\n👉 ${pageUrl}\n\n*Prakriti* — India's Family Nature Score`;
+}
 
 const SOURCE_UI: Record<string, { icon: React.ReactNode; color: string; label: string }> = {
   eco_sewa: { icon: <Leaf className="w-3.5 h-3.5" />,       color: "text-green-600",   label: "Eco-Sewa" },
@@ -52,9 +65,15 @@ export default function GreenLegacyPage() {
     setTimelineLoading(false);
   }
 
-  function handleShare() {
+  function handleWhatsAppShare() {
+    if (!profile) return;
     const url = window.location.href;
-    navigator.clipboard.writeText(url).then(() => {
+    const message = getWhatsAppMessage(profile, url);
+    window.open(`https://wa.me/?text=${encodeURIComponent(message)}`, '_blank');
+  }
+
+  function handleCopyLink() {
+    navigator.clipboard.writeText(window.location.href).then(() => {
       toast({ title: "🔗 लिंक कॉपी हो गया!", description: "इसे शेयर करें।" });
     });
   }
@@ -85,36 +104,68 @@ export default function GreenLegacyPage() {
   return (
     <AppShell>
       {/* Hero */}
-      <div className="relative bg-gradient-to-br from-green-800 to-emerald-700 text-white py-10 overflow-hidden">
+      <div className="relative bg-gradient-to-br from-green-900 via-green-800 to-emerald-700 text-white py-12 overflow-hidden">
         <div className="absolute inset-0 opacity-10">
           <div className="w-full h-full bg-[radial-gradient(circle_at_30%_50%,_rgba(255,255,255,0.3)_0%,_transparent_60%)]" />
         </div>
         <div className="container relative">
-          <div className="flex items-start justify-between gap-4 flex-wrap">
-            <div>
-              <button onClick={() => navigate(-1)} className="flex items-center gap-1 text-sm opacity-70 hover:opacity-100 mb-3">
-                <ArrowLeft className="w-4 h-4" /> वापस
-              </button>
-              <div className="flex items-center gap-3 mb-2">
-                <div className="w-14 h-14 rounded-2xl bg-white/20 flex items-center justify-center">
+          <button onClick={() => navigate(-1)} className="flex items-center gap-1 text-sm opacity-70 hover:opacity-100 mb-5">
+            <ArrowLeft className="w-4 h-4" /> वापस
+          </button>
+
+          <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-6">
+            {/* Left — identity + score */}
+            <div className="flex-1">
+              {/* Gotra Founder badge */}
+              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-400/20 border border-amber-400/40 text-amber-300 text-xs font-semibold mb-4">
+                <Award className="w-3.5 h-3.5" />
+                Founding Family · Prakriti
+              </div>
+
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-14 h-14 rounded-2xl bg-white/20 flex items-center justify-center flex-shrink-0">
                   <TreePine className="w-8 h-8" />
                 </div>
                 <div>
-                  <h1 className="font-heading text-2xl font-bold">{profile.family_name}</h1>
-                  <p className="text-sm opacity-80">📍 {profile.location} · {profile.member_count} सदस्य</p>
+                  <h1 className="font-heading text-2xl md:text-3xl font-bold">{profile.family_name}</h1>
+                  <p className="text-sm opacity-75">📍 {profile.location} · {profile.member_count} सदस्य</p>
                 </div>
               </div>
-              <div className="text-5xl font-black mt-4">{profile.green_legacy_score.toFixed(0)}</div>
-              <div className="text-sm opacity-80">Green Legacy Score</div>
+
+              {/* Prakriti Score — hero number */}
+              <div className="mb-1">
+                <span className="text-6xl font-black">{profile.prakriti_score.toFixed(0)}</span>
+                <span className="text-xl opacity-60 ml-2">/100</span>
+              </div>
+              <div className="text-sm font-semibold text-amber-300 mb-1">Prakriti Score</div>
+              <div className="text-xs opacity-70 mb-5">
+                🏆 {getPrakritiContext(profile.prakriti_score, profile.location)}
+              </div>
+
+              {/* Share buttons */}
+              <div className="flex flex-wrap gap-3">
+                <button
+                  onClick={handleWhatsAppShare}
+                  className="flex items-center gap-2 px-5 py-2.5 bg-[#25D366] hover:bg-[#1ebe5d] text-white rounded-xl text-sm font-semibold transition-colors shadow-lg"
+                >
+                  <Share2 className="w-4 h-4" />
+                  WhatsApp पर शेयर करें
+                </button>
+                <button
+                  onClick={handleCopyLink}
+                  className="flex items-center gap-2 px-4 py-2.5 bg-white/15 hover:bg-white/25 rounded-xl text-sm font-medium transition-colors"
+                >
+                  🔗 लिंक कॉपी करें
+                </button>
+              </div>
             </div>
 
-            <div className="flex flex-col gap-2">
-              <button
-                onClick={handleShare}
-                className="flex items-center gap-2 px-4 py-2 bg-white/20 hover:bg-white/30 rounded-xl text-sm font-medium transition-colors"
-              >
-                <Share2 className="w-4 h-4" /> शेयर करें
-              </button>
+            {/* Right — Banyan visual */}
+            <div className="hidden md:flex items-center justify-center opacity-20 w-40">
+              <svg viewBox="0 0 200 200" className="w-full" fill="currentColor">
+                <path d="M100 10 C90 30 70 50 50 80 C30 110 20 140 25 180 L175 180 C180 140 170 110 150 80 C130 50 110 30 100 10Z" />
+                <rect x="92" y="140" width="16" height="40" rx="4" />
+              </svg>
             </div>
           </div>
         </div>
