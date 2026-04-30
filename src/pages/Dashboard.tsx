@@ -11,7 +11,7 @@ import TreeCompletionScore from '@/components/ui/TreeCompletionScore';
 import ClanMilestone from '@/components/ui/ClanMilestone';
 import MilestoneCelebration from '@/components/ui/MilestoneCelebration';
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Users, Layers, Mail, TreePine, UserPlus, ShieldCheck, Clock, Search, Heart, Check, X, GitFork, ArrowUpCircle, BarChart3, Rocket, HandHeart, Leaf, UserCircle2, Loader2 } from 'lucide-react';
+import { Users, Layers, Mail, TreePine, UserPlus, ShieldCheck, Clock, Search, Heart, Check, X, GitFork, ArrowUpCircle, BarChart3, Rocket, HandHeart, Leaf, UserCircle2, Loader2, Share2, Flame, TrendingUp, Mic } from 'lucide-react';
 import { UPCOMING_SERVICES } from '@/config/upcomingServices.config';
 import { JoinSEModal } from '@/components/sales/JoinSEModal';
 import { EarningsWallet } from '@/components/sales/EarningsWallet';
@@ -32,6 +32,10 @@ const Dashboard = () => {
 
   const [prakritiScore, setPrakritiScore] = useState<PrakritiScore | null>(null);
   const [familyRank, setFamilyRank] = useState<FamilyRank | null>(null);
+  // Streak: read from localStorage until backend endpoint is wired
+  const streakDays = (() => {
+    try { return parseInt(localStorage.getItem('prakriti_streak') ?? '0', 10) || 0; } catch { return 0; }
+  })();
   useEffect(() => {
     const vid = resolveVanshaIdForApi(null);
     if (!vid) {
@@ -113,35 +117,33 @@ const Dashboard = () => {
 
   return (
     <AppShell>
-      {/* Hero Banner */}
-      <div className="relative gradient-hero text-primary-foreground py-10 overflow-hidden">
-        {/* Subtle radial glow in top-left */}
+      {/* Header Bar */}
+      <div className="relative gradient-hero text-primary-foreground py-8 overflow-hidden">
         <div className="absolute inset-0 pointer-events-none" style={{ backgroundImage: 'radial-gradient(circle at 20% 50%, rgba(255,255,255,0.06) 0%, transparent 55%)' }} />
         <div className="container relative">
-          <div className="flex items-center justify-between flex-wrap gap-4">
+          <div className="flex items-center justify-between flex-wrap gap-3">
             <div>
-              <p className="text-xs tracking-[0.2em] uppercase opacity-60 font-body mb-1">{tr('haritVanshavali')}</p>
-              {/* Greet by onboarding form name, fallback to Gmail name */}
               {(profileNodeName || appUser?.full_name) && (
-                <p className="text-sm opacity-75 font-body mb-0.5">
-                  नमस्ते, {profileNodeName || appUser?.full_name} 🌿
-                </p>
+                <p className="text-sm opacity-75 font-body mb-0.5">नमस्ते, {profileNodeName || appUser?.full_name} 🌿</p>
               )}
-              <h1 className="font-heading text-3xl font-bold mb-0">{tr('dashboardTitle')}</h1>
+              <h1 className="font-heading text-2xl font-bold mb-0">
+                {familyName ? `${familyName} Parivar` : tr('dashboardTitle')}
+              </h1>
               {appUser?.kutumb_id && (
-                <p className="text-[11px] opacity-60 font-body mt-0.5 tracking-wide font-mono">
-                  Kutumb ID: {appUser.kutumb_id}
-                </p>
+                <p className="text-[10px] opacity-50 font-body mt-0.5 font-mono">ID: {appUser.kutumb_id}</p>
               )}
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
+              {/* Streak counter */}
+              <span className="flex items-center gap-1 text-xs px-3 py-1.5 rounded-full bg-orange-500/80 text-white font-semibold font-body">
+                <Flame className="w-3.5 h-3.5" /> {streakDays}-day streak
+              </span>
               <span className="text-xs px-3 py-1.5 rounded-full bg-primary-foreground/10 border border-primary-foreground/25 text-primary-foreground font-semibold font-body backdrop-blur-sm">
                 ✦ {tr(plan.nameKey as any)}
               </span>
             </div>
           </div>
         </div>
-        {/* Gold shimmer line at bottom */}
         <div className="absolute inset-x-0 bottom-0 gold-line opacity-60" />
       </div>
 
@@ -234,67 +236,119 @@ const Dashboard = () => {
           );
         })()}
 
-        {/* Stats + Trust Score Row */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-          {stats.map((s, i) => (
-            <div key={i} className={`rounded-xl p-5 shadow-card border text-center animate-fade-in ${'eco' in s && s.eco ? 'bg-emerald-50 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-800' : 'bg-card border-border/50'}`} style={{ animationDelay: `${i * 80}ms` }}>
-              <s.icon className={`w-6 h-6 mx-auto mb-2 ${'eco' in s && s.eco ? 'text-emerald-600' : 'text-primary'}`} />
-              <p className={`text-2xl font-bold font-heading ${'eco' in s && s.eco ? 'text-emerald-900 dark:text-white' : ''}`}>{s.value}</p>
-              <p className={`text-sm font-body ${'eco' in s && s.eco ? 'text-emerald-900 dark:text-emerald-300 font-semibold' : 'text-muted-foreground'}`}>{s.label}</p>
+        {/* ── Pinned Score Card ── */}
+        <div className="bg-card rounded-2xl shadow-elevated border border-border/50 overflow-hidden animate-fade-in">
+          <div className="gradient-hero text-primary-foreground p-5">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-xs font-body tracking-[0.2em] uppercase opacity-70 mb-1">Prakriti Score</p>
+                <div className="flex items-end gap-3">
+                  <span className="font-heading text-5xl font-bold">{prakritiScore?.score ?? '—'}</span>
+                  {familyRank?.rank != null && (
+                    <span className="text-sm font-body opacity-80 mb-1 flex items-center gap-1">
+                      <TrendingUp className="w-3.5 h-3.5" /> ▲ this week
+                    </span>
+                  )}
+                </div>
+                {familyRank && (
+                  <p className="text-sm font-body opacity-80 mt-1">
+                    Higher than {familyRank.top_percentile}% of families ·{' '}
+                    <button onClick={() => navigate('/leaderboard')} className="underline underline-offset-2 hover:opacity-100">
+                      #{familyRank.rank} in India
+                    </button>
+                  </p>
+                )}
+              </div>
+              <button
+                onClick={() => {
+                  const url = appUser?.vansha_id ? `${window.location.origin}/green-legacy/${appUser.vansha_id}` : window.location.origin;
+                  if (navigator.share) {
+                    navigator.share({ title: 'My family\'s Prakriti Score', url }).catch(() => {});
+                  } else {
+                    navigator.clipboard.writeText(url).then(() => {}).catch(() => {});
+                  }
+                }}
+                className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-primary-foreground/15 hover:bg-primary-foreground/25 text-primary-foreground text-xs font-semibold font-body transition-colors flex-shrink-0"
+              >
+                <Share2 className="w-3.5 h-3.5" /> Share
+              </button>
             </div>
-          ))}
-          <div className="bg-card rounded-xl p-5 shadow-card border border-border/50 flex items-center justify-center animate-fade-in" style={{ animationDelay: '240ms' }}>
-            <TrustBadge variant="trust-score" score={trustScore} compact />
           </div>
-        </div>
-
-        {/* Prakriti rank link */}
-        {familyRank?.rank != null && (
-          <button
-            onClick={() => navigate('/leaderboard')}
-            className="w-full text-center text-sm text-emerald-700 dark:text-emerald-300 hover:text-emerald-900 dark:hover:text-white transition-colors -mt-2"
-          >
-            🌳 Your family ranks <span className="font-bold">#{familyRank.rank}</span> in India — See full leaderboard →
-          </button>
-        )}
-
-        {/* Tree Completion + Actions Row */}
-        <div className="grid sm:grid-cols-2 gap-4">
-          <div className="bg-card rounded-xl p-5 shadow-card border border-border/50 animate-fade-in">
+          {/* Completeness gap */}
+          <div className="px-5 py-3 bg-secondary/30 border-t border-border/40">
             <TreeCompletionScore membersUsed={membersUsed} maxNodes={plan.maxNodes} generationsUsed={generationsUsed} generationCap={plan.generationCap} size="sm" />
           </div>
-          <div className="grid grid-cols-3 gap-3">
-            <button onClick={() => navigate('/tree')} className="flex flex-col items-center gap-2 bg-card rounded-xl p-4 shadow-card border border-border/50 hover:shadow-elevated transition-all hover:-translate-y-0.5 text-center animate-fade-in">
-              <div className="w-10 h-10 rounded-lg gradient-hero flex items-center justify-center">
-                <TreePine className="w-5 h-5 text-primary-foreground" />
-              </div>
-              <p className="text-sm font-semibold font-body">{tr('viewTree')}</p>
-            </button>
+        </div>
+
+        {/* ── Daily Pulse — Today's Action ── */}
+        <div className="bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 rounded-xl p-4 flex items-center gap-4 animate-fade-in">
+          <div className="w-10 h-10 rounded-xl bg-emerald-600 flex items-center justify-center flex-shrink-0">
+            <Leaf className="w-5 h-5 text-white" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-xs font-body text-emerald-700 dark:text-emerald-300 uppercase tracking-wider mb-0.5">Today's eco-action</p>
+            <p className="font-semibold font-body text-sm text-emerald-900 dark:text-white">Water a tree today → <span className="text-emerald-600">+5 Prakriti</span></p>
+          </div>
+          <button
+            onClick={() => navigate('/eco-sewa')}
+            className="flex-shrink-0 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold font-body text-sm transition-colors"
+          >
+            Log it →
+          </button>
+        </div>
+
+        {/* ── Alert Strip — contextual, max 1 ── */}
+        {state.nodes.length > 0 && (
+          <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-xl px-4 py-3 flex items-center gap-3 animate-fade-in">
+            <span className="text-xl flex-shrink-0">🪔</span>
+            <p className="text-sm font-body text-amber-900 dark:text-amber-200 flex-1">
+              {prakritiScore && prakritiScore.score < 30
+                ? `Your tree has no voice recordings yet. Elders won't wait.`
+                : `Your family's Prakriti is growing — keep the streak alive.`}
+            </p>
             <button
-              onClick={() => {
-                const v = resolveVanshaIdForApi(null);
-                navigate(v ? `/node?vansha_id=${encodeURIComponent(v)}` : '/node');
-              }}
-              className="flex flex-col items-center gap-2 bg-card rounded-xl p-4 shadow-card border border-border/50 hover:shadow-elevated transition-all hover:-translate-y-0.5 text-center animate-fade-in"
+              onClick={() => navigate('/legacy-box')}
+              className="flex-shrink-0 text-xs font-semibold font-body text-amber-700 dark:text-amber-300 hover:underline whitespace-nowrap"
+            >
+              Record now →
+            </button>
+          </div>
+        )}
+
+        {/* ── Quick Actions Row — 4 icons ── */}
+        <div className="grid grid-cols-4 gap-3">
+          {[
+            { icon: TreePine, label: 'View Tree', onClick: () => navigate('/tree') },
+            { icon: UserPlus, label: 'Add Member', onClick: () => { const v = resolveVanshaIdForApi(null); navigate(v ? `/node?vansha_id=${encodeURIComponent(v)}` : '/node'); } },
+            { icon: Leaf, label: 'Log Eco-Sewa', onClick: () => navigate('/eco-sewa') },
+            { icon: Mic, label: 'Record Elder', onClick: () => navigate('/legacy-box') },
+          ].map(({ icon: Icon, label, onClick }, i) => (
+            <button
+              key={label}
+              onClick={onClick}
+              className="flex flex-col items-center gap-2 bg-card rounded-xl p-3 shadow-card border border-border/50 hover:shadow-elevated transition-all hover:-translate-y-0.5 text-center animate-fade-in"
+              style={{ animationDelay: `${i * 60}ms` }}
             >
               <div className="w-10 h-10 rounded-lg gradient-hero flex items-center justify-center">
-                <UserPlus className="w-5 h-5 text-primary-foreground" />
+                <Icon className="w-5 h-5 text-primary-foreground" />
               </div>
-              <p className="text-sm font-semibold font-body">{tr('addMember')}</p>
+              <p className="text-xs font-semibold font-body leading-tight">{label}</p>
             </button>
-            {isSalesMember && (
-              <button
-                onClick={() => navigate('/sales')}
-                className="flex flex-col items-center gap-2 bg-card rounded-xl p-4 shadow-card border border-border/50 hover:shadow-elevated transition-all hover:-translate-y-0.5 text-center animate-fade-in"
-              >
-                <div className="w-10 h-10 rounded-lg gradient-hero flex items-center justify-center">
-                  <BarChart3 className="w-5 h-5 text-primary-foreground" />
-                </div>
-                <p className="text-sm font-semibold font-body">Sales</p>
-              </button>
-            )}
-          </div>
+          ))}
         </div>
+
+        {/* Sales quick-access (role-gated) */}
+        {isSalesMember && (
+          <button
+            onClick={() => navigate('/sales')}
+            className="flex items-center gap-3 bg-card rounded-xl px-4 py-3 shadow-card border border-border/50 hover:shadow-elevated transition-all w-full text-left"
+          >
+            <div className="w-9 h-9 rounded-lg gradient-hero flex items-center justify-center flex-shrink-0">
+              <BarChart3 className="w-4 h-4 text-primary-foreground" />
+            </div>
+            <p className="text-sm font-semibold font-body">Sales Dashboard →</p>
+          </button>
+        )}
 
         {/* Pending Actions */}
         {state.pendingActions.filter(a => a.status === 'pending').length > 0 && (
