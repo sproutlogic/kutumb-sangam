@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useLang } from '@/i18n/LanguageContext';
 import { useTree } from '@/contexts/TreeContext';
 import { useAuth } from '@/contexts/AuthContext';
@@ -109,6 +109,7 @@ const Onboarding = () => {
   const { loadTreeState } = useTree();
   const { session, appUser, refreshAppUser } = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
 
   // Skip onboarding only when profile is actually linked to a vansha/tree.
   // If onboarding flag is true but vansha_id is missing, allow user to fill form.
@@ -120,7 +121,10 @@ const Onboarding = () => {
 
   // Step 0 = auth (shown only when no session); steps 1-3 = form
   const [step, setStep] = useState(session ? 1 : 0);
-  const [form, setForm] = useState(() => defaultForm());
+  const [form, setForm] = useState(() => {
+    const pre = searchParams.get('surname') ?? '';
+    return { ...defaultForm(), surname: pre };
+  });
   const [creating, setCreating] = useState(false);
 
   // Auth step state
