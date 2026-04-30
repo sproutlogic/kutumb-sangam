@@ -9,7 +9,8 @@ import LockedBanner from '@/components/states/LockedBanner';
 import TrustBadge from '@/components/ui/TrustBadge';
 import TreeCompletionScore from '@/components/ui/TreeCompletionScore';
 import ClanMilestone from '@/components/ui/ClanMilestone';
-import { useState, useEffect, useRef } from 'react';
+import MilestoneCelebration from '@/components/ui/MilestoneCelebration';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { Users, Layers, Mail, TreePine, UserPlus, ShieldCheck, Clock, Search, Heart, Check, X, GitFork, ArrowUpCircle, BarChart3, Rocket, HandHeart, Leaf, UserCircle2, Loader2 } from 'lucide-react';
 import { UPCOMING_SERVICES } from '@/config/upcomingServices.config';
 import { JoinSEModal } from '@/components/sales/JoinSEModal';
@@ -68,6 +69,22 @@ const Dashboard = () => {
     { key: 'panditVerified' as const, earned: false },
     { key: 'fiftyMembers' as const, earned: membersUsed >= 50 },
   ];
+
+  const [celebrationMilestone, setCelebrationMilestone] = useState<typeof milestones[0]['key'] | null>(null);
+
+  useEffect(() => {
+    if (!appUser?.vansha_id) return;
+    const storageKey = `prakriti_celebrated_${appUser.vansha_id}`;
+    const celebrated: string[] = JSON.parse(localStorage.getItem(storageKey) ?? '[]');
+    const newlyEarned = milestones.find(m => m.earned && !celebrated.includes(m.key));
+    if (!newlyEarned) return;
+    setCelebrationMilestone(newlyEarned.key);
+    localStorage.setItem(storageKey, JSON.stringify([...celebrated, newlyEarned.key]));
+  }, [membersUsed, generationsUsed, appUser?.vansha_id]);
+
+  const dismissCelebration = useCallback(() => setCelebrationMilestone(null), []);
+
+  const familyName = appUser?.family_name ?? appUser?.full_name?.split(' ').slice(-1)[0] ?? 'Aapka';
 
   // Format time ago
   const timeAgo = (timestamp: number) => {
@@ -503,6 +520,15 @@ const Dashboard = () => {
       </div>
 
       {showJoinSE && <JoinSEModal onClose={closeJoinSE} />}
+
+      {celebrationMilestone && (
+        <MilestoneCelebration
+          familyName={familyName}
+          milestoneKey={celebrationMilestone}
+          onDismiss={dismissCelebration}
+          shareUrl={appUser?.vansha_id ? `${window.location.origin}/green-legacy/${appUser.vansha_id}` : undefined}
+        />
+      )}
     </AppShell>
   );
 };
