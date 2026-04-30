@@ -1,5 +1,5 @@
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { resolveVanshaIdForApi, fetchPrakritiScore, type PrakritiScore, fetchPanchangCalendar, type PanchangCalendarRow } from '@/services/api';
+import { resolveVanshaIdForApi, fetchPrakritiScore, type PrakritiScore, fetchFamilyRank, type FamilyRank, fetchPanchangCalendar, type PanchangCalendarRow } from '@/services/api';
 import { mergeTithiWithFallback, type Paksha } from '@/lib/tithiFallback';
 import { useLang } from '@/i18n/LanguageContext';
 import { usePlan } from '@/contexts/PlanContext';
@@ -31,13 +31,16 @@ const Dashboard = () => {
   const isSalesMember = appUser ? SALES_ROLES.has(appUser.role) : false;
 
   const [prakritiScore, setPrakritiScore] = useState<PrakritiScore | null>(null);
+  const [familyRank, setFamilyRank] = useState<FamilyRank | null>(null);
   useEffect(() => {
     const vid = resolveVanshaIdForApi(null);
     if (!vid) {
       setPrakritiScore(null);
+      setFamilyRank(null);
       return;
     }
     fetchPrakritiScore(vid).then(setPrakritiScore).catch(() => setPrakritiScore(null));
+    fetchFamilyRank(vid).then(setFamilyRank).catch(() => setFamilyRank(null));
   }, [state.nodes.length, appUser?.vansha_id]);
 
   useEffect(() => {
@@ -244,6 +247,16 @@ const Dashboard = () => {
             <TrustBadge variant="trust-score" score={trustScore} compact />
           </div>
         </div>
+
+        {/* Prakriti rank link */}
+        {familyRank?.rank != null && (
+          <button
+            onClick={() => navigate('/leaderboard')}
+            className="w-full text-center text-sm text-emerald-700 dark:text-emerald-300 hover:text-emerald-900 dark:hover:text-white transition-colors -mt-2"
+          >
+            🌳 Your family ranks <span className="font-bold">#{familyRank.rank}</span> in India — See full leaderboard →
+          </button>
+        )}
 
         {/* Tree Completion + Actions Row */}
         <div className="grid sm:grid-cols-2 gap-4">

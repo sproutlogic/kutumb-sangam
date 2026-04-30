@@ -52,6 +52,7 @@ import EcoSewaPage from "@/pages/EcoSewaPage";
 import EcoServicesPage from "@/pages/EcoServicesPage";
 import ServiceOrderDetailPage from "@/pages/ServiceOrderDetailPage";
 import GreenLegacyPage from "@/pages/GreenLegacyPage";
+import LeaderboardPage from "@/pages/LeaderboardPage";
 import VendorPortalPage from "@/pages/VendorPortalPage";
 import ContentQueuePage from "@/pages/ContentQueuePage";
 
@@ -125,9 +126,10 @@ const App = () => (
                     {/* Margdarshak KYC is public so Margdarshaks can register */}
                     <Route path="/margdarshak-kyc" element={<PanditKycPage />} />
 
-                    {/* ── Eco-Panchang (public, no auth required) ── */}
+                    {/* ── Eco-Panchang & Prakriti (public, no auth required) ── */}
                     <Route path="/eco-panchang" element={<EcoPanchangPage />} />
                     <Route path="/green-legacy/:vanshaId" element={<GreenLegacyPage />} />
+                    <Route path="/leaderboard" element={<LeaderboardPage />} />
                     <Route path="/services" element={<EcoServicesPage />} />
 
                     {/* ── Eco-Sewa & Service Orders (authenticated) ── */}

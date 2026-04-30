@@ -48,35 +48,25 @@ We are building **Prakriti** (by Aarush Eco Tech Pvt Ltd, Kanpur) — India's Fa
 
 ## What Remains (Batches 4–6)
 
-### BATCH 4 — Leaderboard (Next to build)
-**Goal:** Public Prakriti Score leaderboard — no login needed, filterable by state/district, links from dashboard.
-
-**Tasks:**
-- [ ] Create `src/pages/LeaderboardPage.tsx` — new public page at `/leaderboard`
-- [ ] Show top families ranked by Prakriti Score
-- [ ] Filter by state / district (dropdown)
-- [ ] Each row: family name, location, score, member count
-- [ ] "Your family ranks #342 in UP" link from Dashboard score card
-- [ ] Add route in `src/App.tsx` (or wherever routes are defined — check first)
-- [ ] No login required to view
-- [ ] Check API: `GET /api/leaderboard` or similar — if not exists, use `fetchGreenLegacyProfile` as fallback with static seed data for launch
-
-**Check these files first:**
-- `src/App.tsx` — routing
-- `src/services/api.ts` — search for "leaderboard" to see if endpoint exists
-- `backend/routers/` — check if leaderboard API is built
+### BATCH 4 — Leaderboard ✅
+- `backend/routers/prakriti.py` — added `GET /api/prakriti/leaderboard` (top families, location filter) and `GET /api/prakriti/leaderboard/rank/{vansha_id}` (family rank + percentile)
+- `src/services/api.ts` — added `LeaderboardEntry`, `FamilyRank` types + `fetchLeaderboard()`, `fetchFamilyRank()`
+- `src/pages/LeaderboardPage.tsx` — NEW public page at `/leaderboard`: top-3 podium, full ranked list, location filter input, quick-select chips, CTA
+- `src/App.tsx` — added public `/leaderboard` route
+- `src/pages/Dashboard.tsx` — fetches family rank, shows "Your family ranks #X in India → See full leaderboard" link below stats
 
 ---
 
-### BATCH 5 — Elder Portrait / Shareable Tree (45 min)
-**Goal:** Beautiful "Family Portrait" view on GreenLegacyPage — printable, WhatsApp shareable.
-
-**Tasks:**
-- [ ] Add a "Family Portrait" tab or section to `src/pages/GreenLegacyPage.tsx`
-- [ ] Show root elder (most senior ancestor node) as largest/most prominent
-- [ ] Show member count, generation count, score
-- [ ] Print button (window.print() with print-specific CSS)
-- [ ] Shareable caption: "Meet the [Sharma] family — 6 generations, 42 members"
+### BATCH 5 — Elder Portrait / Shareable Tree ✅
+- `backend/routers/green_legacy.py` — made `GET /api/green-legacy/{vansha_id}/generations` public (no auth); removed unused `Depends`/`get_current_user`
+- `src/services/api.ts` — added proper `GenerationMember`, `GenerationRow`, `GreenLegacyGenerations` types; updated `fetchGreenLegacyGenerations` return type
+- `src/pages/GreenLegacyPage.tsx` — added "Family Portrait" tab alongside "Timeline":
+  - Root elder name + birth year shown as most prominent element
+  - Stats row: generation count · member count · Prakriti Score (amber)
+  - Eco highlights: trees, sewa acts, pledges
+  - Print button: `window.print()` with `@media print` CSS that isolates the portrait card full-screen
+  - WhatsApp share: "Meet the [X] family — N generations · M members · Score Z"
+  - Generations data lazy-loaded on first portrait tab open (only one fetch ever)
 
 ---
 

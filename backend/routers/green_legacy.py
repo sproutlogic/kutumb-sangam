@@ -11,7 +11,7 @@ from __future__ import annotations
 import logging
 from typing import Any, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from constants import (
@@ -25,7 +25,6 @@ from constants import (
     VERIFIED_ECO_ACTIONS_TABLE,
 )
 from db import get_supabase
-from middleware.auth import get_current_user
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/green-legacy", tags=["green-legacy"])
@@ -239,13 +238,10 @@ def get_timeline(
 
 
 @router.get("/{vansha_id}/generations")
-def get_generations(
-    vansha_id: str,
-    current_user: dict[str, Any] = Depends(get_current_user),
-) -> dict[str, Any]:
+def get_generations(vansha_id: str) -> dict[str, Any]:
     """
-    Generational rollup — groups family members by generation and shows
-    their individual eco contributions. Requires authentication.
+    Generational rollup — groups family members by generation.
+    Public: used by the Family Portrait shareable view.
     """
     sb = get_supabase()
 

@@ -543,6 +543,51 @@ export async function fetchPrakritiScore(vansha_id: string): Promise<PrakritiSco
   }
 }
 
+// ── Leaderboard ───────────────────────────────────────────────────────────────
+
+export interface LeaderboardEntry {
+  rank: number;
+  vansha_id: string;
+  family_name: string;
+  location: string;
+  score: number;
+  member_count: number;
+}
+
+export interface FamilyRank {
+  vansha_id: string;
+  rank: number | null;
+  score: number;
+  location: string;
+  total_families: number;
+  top_percentile: number;
+}
+
+export async function fetchLeaderboard(location?: string, limit = 50, offset = 0): Promise<LeaderboardEntry[]> {
+  try {
+    const params = new URLSearchParams({ limit: String(limit), offset: String(offset) });
+    if (location) params.set("location", location);
+    const res = await fetchApi(`${getApiBaseUrl()}/api/prakriti/leaderboard?${params.toString()}`, {
+      headers: { Accept: "application/json" },
+    });
+    return (await parseJsonOrThrow(res)) as LeaderboardEntry[];
+  } catch {
+    return [];
+  }
+}
+
+export async function fetchFamilyRank(vansha_id: string): Promise<FamilyRank | null> {
+  try {
+    const res = await fetchApi(
+      `${getApiBaseUrl()}/api/prakriti/leaderboard/rank/${encodeURIComponent(vansha_id)}`,
+      { headers: { Accept: "application/json" } },
+    );
+    return (await parseJsonOrThrow(res)) as FamilyRank;
+  } catch {
+    return null;
+  }
+}
+
 /** Persist Pandit verification request for a member node. */
 export async function requestPanditVerification(params: {
   vansha_id?: string | null;
@@ -1111,15 +1156,37 @@ export async function fetchGreenLegacyTimeline(
   }
 }
 
+export interface GenerationMember {
+  node_id: string | null;
+  name: string;
+  gender: string | null;
+  birth_year: number | null;
+  location: string | null;
+}
+
+export interface GenerationRow {
+  generation: number;
+  label: string;
+  member_count: number;
+  members: GenerationMember[];
+  sewa_score: number;
+}
+
+export interface GreenLegacyGenerations {
+  vansha_id: string;
+  total_members: number;
+  generations: GenerationRow[];
+}
+
 export async function fetchGreenLegacyGenerations(
   vansha_id: string,
-): Promise<Record<string, unknown> | null> {
+): Promise<GreenLegacyGenerations | null> {
   try {
     const res = await fetchApi(
       `${getApiBaseUrl()}/api/green-legacy/${encodeURIComponent(vansha_id)}/generations`,
       { headers: { Accept: "application/json" } },
     );
-    return (await parseJsonOrThrow(res)) as Record<string, unknown>;
+    return (await parseJsonOrThrow(res)) as GreenLegacyGenerations;
   } catch {
     return null;
   }

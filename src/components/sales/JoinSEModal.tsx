@@ -2,6 +2,7 @@ import { useState, useRef } from 'react';
 import { X, ChevronRight, ChevronLeft, ShieldCheck, Banknote, Users, CheckCircle2, AlertTriangle } from 'lucide-react';
 import { getApiBaseUrl } from '@/services/api';
 import { useLang } from '@/i18n/LanguageContext';
+import { useAuth } from '@/contexts/AuthContext';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -58,6 +59,7 @@ function validateAccountNo(v: string): boolean {
 
 export function JoinSEModal({ onClose }: Props) {
   const { tr } = useLang();
+  const { session } = useAuth();
   const [step, setStep] = useState<Step>('intro');
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
   const [aadhaarFocused, setAadhaarFocused] = useState(false);
@@ -104,11 +106,23 @@ export function JoinSEModal({ onClose }: Props) {
     const aadhaarDigits = form.aadhaarRaw.replace(/\D/g, '');
 
     try {
-      const keys = Object.keys(localStorage).filter(k => k.endsWith('-auth-token'));
-      let token = '';
-      for (const k of keys) {
-        const raw = localStorage.getItem(k);
-        if (raw) { const p = JSON.parse(raw); if (p?.access_token) { token = p.access_token; break; } }
+      // Prefer in-memory session token; fallback to storage scan for compatibility.
+      let token = session?.access_token ?? '';
+      if (!token) {
+        const keys = Object.keys(localStorage).filter(k => k.endsWith('-auth-token'));
+        for (const k of keys) {
+          const raw = localStorage.getItem(k);
+          if (!raw) continue;
+          try {
+            const parsed = JSON.parse(raw);
+            if (parsed?.access_token) {
+              token = parsed.access_token;
+              break;
+            }
+          } catch {
+            // Ignore malformed localStorage entries and continue.
+          }
+        }
       }
 
       const res = await fetch(`${getApiBaseUrl()}/api/sales/apply-se`, {
@@ -129,7 +143,15 @@ export function JoinSEModal({ onClose }: Props) {
         }),
       });
 
-      const data = await res.json();
+      const text = await res.text();
+      let data: { detail?: string } | null = null;
+      if (text) {
+        try {
+          data = JSON.parse(text) as { detail?: string };
+        } catch {
+          data = null;
+        }
+      }
       if (!res.ok) {
         setError(data?.detail ?? tr('seSubmitError'));
         return;

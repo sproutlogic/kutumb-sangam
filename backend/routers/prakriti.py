@@ -2,10 +2,12 @@
 Prakriti — green-cover layer APIs.
 Aligns platform with MOA Objects 2, 3, 5, 6, 10, 11.
 
-GET  /api/prakriti/score/{vansha_id}     — family Prakriti Score card
-POST /api/prakriti/ceremony              — log an eco-ceremony (Paryavaran Mitra only)
-GET  /api/prakriti/circles               — list Harit Circles (public)
-POST /api/prakriti/circles               — create a Harit Circle (Paryavaran Mitra only)
+GET  /api/prakriti/score/{vansha_id}         — family Prakriti Score card
+GET  /api/prakriti/leaderboard               — public top-families leaderboard (no auth)
+GET  /api/prakriti/leaderboard/rank/{id}     — a family's rank on the leaderboard (no auth)
+POST /api/prakriti/ceremony                  — log an eco-ceremony (Paryavaran Mitra only)
+GET  /api/prakriti/circles                   — list Harit Circles (public)
+POST /api/prakriti/circles                   — create a Harit Circle (Paryavaran Mitra only)
 """
 
 from __future__ import annotations
@@ -14,13 +16,14 @@ import logging
 import uuid
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 
 from constants import (
     ECO_CEREMONIES_TABLE,
     ECO_CEREMONY_PRICES,
     HARIT_CIRCLES_TABLE,
+    PERSONS_TABLE,
     PLATFORM_FEE_PCT,
     PRAKRITI_SCORES_TABLE,
     SAMAY_REQUESTS_TABLE,
@@ -92,6 +95,129 @@ def get_prakriti_score(vansha_id: str) -> dict[str, Any]:
         "eco_hours": round(eco_hours, 2),
         "pledges_completed": pledges,
         "score": score,
+    }
+
+
+@router.get("/leaderboard")
+def get_leaderboard(
+    location: str | None = Query(default=None, description="Filter by location (case-insensitive substring)"),
+    limit: int = Query(default=50, le=100),
+    offset: int = Query(default=0, ge=0),
+) -> list[dict[str, Any]]:
+    """Public leaderboard — top families by Prakriti Score. No auth required."""
+    sb = get_supabase()
+
+    scores_res = (
+        sb.table(PRAKRITI_SCORES_TABLE)
+        .select("vansha_id, score, trees_planted, eco_hours, pledges_completed")
+        .order("score", desc=True)
+        .limit(500)
+        .execute()
+    )
+    scores = scores_res.data or []
+    if not scores:
+        return []
+
+    vansha_ids = [r["vansha_id"] for r in scores]
+    persons_res = (
+        sb.table(PERSONS_TABLE)
+        .select("vansha_id, last_name, current_residence, node_id")
+        .in_("vansha_id", vansha_ids)
+        .execute()
+    )
+    persons = persons_res.data or []
+
+    by_vansha: dict[str, dict] = {}
+    for p in persons:
+        vid = p["vansha_id"]
+        if vid not in by_vansha:
+            by_vansha[vid] = {"names": [], "locations": [], "nodes": set()}
+        if p.get("last_name"):
+            by_vansha[vid]["names"].append(p["last_name"])
+        if p.get("current_residence"):
+            by_vansha[vid]["locations"].append(p["current_residence"])
+        if p.get("node_id"):
+            by_vansha[vid]["nodes"].add(p["node_id"])
+
+    rows: list[dict[str, Any]] = []
+    global_rank = 0
+    for s in scores:
+        global_rank += 1
+        vid = s["vansha_id"]
+        info = by_vansha.get(vid, {"names": [], "locations": [], "nodes": set()})
+        names = info["names"]
+        locs = info["locations"]
+        family_name = (max(set(names), key=names.count) + " Parivar") if names else "Harit Parivar"
+        location_str = max(set(locs), key=locs.count) if locs else "Bharat"
+
+        if location and location.lower() not in location_str.lower():
+            global_rank -= 1  # filtered out, don't count in rank
+            continue
+
+        rows.append({
+            "rank": len(rows) + 1 if location else global_rank,
+            "vansha_id": vid,
+            "family_name": family_name,
+            "location": location_str,
+            "score": float(s["score"]),
+            "member_count": len(info["nodes"]),
+        })
+
+    return rows[offset: offset + limit]
+
+
+@router.get("/leaderboard/rank/{vansha_id}")
+def get_family_rank(vansha_id: str) -> dict[str, Any]:
+    """Return a family's global rank on the leaderboard. No auth required."""
+    sb = get_supabase()
+
+    my_res = (
+        sb.table(PRAKRITI_SCORES_TABLE)
+        .select("score")
+        .eq("vansha_id", vansha_id)
+        .limit(1)
+        .execute()
+    )
+    if not my_res.data:
+        return {"vansha_id": vansha_id, "rank": None, "score": 0.0, "location": "Bharat", "total_families": 0, "top_percentile": 0}
+
+    my_score = float(my_res.data[0]["score"])
+
+    higher_res = (
+        sb.table(PRAKRITI_SCORES_TABLE)
+        .select("vansha_id", count="exact")
+        .gt("score", my_score)
+        .execute()
+    )
+    higher_count = higher_res.count or 0
+
+    total_res = (
+        sb.table(PRAKRITI_SCORES_TABLE)
+        .select("vansha_id", count="exact")
+        .execute()
+    )
+    total = total_res.count or 1
+
+    persons_res = (
+        sb.table(PERSONS_TABLE)
+        .select("current_residence")
+        .eq("vansha_id", vansha_id)
+        .limit(50)
+        .execute()
+    )
+    locs = [p["current_residence"] for p in (persons_res.data or []) if p.get("current_residence")]
+    location = max(set(locs), key=locs.count) if locs else "Bharat"
+
+    rank = higher_count + 1
+    percentile = round((1 - rank / total) * 100) if total > 1 else 100
+
+    return {
+        "vansha_id": vansha_id,
+        "rank": rank,
+        "score": my_score,
+        "location": location,
+        "total_families": total,
+        "top_percentile": percentile,
     }
 
 
