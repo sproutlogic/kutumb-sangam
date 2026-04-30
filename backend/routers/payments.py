@@ -368,7 +368,7 @@ def create_order(body: CreateOrderBody, user: CurrentUser) -> dict[str, Any]:
     tax = calc_gst(base_paise, use_igst=body.use_igst)
 
     plan_name_map = {"ankur": "Ankur", "vriksh": "Vriksh", "vansh": "Vansh"}
-    description   = f"{plan_name_map.get(body.plan_id, body.plan_id)} Plan – Annual Subscription"
+    description   = f"Paryavaran Mitra Membership – {plan_name_map.get(body.plan_id, body.plan_id)}"
     if body.pre_launch:
         description += " (Pre-launch offer)"
 
@@ -424,7 +424,7 @@ def create_order(body: CreateOrderBody, user: CurrentUser) -> dict[str, Any]:
         "display_base":     format_inr(base_paise),
         "display_tax":      format_inr(tax["total_tax_paise"]),
         "display_total":    format_inr(base_paise + tax["total_tax_paise"]),
-        "gateway_ready":    False,   # flip to True once gateway is wired
+        "gateway_ready":    False,
         # TODO: GATEWAY — add key_id and gateway_order_id here
     }
 
