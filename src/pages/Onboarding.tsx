@@ -1,10 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { useLang } from '@/i18n/LanguageContext';
 import { useTree } from '@/contexts/TreeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { backendPayloadToTreeState } from '@/services/mapVanshaPayload';
-import { bootstrapOnboardingTree, getApiBaseUrl } from '@/services/api';
+import { bootstrapOnboardingTree, fetchPrakritiScore, getApiBaseUrl } from '@/services/api';
 import { toast } from '@/hooks/use-toast';
 import { supabase } from '@/lib/supabase';
 import { Loader2, Mail, ChevronDown, ChevronUp, CheckCircle2 } from 'lucide-react';
@@ -95,8 +94,10 @@ const defaultForm = () => ({
   givenName: '',
   middleName: '',
   surname: '',
+  gotra: '',
   dateOfBirth: '',
   ancestralPlace: '',
+  birthPlace: '',
   currentResidence: '',
   treeName: '',
   fatherName: '',
@@ -105,7 +106,6 @@ const defaultForm = () => ({
 });
 
 const Onboarding = () => {
-  const { tr } = useLang();
   const { loadTreeState } = useTree();
   const { session, appUser, refreshAppUser } = useAuth();
   const navigate = useNavigate();
@@ -126,6 +126,7 @@ const Onboarding = () => {
     return { ...defaultForm(), surname: pre };
   });
   const [creating, setCreating] = useState(false);
+  const [finalScore, setFinalScore] = useState<number | null>(null);
 
   // Auth step state
   const [showEmail, setShowEmail] = useState(false);
@@ -200,24 +201,22 @@ const Onboarding = () => {
   }, [form, step, draftReady]);
 
   // currentResidence is optional — deceased/elderly members may not have one
-  const identityComplete = [
-    form.givenName,
-    form.surname,
-    form.dateOfBirth,
-    form.ancestralPlace,
-  ].every((s) => String(s ?? '').trim().length > 0);
+  // Step 1 gate (no ancestralPlace yet — that's step 2)
+  const step1Complete = [form.givenName, form.surname, form.dateOfBirth].every(s => String(s ?? '').trim().length > 0);
+  // Full gate for create (step 3)
+  const identityComplete = step1Complete && String(form.ancestralPlace ?? '').trim().length > 0;
 
   const handleCreate = async () => {
     // Never use disabled + pointer-events-none on this button: users get zero feedback when validation fails.
     if (!identityComplete) {
       const missing: string[] = [];
-      if (!String(form.givenName ?? '').trim()) missing.push(tr('givenName'));
-      if (!String(form.surname ?? '').trim()) missing.push(tr('surname'));
-      if (!String(form.dateOfBirth ?? '').trim()) missing.push(tr('dateOfBirth'));
-      if (!String(form.ancestralPlace ?? '').trim()) missing.push(tr('ancestralPlace'));
+      if (!String(form.givenName ?? '').trim()) missing.push('Given Name');
+      if (!String(form.surname ?? '').trim()) missing.push('Surname');
+      if (!String(form.dateOfBirth ?? '').trim()) missing.push('Date of Birth');
+      if (!String(form.ancestralPlace ?? '').trim()) missing.push('Ancestral Place');
       toast({
-        title: tr('onboardMissingFieldsTitle'),
-        description: `${tr('onboardMissingFieldsDesc')}: ${missing.join(', ')}`,
+        title: 'Please fill in required fields',
+        description: `Missing: ${missing.join(', ')}`,
         variant: 'destructive',
       });
       return;
@@ -230,10 +229,10 @@ const Onboarding = () => {
       } catch {
         /* ignore */
       }
-      const treeName = form.treeName.trim() || `${form.givenName.trim()}'s Family`;
+      const treeName = form.treeName.trim() || `${form.surname.trim()} Parivar`;
       const payload = await bootstrapOnboardingTree({
         tree_name: treeName,
-        gotra: '',
+        gotra: form.gotra.trim(),
         father_name: form.fatherName.trim(),
         mother_name: form.motherName.trim(),
         spouse_name: form.spouseName.trim(),
@@ -272,12 +271,14 @@ const Onboarding = () => {
         /* non-fatal — user can still proceed; flag will be set on next session sync */
       }
 
-      // Onboarding complete — land on Eco-Sewa (the app home).
-      navigate('/dashboard', { replace: true });
+      // Fetch score for the aha moment, then show step 4
+      const scoreData = await fetchPrakritiScore(payload.vansha_id).catch(() => null);
+      setFinalScore(scoreData?.score ?? 12);
+      setStep(4);
     } catch (err) {
       toast({
-        title: tr('errorGeneric'),
-        description: err instanceof Error ? err.message : tr('onboardCreateFailed'),
+        title: 'Something went wrong',
+        description: err instanceof Error ? err.message : 'Could not create your family tree. Please try again.',
         variant: 'destructive',
       });
     } finally {
@@ -290,26 +291,29 @@ const Onboarding = () => {
   return (
     <div className="min-h-[calc(100vh-4rem)] flex items-center justify-center p-4">
       <div className="w-full max-w-lg">
-        {/* Progress — step 0 shows as pre-step; steps 1-3 are numbered */}
-        <div className="flex items-center gap-2 mb-8 justify-center">
-          {/* Auth dot */}
-          <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold font-body transition-all ${
-            step >= 1 ? 'bg-emerald-500 text-white' : 'gradient-hero text-primary-foreground shadow-warm'
-          }`}>
-            {step >= 1 ? <CheckCircle2 className="w-4 h-4" /> : '✦'}
+        {/* Progress bar — Claim → Root → Tree → Score */}
+        {step < 4 && (
+          <div className="flex items-center justify-center gap-1 mb-8">
+            {(['Claim', 'Root', 'Tree', 'Score'] as const).map((label, i) => {
+              const s = i + 1;
+              const done = step > s;
+              const active = step === s || (s === 1 && step === 0);
+              return (
+                <div key={label} className="flex items-center gap-1">
+                  <div className="flex flex-col items-center gap-1">
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-semibold font-body transition-all ${
+                      done ? 'bg-emerald-500 text-white' : active ? 'gradient-hero text-primary-foreground shadow-warm' : 'bg-secondary text-muted-foreground'
+                    }`}>
+                      {done ? <CheckCircle2 className="w-3.5 h-3.5" /> : s}
+                    </div>
+                    <span className={`text-[10px] font-body tracking-wide ${active ? 'text-primary font-semibold' : 'text-muted-foreground'}`}>{label}</span>
+                  </div>
+                  {i < 3 && <div className={`w-6 h-0.5 rounded mb-4 ${done ? 'bg-primary' : 'bg-border'}`} />}
+                </div>
+              );
+            })}
           </div>
-          <div className={`w-8 h-0.5 rounded ${step >= 1 ? 'bg-primary' : 'bg-border'}`} />
-          {[1, 2, 3].map(s => (
-            <div key={s} className="flex items-center gap-2">
-              <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold font-body transition-all ${
-                s <= step ? 'gradient-hero text-primary-foreground shadow-warm' : 'bg-secondary text-muted-foreground'
-              }`}>
-                {s}
-              </div>
-              {s < 3 && <div className={`w-8 h-0.5 rounded ${s < step ? 'bg-primary' : 'bg-border'}`} />}
-            </div>
-          ))}
-        </div>
+        )}
 
         <div className="bg-card rounded-xl p-8 shadow-card border border-border/50">
           {/* ── Step 0: Authenticate ── */}
@@ -317,8 +321,8 @@ const Onboarding = () => {
             <div className="space-y-5 animate-fade-in">
               <div className="text-center mb-6">
                 <a href="https://ecotech.co.in" target="_blank" rel="noopener noreferrer" className="text-[10px] tracking-[0.15em] uppercase text-emerald-600 font-body mb-1 hover:underline inline-block">Prakriti by Aarush</a>
-                <h2 className="font-heading text-2xl font-bold">Start Your Green Journey</h2>
-                <p className="text-muted-foreground font-body mt-1 text-sm">Sign in to begin building your Harit Vanshavali</p>
+                <h2 className="font-heading text-2xl font-bold">Claim your family's Prakriti</h2>
+                <p className="text-muted-foreground font-body mt-1 text-sm">Sign in to plant your family's first root — free, forever</p>
               </div>
 
               <button
@@ -379,43 +383,37 @@ const Onboarding = () => {
             </div>
           )}
           {step === 1 && (
-            <form className="space-y-5 animate-fade-in" onSubmit={e => { e.preventDefault(); if (identityComplete) setStep(2); }}>
+            <form className="space-y-5 animate-fade-in" onSubmit={e => { e.preventDefault(); if (step1Complete) setStep(2); }}>
               <div className="text-center mb-6">
-                <h2 className="font-heading text-2xl font-bold">{tr('onboardStep1Title')}</h2>
-                <p className="text-muted-foreground font-body mt-1">{tr('onboardStep1Subtitle')}</p>
+                <h2 className="font-heading text-2xl font-bold">What is your family's name?</h2>
+                <p className="text-muted-foreground font-body mt-1 text-sm">Your surname and gotra are your family's identity</p>
               </div>
               <div>
-                <label className="block text-sm font-medium font-body mb-1.5">{tr('givenName')}</label>
+                <label className="block text-sm font-medium font-body mb-1.5">Surname <span className="text-destructive">*</span></label>
+                <input value={form.surname} onChange={(e) => set('surname', e.target.value)} className={inputClass} placeholder="e.g. Sharma" required />
+              </div>
+              <div>
+                <label className="block text-sm font-medium font-body mb-1.5">Gotra <span className="text-xs text-muted-foreground font-normal">(ask a family elder or Pandit if unsure)</span></label>
+                <input value={form.gotra} onChange={(e) => set('gotra', e.target.value)} className={inputClass} placeholder="e.g. Kashyap, Bharadwaj" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium font-body mb-1.5">Given Name <span className="text-destructive">*</span></label>
                 <input value={form.givenName} onChange={(e) => set('givenName', e.target.value)} className={inputClass} required />
               </div>
               <div>
-                <label className="block text-sm font-medium font-body mb-1.5">{tr('middleName')}</label>
-                <input value={form.middleName} onChange={(e) => set('middleName', e.target.value)} className={inputClass} placeholder="Optional" />
+                <label className="block text-sm font-medium font-body mb-1.5">Middle Name <span className="text-xs text-muted-foreground font-normal">(optional)</span></label>
+                <input value={form.middleName} onChange={(e) => set('middleName', e.target.value)} className={inputClass} placeholder="Common in North India — add if your family uses it" />
               </div>
               <div>
-                <label className="block text-sm font-medium font-body mb-1.5">{tr('surname')}</label>
-                <input value={form.surname} onChange={(e) => set('surname', e.target.value)} className={inputClass} required />
-              </div>
-              <div>
-                <label className="block text-sm font-medium font-body mb-1.5">{tr('dateOfBirth')}</label>
+                <label className="block text-sm font-medium font-body mb-1.5">Date of Birth <span className="text-destructive">*</span></label>
                 <DOBInput value={form.dateOfBirth} onChange={v => set('dateOfBirth', v)} className="w-full" />
               </div>
-              <div>
-                <label className="block text-sm font-medium font-body mb-1.5">{tr('ancestralPlace')}</label>
-                <CityAutocomplete value={form.ancestralPlace} onChange={v => set('ancestralPlace', v)} className={inputClass} placeholder="e.g. Varanasi, Uttar Pradesh" required />
-              </div>
-              <div>
-                <label className="block text-sm font-medium font-body mb-1.5">{tr('currentResidence')}</label>
-                <CityAutocomplete value={form.currentResidence} onChange={v => set('currentResidence', v)} className={inputClass} placeholder="e.g. Mumbai, Maharashtra (optional)" />
-              </div>
-
-
               <button
                 type="submit"
-                disabled={!identityComplete}
+                disabled={!step1Complete}
                 className="w-full py-3 rounded-lg gradient-hero text-primary-foreground font-semibold font-body shadow-warm hover:opacity-90 transition-opacity disabled:opacity-50"
               >
-                {tr('next')}
+                Next →
               </button>
             </form>
           )}
@@ -423,26 +421,35 @@ const Onboarding = () => {
           {step === 2 && (
             <form className="space-y-5 animate-fade-in" onSubmit={e => { e.preventDefault(); setStep(3); }}>
               <div className="text-center mb-6">
-                <h2 className="font-heading text-2xl font-bold">{tr('onboardStep2Title')}</h2>
-                <p className="text-muted-foreground font-body mt-1">{tr('onboardStep2Subtitle')}</p>
+                <h2 className="font-heading text-2xl font-bold">Tell us about your roots</h2>
+                <p className="text-muted-foreground font-body mt-1 text-sm">Where your family's story begins — this is your identity hook</p>
               </div>
               <div>
-                <label className="block text-sm font-medium font-body mb-1.5">{tr('familyTreeName')}</label>
-                <input value={form.treeName} onChange={e => set('treeName', e.target.value)} placeholder={tr('familyTreeNamePlaceholder')} className={inputClass} />
+                <label className="block text-sm font-medium font-body mb-1.5">
+                  Ancestral Village / Native Place <span className="text-destructive">*</span>
+                </label>
+                <p className="text-xs text-muted-foreground font-body mb-1.5">Where your family's roots go deepest — the village or town your elders called home</p>
+                <CityAutocomplete value={form.ancestralPlace} onChange={v => set('ancestralPlace', v)} className={inputClass} placeholder="e.g. Bhadohi, Varanasi, Mathura" required />
+              </div>
+              <div>
+                <label className="block text-sm font-medium font-body mb-1.5">Birth Place</label>
+                <p className="text-xs text-muted-foreground font-body mb-1.5">Where you were born — every family is rooted in a place</p>
+                <CityAutocomplete value={form.birthPlace} onChange={v => set('birthPlace', v)} className={inputClass} placeholder="e.g. Kanpur, Uttar Pradesh" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium font-body mb-1.5">Current Residence <span className="text-xs text-muted-foreground font-normal">(optional)</span></label>
+                <CityAutocomplete value={form.currentResidence} onChange={v => set('currentResidence', v)} className={inputClass} placeholder="e.g. Mumbai, Maharashtra" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium font-body mb-1.5">Family Name for Tree <span className="text-xs text-muted-foreground font-normal">(optional)</span></label>
+                <input value={form.treeName} onChange={e => set('treeName', e.target.value)} placeholder={`e.g. ${form.surname || 'Sharma'}-${form.gotra || 'Kashyap'} Parivar`} className={inputClass} />
               </div>
               <div className="flex gap-3">
-                <button
-                  type="button"
-                  onClick={() => setStep(1)}
-                  className="flex-1 py-3 rounded-lg border border-border font-semibold font-body text-muted-foreground hover:bg-secondary transition-colors"
-                >
-                  {tr('back')}
+                <button type="button" onClick={() => setStep(1)} className="flex-1 py-3 rounded-lg border border-border font-semibold font-body text-muted-foreground hover:bg-secondary transition-colors">
+                  Back
                 </button>
-                <button
-                  type="submit"
-                  className="flex-1 py-3 rounded-lg gradient-hero text-primary-foreground font-semibold font-body shadow-warm hover:opacity-90 transition-opacity"
-                >
-                  {tr('next')}
+                <button type="submit" className="flex-1 py-3 rounded-lg gradient-hero text-primary-foreground font-semibold font-body shadow-warm hover:opacity-90 transition-opacity">
+                  Next →
                 </button>
               </div>
             </form>
@@ -451,70 +458,87 @@ const Onboarding = () => {
           {step === 3 && (
             <form className="space-y-5 animate-fade-in" onSubmit={e => { e.preventDefault(); void handleCreate(); }}>
               <div className="text-center mb-6">
-                <h2 className="font-heading text-2xl font-bold">{tr('onboardStep3Title')}</h2>
-                <p className="text-muted-foreground font-body mt-1">{tr('onboardStep3Subtitle')}</p>
+                <h2 className="font-heading text-2xl font-bold">Add two more branches</h2>
+                <p className="text-muted-foreground font-body mt-1 text-sm">Your Banyan tree grows with every name you add</p>
               </div>
 
-              {/* Required identity — repeated here so Create Tree works even if step 1 state was lost or skipped */}
+              {/* Identity safety net — prefilled from steps 1 & 2 */}
               <div className="rounded-lg border border-border/80 bg-secondary/20 p-4 space-y-4">
-                <p className="text-sm font-medium font-body text-foreground">{tr('yourProfile')}</p>
-                <div>
-                  <label className="block text-sm font-medium font-body mb-1.5">{tr('givenName')}</label>
-                  <input value={form.givenName} onChange={(e) => set('givenName', e.target.value)} className={inputClass} />
+                <p className="text-sm font-medium font-body text-foreground">Your profile (confirm or edit)</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-medium font-body mb-1">Given Name *</label>
+                    <input value={form.givenName} onChange={(e) => set('givenName', e.target.value)} className={inputClass} />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium font-body mb-1">Surname *</label>
+                    <input value={form.surname} onChange={(e) => set('surname', e.target.value)} className={inputClass} />
+                  </div>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium font-body mb-1.5">{tr('middleName')}</label>
-                  <input value={form.middleName} onChange={(e) => set('middleName', e.target.value)} className={inputClass} placeholder="Optional" />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium font-body mb-1.5">{tr('surname')}</label>
-                  <input value={form.surname} onChange={(e) => set('surname', e.target.value)} className={inputClass} />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium font-body mb-1.5">{tr('dateOfBirth')}</label>
-                  <DOBInput value={form.dateOfBirth} onChange={v => set('dateOfBirth', v)} className="w-full" />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium font-body mb-1.5">{tr('ancestralPlace')}</label>
+                  <label className="block text-xs font-medium font-body mb-1">Ancestral Place *</label>
                   <CityAutocomplete value={form.ancestralPlace} onChange={v => set('ancestralPlace', v)} className={inputClass} placeholder="e.g. Varanasi, Uttar Pradesh" />
                 </div>
-                <div>
-                  <label className="block text-sm font-medium font-body mb-1.5">{tr('currentResidence')}</label>
-                  <CityAutocomplete value={form.currentResidence} onChange={v => set('currentResidence', v)} className={inputClass} placeholder="e.g. Mumbai, Maharashtra" />
-                </div>
               </div>
 
               <div>
-                <label className="block text-sm font-medium font-body mb-1.5">{tr('fatherName')}</label>
-                <input value={form.fatherName} onChange={e => set('fatherName', e.target.value)} className={inputClass} />
+                <label className="block text-sm font-medium font-body mb-1.5">Father's Name</label>
+                <input value={form.fatherName} onChange={e => set('fatherName', e.target.value)} className={inputClass} placeholder="Add as first branch" />
               </div>
               <div>
-                <label className="block text-sm font-medium font-body mb-1.5">{tr('motherName')}</label>
-                <input value={form.motherName} onChange={e => set('motherName', e.target.value)} className={inputClass} />
+                <label className="block text-sm font-medium font-body mb-1.5">Mother's Name</label>
+                <input value={form.motherName} onChange={e => set('motherName', e.target.value)} className={inputClass} placeholder="Add as second branch" />
               </div>
               <div>
-                <label className="block text-sm font-medium font-body mb-1.5">{tr('spouseName')}</label>
+                <label className="block text-sm font-medium font-body mb-1.5">Spouse's Name <span className="text-xs text-muted-foreground font-normal">(optional)</span></label>
                 <input value={form.spouseName} onChange={e => set('spouseName', e.target.value)} className={inputClass} />
               </div>
               <div className="flex gap-3">
-                <button
-                  type="button"
-                  onClick={() => setStep(2)}
-                  className="flex-1 py-3 rounded-lg border border-border font-semibold font-body text-muted-foreground hover:bg-secondary transition-colors"
-                >
-                  {tr('back')}
+                <button type="button" onClick={() => setStep(2)} className="flex-1 py-3 rounded-lg border border-border font-semibold font-body text-muted-foreground hover:bg-secondary transition-colors">
+                  Back
                 </button>
                 <button
                   type="submit"
                   disabled={creating}
-                  className={`flex-1 py-3 rounded-lg gradient-hero text-primary-foreground font-semibold font-body shadow-warm hover:opacity-90 transition-opacity relative z-10 ${
-                    identityComplete ? '' : 'opacity-70'
-                  }`}
+                  className={`flex-1 py-3 rounded-lg gradient-hero text-primary-foreground font-semibold font-body shadow-warm hover:opacity-90 transition-opacity relative z-10 ${identityComplete ? '' : 'opacity-70'}`}
                 >
-                  {creating ? 'Creating...' : tr('createTree')}
+                  {creating ? <><Loader2 className="w-4 h-4 animate-spin inline mr-2" />Creating…</> : 'Plant the first root 🌱'}
                 </button>
               </div>
             </form>
+          )}
+
+          {/* ── Step 4: Score Aha Moment ── */}
+          {step === 4 && (
+            <div className="text-center space-y-6 animate-fade-in py-2">
+              <div>
+                <p className="text-xs font-body tracking-[0.2em] uppercase text-muted-foreground mb-2">Your family's Prakriti Score</p>
+                <div className="inline-flex items-center justify-center w-28 h-28 rounded-full gradient-hero text-primary-foreground shadow-warm mx-auto mb-3">
+                  <span className="font-heading text-5xl font-bold">{finalScore ?? 12}</span>
+                </div>
+                <p className="font-heading text-xl font-bold mb-1">
+                  {form.surname ? `${form.surname} Parivar` : 'Your family'} is live 🎉
+                </p>
+                <p className="text-sm text-muted-foreground font-body">
+                  Your Prakriti Score grows with every eco-action, ceremony, and family member you add.
+                </p>
+              </div>
+
+              <div className="bg-secondary/40 rounded-xl p-4 text-left text-sm font-body space-y-2">
+                <p className="font-semibold text-foreground">What raises your score:</p>
+                <p className="text-muted-foreground">🌳 Add more family members → Tree Depth</p>
+                <p className="text-muted-foreground">🌱 Log eco-actions → EcoSewa points</p>
+                <p className="text-muted-foreground">🪔 Book a ceremony via Pandit → Ceremony score</p>
+                <p className="text-muted-foreground">🎙️ Record an elder's voice → Smriti score</p>
+              </div>
+
+              <button
+                onClick={() => navigate('/dashboard', { replace: true })}
+                className="w-full py-4 rounded-xl gradient-hero text-primary-foreground font-bold font-body text-lg shadow-warm hover:opacity-90 transition-opacity"
+              >
+                Go to my dashboard →
+              </button>
+            </div>
           )}
         </div>
       </div>
