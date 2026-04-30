@@ -16,6 +16,7 @@ import { UPCOMING_SERVICES } from '@/config/upcomingServices.config';
 import { JoinSEModal } from '@/components/sales/JoinSEModal';
 import { EarningsWallet } from '@/components/sales/EarningsWallet';
 import { useAuth } from '@/contexts/AuthContext';
+import { MovementBelief } from '@/components/prakriti/MovementBelief';
 
 const SALES_ROLES = new Set(['se', 'cp', 'rp', 'zp', 'np', 'admin', 'superadmin']);
 
@@ -32,10 +33,23 @@ const Dashboard = () => {
 
   const [prakritiScore, setPrakritiScore] = useState<PrakritiScore | null>(null);
   const [familyRank, setFamilyRank] = useState<FamilyRank | null>(null);
+  const [notificationStatus, setNotificationStatus] = useState(() => {
+    try { return localStorage.getItem('prakriti_pulse_notifications') ?? 'off'; } catch { return 'off'; }
+  });
+  const [firstSeenAt, setFirstSeenAt] = useState(() => {
+    try { return Number(localStorage.getItem('prakriti_first_seen_at') ?? '0'); } catch { return 0; }
+  });
   // Streak: read from localStorage until backend endpoint is wired
   const streakDays = (() => {
     try { return parseInt(localStorage.getItem('prakriti_streak') ?? '0', 10) || 0; } catch { return 0; }
   })();
+  useEffect(() => {
+    if (firstSeenAt > 0) return;
+    const now = Date.now();
+    try { localStorage.setItem('prakriti_first_seen_at', String(now)); } catch { /* ignore */ }
+    setFirstSeenAt(now);
+  }, [firstSeenAt]);
+
   useEffect(() => {
     const vid = resolveVanshaIdForApi(null);
     if (!vid) {
@@ -92,6 +106,34 @@ const Dashboard = () => {
   const dismissCelebration = useCallback(() => setCelebrationMilestone(null), []);
 
   const familyName = appUser?.family_name ?? appUser?.full_name?.split(' ').slice(-1)[0] ?? 'Aapka';
+  const now = Date.now();
+  const hoursSinceFirstSeen = firstSeenAt > 0 ? (now - firstSeenAt) / 36e5 : 0;
+  const showDay2Hook = hoursSinceFirstSeen >= 24 && hoursSinceFirstSeen <= 72;
+  const lastPulseAt = (() => {
+    try { return Number(localStorage.getItem('prakriti_last_pulse_at') ?? '0'); } catch { return 0; }
+  })();
+  const missedPulseDays = lastPulseAt > 0 ? Math.floor((now - lastPulseAt) / 86_400_000) : 0;
+  const showReactivation = missedPulseDays >= 3;
+
+  const enablePulseWorkflow = async () => {
+    try {
+      localStorage.setItem('prakriti_pulse_notifications', 'on');
+      if ('Notification' in window && Notification.permission === 'default') {
+        await Notification.requestPermission();
+      }
+      setNotificationStatus('on');
+    } catch {
+      setNotificationStatus('on');
+    }
+  };
+
+  const logDailyPulse = () => {
+    try {
+      localStorage.setItem('prakriti_last_pulse_at', String(Date.now()));
+      localStorage.setItem('prakriti_streak', String(streakDays + 1));
+    } catch { /* ignore */ }
+    navigate('/time-bank');
+  };
 
   // Format time ago
   const timeAgo = (timestamp: number) => {
@@ -155,6 +197,8 @@ const Dashboard = () => {
             किसी तिथि पर क्लिक करें — अधिक जानकारी और अनुशंसाओं के लिए
           </p>
         </div>
+        <MovementBelief variant="compact" />
+
         {/* Not initialized banner */}
         {!isTreeInitialized && (
           <div className="bg-primary/5 border border-primary/20 rounded-xl p-6 text-center">
@@ -166,6 +210,37 @@ const Dashboard = () => {
             >
               {tr('startTree')}
             </button>
+          </div>
+        )}
+
+        {showDay2Hook && (
+          <div className="rounded-xl border border-sky-200 bg-sky-50 p-5 dark:border-sky-900 dark:bg-sky-950/30">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-sky-700 dark:text-sky-300">Day-2 nudge</p>
+                <h3 className="mt-1 font-heading text-lg font-bold">Join your village circle before the trail goes cold.</h3>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Connect your family to a village/community space in the next 24 hours. If you are not ready,
+                  complete one missing family detail to keep discovery active.
+                </p>
+              </div>
+              <div className="flex shrink-0 gap-2">
+                <button
+                  type="button"
+                  onClick={() => navigate('/org/my')}
+                  className="rounded-lg bg-sky-700 px-4 py-2 text-sm font-semibold text-white hover:bg-sky-800"
+                >
+                  Join village
+                </button>
+                <button
+                  type="button"
+                  onClick={() => navigate('/tree')}
+                  className="rounded-lg border border-sky-300 px-4 py-2 text-sm font-semibold text-sky-800 hover:bg-sky-100 dark:text-sky-200"
+                >
+                  Complete tree
+                </button>
+              </div>
+            </div>
           </div>
         )}
 
@@ -290,12 +365,39 @@ const Dashboard = () => {
             <p className="font-semibold font-body text-sm text-emerald-900 dark:text-white">Water a tree today → <span className="text-emerald-600">+5 Prakriti</span></p>
           </div>
           <button
-            onClick={() => navigate('/eco-sewa')}
+            onClick={logDailyPulse}
             className="flex-shrink-0 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold font-body text-sm transition-colors"
           >
             Log it →
           </button>
+          {notificationStatus !== 'on' && (
+            <button
+              type="button"
+              onClick={enablePulseWorkflow}
+              className="hidden rounded-xl border border-emerald-300 px-3 py-2 text-xs font-semibold text-emerald-800 hover:bg-emerald-100 dark:text-emerald-200 md:block"
+            >
+              Remind daily
+            </button>
+          )}
         </div>
+
+        {showReactivation && (
+          <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 dark:border-rose-900 dark:bg-rose-950/30">
+            <div className="flex items-center gap-3">
+              <Flame className="h-5 w-5 shrink-0 text-rose-600" />
+              <p className="flex-1 text-sm font-body text-rose-900 dark:text-rose-100">
+                You missed {missedPulseDays} days of Prakriti Pulse. Restart with one small sewa today and recover the streak loop.
+              </p>
+              <button
+                type="button"
+                onClick={logDailyPulse}
+                className="rounded-lg bg-rose-600 px-3 py-2 text-xs font-semibold text-white hover:bg-rose-700"
+              >
+                Restart
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* ── Alert Strip — contextual, max 1 ── */}
         {state.nodes.length > 0 && (
@@ -320,7 +422,7 @@ const Dashboard = () => {
           {[
             { icon: TreePine, label: 'View Tree', onClick: () => navigate('/tree') },
             { icon: UserPlus, label: 'Add Member', onClick: () => { const v = resolveVanshaIdForApi(null); navigate(v ? `/node?vansha_id=${encodeURIComponent(v)}` : '/node'); } },
-            { icon: Leaf, label: 'Log Eco-Sewa', onClick: () => navigate('/eco-sewa') },
+            { icon: Leaf, label: 'Log Eco-Sewa', onClick: () => navigate('/time-bank') },
             { icon: Mic, label: 'Record Elder', onClick: () => navigate('/legacy-box') },
           ].map(({ icon: Icon, label, onClick }, i) => (
             <button
@@ -642,11 +744,11 @@ function addDaysLocal(dateStr: string, days: number): string {
 }
 
 const ECO_SEWA_ITEMS = [
-  { emoji: '🌳', label: 'पेड़ लगाएं', sub: 'Plant a Tree', path: '/eco-sewa' },
-  { emoji: '💧', label: 'जल संरक्षण', sub: 'Water Body Restoration', path: '/eco-sewa' },
-  { emoji: '🧹', label: 'स्वच्छता अभियान', sub: 'Cleanliness Drive', path: '/eco-sewa' },
-  { emoji: '🌾', label: 'जैविक खेती', sub: 'Organic Farming', path: '/eco-sewa' },
-  { emoji: '🦋', label: 'वन्यजीव सेवा', sub: 'Wildlife Care', path: '/eco-sewa' },
+  { emoji: '🌳', label: 'पेड़ लगाएं', sub: 'Plant a Tree', path: '/time-bank' },
+  { emoji: '💧', label: 'जल संरक्षण', sub: 'Water Body Restoration', path: '/time-bank' },
+  { emoji: '🧹', label: 'स्वच्छता अभियान', sub: 'Cleanliness Drive', path: '/time-bank' },
+  { emoji: '🌾', label: 'जैविक खेती', sub: 'Organic Farming', path: '/time-bank' },
+  { emoji: '🦋', label: 'वन्यजीव सेवा', sub: 'Wildlife Care', path: '/time-bank' },
 ];
 
 function DashboardWeekStrip() {

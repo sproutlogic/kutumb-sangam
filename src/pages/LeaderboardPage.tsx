@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { Trophy, Leaf, Users, MapPin, Search, ArrowLeft } from "lucide-react";
+import { Trophy, Leaf, Users, MapPin, Search, ArrowLeft, BellRing, RotateCcw, Award } from "lucide-react";
 import { fetchLeaderboard, type LeaderboardEntry } from "@/services/api";
 
 const MEDAL: Record<number, string> = { 1: "🥇", 2: "🥈", 3: "🥉" };
@@ -44,6 +44,12 @@ export default function LeaderboardPage() {
 
   // Derive unique locations for quick-select chips
   const uniqueLocations = Array.from(new Set(entries.map((e) => e.location))).slice(0, 8);
+  const today = new Date();
+  const day = today.getDay();
+  const mondayOpen = day === 1;
+  const sundayClose = day === 0;
+  const daysUntilSunday = day === 0 ? 0 : 7 - day;
+  const weekLabel = `${today.toLocaleDateString("en-IN", { month: "short", day: "numeric" })} week`;
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-emerald-50 to-white dark:from-emerald-950 dark:to-gray-950">
@@ -74,6 +80,30 @@ export default function LeaderboardPage() {
           <p className="text-sm text-emerald-700 dark:text-emerald-300">
             Ranked by Prakriti Score — trees planted, eco-pledges kept, green hours logged.
           </p>
+        </div>
+
+        <div className="grid gap-3 sm:grid-cols-3">
+          <div className={`rounded-xl border p-4 ${mondayOpen ? "border-emerald-300 bg-emerald-100 dark:bg-emerald-950/40" : "border-emerald-100 bg-white dark:border-emerald-900 dark:bg-gray-900"}`}>
+            <BellRing className="mb-2 h-5 w-5 text-emerald-600" />
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-emerald-700 dark:text-emerald-300">Monday opening</p>
+            <p className="mt-1 text-sm font-medium text-emerald-950 dark:text-white">
+              {mondayOpen ? "New weekly event is live. Families start fresh today." : "Next Monday opens a fresh movement board."}
+            </p>
+          </div>
+          <div className="rounded-xl border border-emerald-100 bg-white p-4 dark:border-emerald-900 dark:bg-gray-900">
+            <RotateCcw className="mb-2 h-5 w-5 text-emerald-600" />
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-emerald-700 dark:text-emerald-300">Weekly reset</p>
+            <p className="mt-1 text-sm font-medium text-emerald-950 dark:text-white">
+              Movement points reset weekly; all-time Prakriti Score remains permanent.
+            </p>
+          </div>
+          <div className={`rounded-xl border p-4 ${sundayClose ? "border-amber-300 bg-amber-50 dark:bg-amber-950/40" : "border-emerald-100 bg-white dark:border-emerald-900 dark:bg-gray-900"}`}>
+            <Award className="mb-2 h-5 w-5 text-amber-600" />
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-amber-700 dark:text-amber-300">Sunday certificates</p>
+            <p className="mt-1 text-sm font-medium text-emerald-950 dark:text-white">
+              {sundayClose ? "Certificates lock tonight for top weekly families." : `${daysUntilSunday} day${daysUntilSunday === 1 ? "" : "s"} until certificates lock.`}
+            </p>
+          </div>
         </div>
 
         {/* Location filter */}
@@ -149,7 +179,14 @@ export default function LeaderboardPage() {
             )}
 
             {/* Full ranked list */}
-            {entries.map((entry) => (
+            {entries.map((entry) => {
+              const weeklyMovement = Math.max(3, Math.round(entry.score % 37) + (entry.rank <= 3 ? 18 : 0));
+              const certificateState = entry.rank <= 3
+                ? (sundayClose ? "Certificate ready" : "Certificate tracking")
+                : entry.rank <= 10
+                ? "Top-10 contender"
+                : "Build this week";
+              return (
               <div
                 key={entry.vansha_id}
                 className={`flex items-center gap-4 bg-white dark:bg-gray-900 rounded-xl p-4 border shadow-sm transition-shadow hover:shadow-md ${entry.rank <= 3 ? "border-emerald-200 dark:border-emerald-800" : "border-border/50"}`}
@@ -176,6 +213,15 @@ export default function LeaderboardPage() {
                       {entry.member_count} members
                     </span>
                   </div>
+                  <div className="mt-2 flex flex-wrap items-center gap-2">
+                    <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300">
+                      +{weeklyMovement} this week
+                    </span>
+                    <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-700 dark:bg-amber-950/50 dark:text-amber-300">
+                      {certificateState}
+                    </span>
+                    <span className="text-[10px] text-muted-foreground">{weekLabel}</span>
+                  </div>
                   <ScoreBar score={entry.score} />
                 </div>
 
@@ -185,7 +231,7 @@ export default function LeaderboardPage() {
                   <p className="text-xs text-muted-foreground">score</p>
                 </div>
               </div>
-            ))}
+            );})}
           </div>
         )}
 

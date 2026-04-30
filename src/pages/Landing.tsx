@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Leaf, Heart, Globe2, TreePine, ChevronDown } from 'lucide-react';
+import { Leaf, Heart, TreePine, ChevronDown } from 'lucide-react';
 import { fetchLeaderboard, type LeaderboardEntry } from '@/services/api';
+import { MovementBelief } from '@/components/prakriti/MovementBelief';
 
 const Landing = () => {
   const navigate = useNavigate();
@@ -119,33 +120,10 @@ const Landing = () => {
       <div className="gold-line" />
 
       {/* ── Loss Narrative — The Wound ──────────────────────────────── */}
-      <section className="bg-stone-950 text-stone-100 py-16 px-6 text-center">
-        <p className="text-xs font-body tracking-[0.3em] uppercase text-stone-500 mb-6">The founding belief</p>
-        <p className="font-heading text-xl md:text-2xl text-amber-400 font-bold mb-4 max-w-2xl mx-auto">
-          "Indian families don't lack love. They lack infrastructure."
-        </p>
-        <p className="text-stone-400 font-body text-base md:text-lg max-w-xl mx-auto mb-8">
-          WhatsApp groups are not infrastructure. Memory fades. Elders die. The story goes with them.
-        </p>
-
-        <div className="max-w-md mx-auto mb-8 space-y-1">
-          <p className="text-stone-300 font-body text-lg md:text-xl leading-relaxed">
-            Every 9 minutes, an elder dies in India with their family's story untold.
-          </p>
-          <p className="text-stone-200 font-body text-base md:text-lg leading-relaxed italic mt-3">
-            Prakriti is the first time Indian family identity is permanent, portable, and scored.
-          </p>
-        </div>
-
-        <button
-          onClick={() => navigate('/onboarding')}
-          className="inline-flex items-center gap-2 px-8 py-4 rounded-xl bg-amber-500 hover:bg-amber-400 text-stone-950 font-semibold font-body text-lg transition-all hover:-translate-y-0.5 shadow-lg"
-        >
-          🌱 Claim your family's Prakriti — free
-        </button>
-
-        <div className="mt-10 w-px h-12 bg-stone-700 mx-auto" />
-      </section>
+      <MovementBelief
+        variant="dark"
+        cta={{ label: "Claim your family's Prakriti — free", onClick: () => navigate('/onboarding') }}
+      />
 
       {/* ── Recognised & Supported By ───────────────────────────────── */}
       <section className="bg-white border-b border-border/40 py-6">
@@ -351,17 +329,7 @@ const Landing = () => {
       </section>
 
       {/* ── Founding Belief — Full Width POV ────────────────────────── */}
-      <section className="bg-secondary/30 border-y border-border/50 py-16 px-6 text-center">
-        <div className="max-w-2xl mx-auto">
-          <Globe2 className="w-8 h-8 text-primary mx-auto mb-6 opacity-60" />
-          <blockquote className="font-heading text-2xl md:text-3xl font-bold mb-4 leading-snug">
-            "वसुधैव कुटुम्बकम् — Every family a forest."
-          </blockquote>
-          <p className="text-muted-foreground font-body text-base md:text-lg">
-            We're building the infrastructure Indian families never had.
-          </p>
-        </div>
-      </section>
+      <MovementBelief variant="soft" />
 
       {/* ── Final CTA — The Fear Close ───────────────────────────────── */}
       <section className="gradient-hero text-primary-foreground">

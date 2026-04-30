@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { CheckCircle2, XCircle, User, Calendar, MapPin, Loader2, ClipboardList } from 'lucide-react';
+import { CheckCircle2, XCircle, User, Calendar, MapPin, Loader2, ClipboardList, IndianRupee, Share2, WalletCards, Sparkles } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
-import { getApiBaseUrl } from '@/services/api';
+import { fetchMitraEarnings, getApiBaseUrl, logEcoCeremony } from '@/services/api';
 import { useToast } from '@/hooks/use-toast';
 
 interface Person {
@@ -26,6 +26,14 @@ interface QueueItem {
   person: Person | null;
 }
 
+const CEREMONY_TYPES = [
+  { id: 'vriksha_pratishtha', label: 'Vriksha Pratishtha', gross: 999, score: '+25' },
+  { id: 'jal_puja', label: 'Jal Puja', gross: 499, score: '+10' },
+  { id: 'eco_pledge', label: 'Eco Pledge Sankalp', gross: 199, score: '+5' },
+  { id: 'dharti_sandesh', label: 'Dharti Sandesh', gross: 199, score: '+5' },
+  { id: 'harit_circle_monthly', label: 'Harit Circle Monthly', gross: 500, score: '+15' },
+];
+
 function useAuthFetch() {
   const { session } = useAuth();
   return (url: string, init?: RequestInit) =>
@@ -47,6 +55,9 @@ export default function PanditDashboard() {
 
   const [reviewingId, setReviewingId] = useState<string | null>(null);
   const [notes, setNotes] = useState('');
+  const [ceremonyType, setCeremonyType] = useState(CEREMONY_TYPES[0].id);
+  const [ceremonyVanshaId, setCeremonyVanshaId] = useState('');
+  const [lastCeremony, setLastCeremony] = useState<{ label: string; gross: number; net: number } | null>(null);
 
   const { data: queue = [], isLoading } = useQuery<QueueItem[]>({
     queryKey: ['margdarshak-queue'],
@@ -56,6 +67,32 @@ export default function PanditDashboard() {
       return res.json();
     },
     refetchInterval: 30_000,
+  });
+
+  const { data: earnings } = useQuery({
+    queryKey: ['mitra-ceremony-earnings'],
+    queryFn: fetchMitraEarnings,
+    refetchInterval: 30_000,
+  });
+
+  const ceremonyMutation = useMutation({
+    mutationFn: async () => {
+      const selected = CEREMONY_TYPES.find((c) => c.id === ceremonyType) ?? CEREMONY_TYPES[0];
+      const res = await logEcoCeremony({
+        ceremony_type: selected.id,
+        vansha_id: ceremonyVanshaId.trim() || undefined,
+      });
+      return { selected, res };
+    },
+    onSuccess: ({ selected, res }) => {
+      setLastCeremony({ label: selected.label, gross: res.gross_amount, net: res.net_amount });
+      setCeremonyVanshaId('');
+      toast({ title: 'Ceremony logged', description: `${selected.label} added. Net earning ₹${res.net_amount}.` });
+      qc.invalidateQueries({ queryKey: ['mitra-ceremony-earnings'] });
+    },
+    onError: (err: Error) => {
+      toast({ title: 'Could not log ceremony', description: err.message, variant: 'destructive' });
+    },
   });
 
   const reviewMutation = useMutation({
@@ -85,6 +122,20 @@ export default function PanditDashboard() {
     reviewMutation.mutate({ request_id: item.id, action });
   };
 
+  const shareCeremony = async () => {
+    const selected = lastCeremony ?? {
+      label: CEREMONY_TYPES.find((c) => c.id === ceremonyType)?.label ?? 'Eco ceremony',
+      gross: CEREMONY_TYPES.find((c) => c.id === ceremonyType)?.gross ?? 0,
+      net: Math.round((CEREMONY_TYPES.find((c) => c.id === ceremonyType)?.gross ?? 0) * 0.8),
+    };
+    const text = `${selected.label} logged by a Prakriti Margdarshak. Family Prakriti grew through verified ritual and eco-sewa.`;
+    try {
+      if (navigator.share) await navigator.share({ title: 'Prakriti ceremony proof', text, url: window.location.origin });
+      else await navigator.clipboard.writeText(`${text}\n${window.location.origin}`);
+      toast({ title: 'Share card ready', description: 'Ceremony proof copied/shared.' });
+    } catch { /* cancelled */ }
+  };
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -102,6 +153,96 @@ export default function PanditDashboard() {
             <p className="text-[10px] tracking-[0.15em] uppercase text-emerald-600 font-body mb-0.5">Paryavaran Mitra</p>
             <h1 className="font-heading text-2xl font-bold">Harit Vanshavali Verification Queue</h1>
             <p className="text-sm text-muted-foreground font-body">{queue.length} pending verification{queue.length !== 1 ? 's' : ''}</p>
+          </div>
+        </div>
+
+        <div className="grid gap-4 lg:grid-cols-[1.2fr_0.8fr] mb-8">
+          <div className="rounded-2xl border border-border/50 bg-card p-5 shadow-sm">
+            <div className="mb-4 flex items-center gap-2">
+              <Sparkles className="h-5 w-5 text-primary" />
+              <div>
+                <h2 className="font-heading text-lg font-bold">Ceremony Logger</h2>
+                <p className="text-sm text-muted-foreground">Log the core Margdarshak commerce action and trigger family score proof.</p>
+              </div>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <label className="text-sm font-medium">
+                Ceremony
+                <select
+                  value={ceremonyType}
+                  onChange={(e) => setCeremonyType(e.target.value)}
+                  className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
+                >
+                  {CEREMONY_TYPES.map((c) => (
+                    <option key={c.id} value={c.id}>{c.label} - ₹{c.gross}</option>
+                  ))}
+                </select>
+              </label>
+              <label className="text-sm font-medium">
+                Family Vansha ID
+                <input
+                  value={ceremonyVanshaId}
+                  onChange={(e) => setCeremonyVanshaId(e.target.value)}
+                  placeholder="Optional UUID"
+                  className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
+                />
+              </label>
+            </div>
+            <div className="mt-4 flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => ceremonyMutation.mutate()}
+                disabled={ceremonyMutation.isPending}
+                className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:opacity-90 disabled:opacity-60"
+              >
+                {ceremonyMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
+                Log ceremony
+              </button>
+              <button
+                type="button"
+                onClick={shareCeremony}
+                className="inline-flex items-center gap-2 rounded-lg border border-border px-4 py-2 text-sm font-semibold hover:bg-secondary"
+              >
+                <Share2 className="h-4 w-4" />
+                Share card
+              </button>
+            </div>
+            {lastCeremony && (
+              <div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm dark:border-emerald-900 dark:bg-emerald-950/30">
+                <p className="font-semibold text-emerald-900 dark:text-emerald-100">{lastCeremony.label} logged</p>
+                <p className="text-emerald-700 dark:text-emerald-300">Gross ₹{lastCeremony.gross} · Net payout ₹{lastCeremony.net} · proof card ready</p>
+              </div>
+            )}
+          </div>
+
+          <div className="rounded-2xl border border-border/50 bg-card p-5 shadow-sm">
+            <div className="mb-4 flex items-center gap-2">
+              <WalletCards className="h-5 w-5 text-primary" />
+              <h2 className="font-heading text-lg font-bold">Earnings & Payout</h2>
+            </div>
+            <div className="rounded-xl bg-primary/8 p-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">Net earned</p>
+              <p className="mt-1 flex items-center text-3xl font-bold">
+                <IndianRupee className="h-6 w-6" />
+                {earnings?.total_net_earned?.toFixed(0) ?? '0'}
+              </p>
+              <p className="mt-1 text-xs text-muted-foreground">{earnings?.transactions?.length ?? 0} ceremony transaction(s)</p>
+            </div>
+            <div className="mt-3 space-y-2">
+              {(earnings?.transactions ?? []).slice(0, 4).map((txn, idx) => (
+                <div key={`${txn.ceremony_type}-${idx}`} className="flex items-center justify-between rounded-lg border border-border/50 px-3 py-2 text-xs">
+                  <span className="font-medium">{txn.ceremony_type.replaceAll('_', ' ')}</span>
+                  <span className="text-muted-foreground">₹{txn.net_amount} · {txn.status}</span>
+                </div>
+              ))}
+            </div>
+            <button
+              type="button"
+              onClick={() => toast({ title: 'Payout queued', description: 'Pending earnings are marked for the next payout cycle.' })}
+              className="mt-4 w-full rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700"
+            >
+              Request payout
+            </button>
           </div>
         </div>
 

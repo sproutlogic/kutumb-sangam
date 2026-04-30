@@ -26,6 +26,7 @@ import { getApiBaseUrl, resolveVanshaIdForApi } from '@/services/api';
 import { useTree } from '@/contexts/TreeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from '@/hooks/use-toast';
+import { EcoSewaPanel } from '@/pages/EcoSewaPage';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -169,7 +170,7 @@ export default function TimeBankPage() {
   const [flagged, setFlagged] = useState<SamayTransaction[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const [tab, setTab] = useState<'feed' | 'activity' | 'admin'>('feed');
+  const [tab, setTab] = useState<'feed' | 'eco' | 'activity' | 'admin'>('eco');
   const [feedScope, setFeedScope] = useState<'local' | 'global'>('local');
   const [feedType, setFeedType] = useState<'all' | 'offer' | 'need'>('all');
   const [feedCategory, setFeedCategory] = useState('all');
@@ -748,7 +749,7 @@ export default function TimeBankPage() {
           <>
             {/* ── Tab bar ── */}
             <div className="flex gap-1 bg-secondary/50 rounded-xl p-1">
-              {(['feed','activity', ...(isPlatformAdmin ? ['admin'] : [])] as const).map(t => (
+              {(['eco','feed','activity', ...(isPlatformAdmin ? ['admin'] : [])] as const).map(t => (
                 <button
                   key={t}
                   onClick={() => setTab(t as typeof tab)}
@@ -756,7 +757,7 @@ export default function TimeBankPage() {
                     tab === t ? 'bg-card shadow-card text-foreground' : 'text-muted-foreground hover:text-foreground'
                   }`}
                 >
-                  {t === 'feed' ? tr('feed') : t === 'activity' ? tr('activity') : tr('adminTab')}
+                  {t === 'eco' ? 'Eco-Sewa' : t === 'feed' ? tr('feed') : t === 'activity' ? tr('activity') : tr('adminTab')}
                   {t === 'activity' && myTxns.filter(x => x.status === 'helper_done').length > 0 && (
                     <span className="absolute top-1.5 right-2 w-2 h-2 bg-destructive rounded-full" />
                   )}
@@ -766,6 +767,8 @@ export default function TimeBankPage() {
                 </button>
               ))}
             </div>
+
+            {tab === 'eco' && <EcoSewaPanel embedded branchId={branch.id} />}
 
             {/* ══ FEED TAB ══ */}
             {tab === 'feed' && (

@@ -59,6 +59,9 @@ D_SCORE_WINDOW_DAYS = 90   # diversification score rolling window
 CATEGORIES = [
     "teaching", "cooking", "childcare", "eldercare",
     "repairs", "transport", "tech", "admin", "health", "general",
+    "tree_planting", "waste_cleanup", "waste_segregation", "clean_up_drive",
+    "water_conservation", "eco_awareness", "solar_adoption", "solar_energy",
+    "composting", "nature_care", "eco_volunteering",
 ]
 
 
@@ -208,6 +211,7 @@ def _update_rating_averages(user_id: str) -> None:
 ECO_ACTIVITY_CATEGORIES = {
     "tree_planting", "waste_segregation", "clean_up_drive",
     "water_conservation", "eco_awareness", "solar_adoption", "composting",
+    "waste_cleanup", "solar_energy", "nature_care", "eco_volunteering",
 }
 ECO_MULTIPLIER = 1.5
 

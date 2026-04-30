@@ -257,7 +257,7 @@ export default function EcoPanchangStrip() {
 
           <div className="sm:col-span-2 mt-1 flex gap-2">
             <button
-              onClick={() => navigate("/eco-sewa")}
+              onClick={() => navigate("/time-bank")}
               className="text-xs border border-green-500 text-green-700 dark:text-green-300 hover:bg-green-100 dark:hover:bg-green-900/30 rounded-lg px-3 py-1.5 font-medium transition-colors"
             >
               🌱 Eco-Sewa लॉग करें
