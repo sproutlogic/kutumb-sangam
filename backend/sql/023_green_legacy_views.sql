@@ -58,7 +58,7 @@ COMMENT ON MATERIALIZED VIEW public.family_eco_summary IS
 
 -- ── green_legacy_timeline: chronological union across all eco sources ─────────
 
-CREATE OR REPLACE VIEW public.green_legacy_timeline AS
+CREATE OR REPLACE VIEW public.green_legacy_timeline WITH (security_invoker = true) AS
 
     -- Tier 1: Self-reported Eco-Sewa logs
     SELECT

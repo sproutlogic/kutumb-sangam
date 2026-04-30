@@ -2,22 +2,49 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useLang } from '@/i18n/LanguageContext';
 import { usePlan } from '@/contexts/PlanContext';
+import { useAuth } from '@/contexts/AuthContext';
 import { plans, planOrder, type PlanId, type EntitlementKey } from '@/config/packages.config';
 import AppShell from '@/components/shells/AppShell';
-import { Check, X, CreditCard, Tag, Zap, Receipt } from 'lucide-react';
+import { Check, X, CreditCard, Tag, Zap, Receipt, Loader2 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { getApiBaseUrl } from '@/services/api';
 
-function getAuthToken(): string {
-  try {
-    const keys = Object.keys(localStorage).filter(k => k.endsWith('-auth-token'));
-    for (const k of keys) {
-      const raw = localStorage.getItem(k);
-      if (raw) { const p = JSON.parse(raw); if (p?.access_token) return p.access_token; }
-    }
-  } catch { /* ignore */ }
-  return '';
+// ── Razorpay types ────────────────────────────────────────────────────────────
+declare global {
+  interface Window {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    Razorpay: new (options: any) => { open(): void };
+  }
 }
+
+function loadRazorpayScript(): Promise<boolean> {
+  return new Promise(resolve => {
+    if (window.Razorpay) { resolve(true); return; }
+    const s = document.createElement('script');
+    s.src = 'https://checkout.razorpay.com/v1/checkout.js';
+    s.onload  = () => resolve(true);
+    s.onerror = () => resolve(false);
+    document.body.appendChild(s);
+  });
+}
+
+// ── Emotional copy ────────────────────────────────────────────────────────────
+const planEmotional: Record<PlanId, { tagline: string; wall?: string }> = {
+  beej:  {
+    tagline: 'Your roots, forever free.',
+    wall:    'Your ancestors go back centuries. You can only see 3 generations.',
+  },
+  ankur: {
+    tagline: 'Grow your branches.',
+  },
+  vriksh: {
+    tagline: 'Become visible to your region.',
+    wall:    'Your family is invisible to other families in your region.',
+  },
+  vansh: {
+    tagline: '₹7,900 for your entire family — ₹158 per person.',
+  },
+};
 
 const entitlementLabels: { key: EntitlementKey; label: string }[] = [
   { key: 'culturalFields',     label: 'Cultural Fields' },
@@ -38,41 +65,106 @@ const planDisplayNames: Record<PlanId, string> = {
   vansh: 'Vansh',
 };
 
+// ── Component ─────────────────────────────────────────────────────────────────
 const UpgradePage = () => {
   const { tr } = useLang();
   const navigate = useNavigate();
   const { planId: currentPlan, setPlanId, pricingConfig } = usePlan();
+  const { session } = useAuth();
   const [processingPlan, setProcessingPlan] = useState<PlanId | null>(null);
 
-  const handleSelectPlan = async (id: PlanId) => {
-    const planLimits = pricingConfig.plans[id];
-    const isPreLaunch = planLimits?.isPreLaunch ?? plans[id].isPreLaunch;
-    if ((planLimits?.price ?? plans[id].price) === 0) {
-      setPlanId(id);
+  const getToken = () => session?.access_token ?? '';
+
+  const openRazorpayCheckout = async (
+    keyId: string,
+    gatewayOrderId: string,
+    amountPaise: number,
+    paymentId: string,
+    planId: PlanId,
+    displayName: string,
+  ) => {
+    const loaded = await loadRazorpayScript();
+    if (!loaded) {
+      toast({ title: 'Could not load payment window', description: 'Please check your connection and try again.', variant: 'destructive' });
       return;
     }
+
+    const rzp = new window.Razorpay({
+      key:         keyId,
+      amount:      amountPaise,
+      currency:    'INR',
+      name:        'Prakriti — Paryavaran Mitra Membership',
+      description: `${displayName} Plan`,
+      order_id:    gatewayOrderId,
+      prefill: {},
+      theme: { color: '#16a34a' },
+      handler: async (response: { razorpay_order_id: string; razorpay_payment_id: string; razorpay_signature: string }) => {
+        try {
+          const res = await fetch(`${getApiBaseUrl()}/api/payments/verify`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${getToken()}`,
+            },
+            body: JSON.stringify({
+              payment_id:         paymentId,
+              gateway_order_id:   response.razorpay_order_id,
+              gateway_payment_id: response.razorpay_payment_id,
+              gateway_signature:  response.razorpay_signature,
+            }),
+          });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data?.detail ?? 'Verification failed');
+          toast({ title: '🌳 Plan activated!', description: `${displayName} plan is now active. Invoice: ${data.invoice_number}` });
+          navigate('/dashboard');
+        } catch (err: unknown) {
+          const msg = err instanceof Error ? err.message : 'Please contact support.';
+          toast({ title: 'Payment verification failed', description: msg, variant: 'destructive' });
+        }
+      },
+    });
+
+    rzp.open();
+  };
+
+  const handleSelectPlan = async (id: PlanId) => {
+    const planLimits  = pricingConfig.plans[id];
+    const isPreLaunch = planLimits?.isPreLaunch ?? plans[id].isPreLaunch;
+    if ((planLimits?.price ?? plans[id].price) === 0) { setPlanId(id); return; }
+
     setProcessingPlan(id);
     try {
-      const token = getAuthToken();
       const res = await fetch(`${getApiBaseUrl()}/api/payments/create-order`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          Authorization: `Bearer ${getToken()}`,
         },
         body: JSON.stringify({ plan_id: id, use_igst: true, pre_launch: isPreLaunch }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data?.detail ?? 'Order creation failed');
 
-      // Order recorded. Gateway not live yet — show informative toast.
-      toast({
-        title: 'Order created',
-        description: `${planDisplayNames[id]} plan order recorded (${data.display_total} incl. GST). Payment gateway coming soon.`,
-      });
-      // TODO: GATEWAY — open Razorpay checkout here with data.gateway_order_id + data.key_id
-    } catch (err: any) {
-      toast({ title: 'Could not create order', description: err?.message ?? 'Please try again.', variant: 'destructive' });
+      if (data.gateway_ready && data.key_id && data.gateway_order_id) {
+        // Razorpay live — open checkout
+        await openRazorpayCheckout(
+          data.key_id,
+          data.gateway_order_id,
+          data.amount_paise,
+          data.payment.id,
+          id,
+          planDisplayNames[id],
+        );
+      } else {
+        // Gateway not yet live — record order, inform user
+        toast({
+          title: 'Order recorded',
+          description: `${planDisplayNames[id]} plan — ${data.display_total} incl. GST. Our team will contact you to complete payment.`,
+        });
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Please try again.';
+      toast({ title: 'Could not create order', description: msg, variant: 'destructive' });
     } finally {
       setProcessingPlan(null);
     }
@@ -85,24 +177,26 @@ const UpgradePage = () => {
           <h1 className="font-heading text-3xl font-bold">{tr('upgradeTitle')}</h1>
           <div className="gold-line mx-auto mt-3 mb-3" style={{ maxWidth: '100px' }} />
           <p className="text-muted-foreground font-body">All plans billed annually · Cancel anytime</p>
+          <p className="text-xs text-muted-foreground mt-1">Invoiced as "Paryavaran Mitra Membership"</p>
         </div>
 
         <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-5 max-w-6xl mx-auto">
           {planOrder.map(id => {
             const staticPlan = plans[id];
             const runtime    = pricingConfig.plans[id];
-            const price      = runtime?.price         ?? staticPlan.price;
-            const prePrice   = runtime?.preLaunchPrice ?? staticPlan.preLaunchPrice;
-            const isPreLaunch= runtime?.isPreLaunch    ?? staticPlan.isPreLaunch;
-            const maxNodes   = runtime?.maxNodes       ?? staticPlan.maxNodes;
-            const genCap     = runtime?.generationCap  ?? staticPlan.generationCap;
-            const entitle    = runtime?.entitlements   ?? staticPlan.entitlements;
+            const price      = runtime?.price          ?? staticPlan.price;
+            const prePrice   = runtime?.preLaunchPrice  ?? staticPlan.preLaunchPrice;
+            const isPreLaunch= runtime?.isPreLaunch     ?? staticPlan.isPreLaunch;
+            const maxNodes   = runtime?.maxNodes        ?? staticPlan.maxNodes;
+            const genCap     = runtime?.generationCap   ?? staticPlan.generationCap;
+            const entitle    = runtime?.entitlements    ?? staticPlan.entitlements;
 
             const isCurrent    = id === currentPlan;
             const isFree       = price === 0;
             const isTopTier    = id === 'vansh';
             const showOffer    = isPreLaunch && prePrice !== null && prePrice < price;
             const isComingSoon = id === 'vriksh' || id === 'vansh';
+            const emotional    = planEmotional[id];
 
             return (
               <div
@@ -143,13 +237,24 @@ const UpgradePage = () => {
                   )}
                 </div>
 
-                {/* Plan name */}
+                {/* Plan name + emotional copy */}
                 <h3 className={`font-heading text-xl font-bold mb-0.5 ${isTopTier ? 'text-gold-dark' : ''}`}>
                   {planDisplayNames[id]}
                 </h3>
+                {emotional.tagline && (
+                  <p className={`text-xs mb-1 leading-snug ${isTopTier ? 'text-amber-600 dark:text-amber-400 font-semibold' : 'text-muted-foreground'}`}>
+                    {emotional.tagline}
+                  </p>
+                )}
+                {/* Upgrade wall nudge — shown on current plan's card when there's a wall message */}
+                {isCurrent && emotional.wall && (
+                  <p className="text-[11px] text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg px-2.5 py-1.5 mb-2 leading-snug">
+                    {emotional.wall}
+                  </p>
+                )}
 
                 {/* Pricing */}
-                <div className="mb-4">
+                <div className="mb-4 mt-1">
                   {isFree ? (
                     <p className="text-3xl font-bold font-heading">Free</p>
                   ) : showOffer ? (
@@ -164,7 +269,7 @@ const UpgradePage = () => {
                   ) : (
                     <div>
                       <p className="text-3xl font-bold font-heading">₹{price}</p>
-                      <p className="text-xs text-muted-foreground font-body">per year</p>
+                      <p className="text-xs text-muted-foreground font-body">per year + GST</p>
                     </div>
                   )}
                 </div>
@@ -210,7 +315,7 @@ const UpgradePage = () => {
                       }`}
                     >
                       {processingPlan === id ? (
-                        <><span className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" /> Processing…</>
+                        <><Loader2 className="w-4 h-4 animate-spin" /> Processing…</>
                       ) : (
                         <>{!isFree && <CreditCard className="w-4 h-4" />}
                         {isFree ? 'Select Free Plan' : showOffer ? `Get offer — ₹${prePrice}` : `Upgrade — ₹${price}/yr`}</>
