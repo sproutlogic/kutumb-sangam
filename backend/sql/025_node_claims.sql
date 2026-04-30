@@ -6,7 +6,7 @@
 
 -- 1. Add owner_id to persons (nullable — NULL means "created by tree but not yet claimed by a real user")
 ALTER TABLE public.persons
-    ADD COLUMN IF NOT EXISTS owner_id TEXT REFERENCES public.users(id) ON DELETE SET NULL;
+    ADD COLUMN IF NOT EXISTS owner_id UUID REFERENCES public.users(id) ON DELETE SET NULL;
 
 CREATE INDEX IF NOT EXISTS idx_persons_owner_id ON public.persons(owner_id);
 
@@ -15,10 +15,10 @@ CREATE TABLE IF NOT EXISTS public.node_claims (
     id              UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
     node_id         TEXT        NOT NULL,                          -- persons.node_id
     vansha_id       UUID        NOT NULL,                          -- scoped to vansha
-    claimant_id     TEXT        NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+    claimant_id     UUID        NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
     status          TEXT        NOT NULL DEFAULT 'pending'
                                 CHECK (status IN ('pending', 'approved', 'rejected')),
-    reviewed_by     TEXT        REFERENCES public.users(id) ON DELETE SET NULL,
+    reviewed_by     UUID        REFERENCES public.users(id) ON DELETE SET NULL,
     reviewed_at     TIMESTAMPTZ,
     reject_reason   TEXT,
     created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -52,4 +52,4 @@ ALTER TABLE public.node_claims ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "node_claims_self_read" ON public.node_claims;
 CREATE POLICY "node_claims_self_read"
     ON public.node_claims FOR SELECT
-    USING (auth.uid()::text = claimant_id);
+    USING (auth.uid() = claimant_id);
