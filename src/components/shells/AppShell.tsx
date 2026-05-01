@@ -3,12 +3,13 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { useLang } from '@/i18n/LanguageContext';
 import {
   Hourglass, Home, TreePine, ShieldCheck, Search,
-  HelpCircle, LogOut, CalendarDays, Radar, Archive, Receipt, Building2, Leaf, IndianRupee,
+  HelpCircle, LogOut, CalendarDays, Archive, Receipt, Building2, Leaf, IndianRupee,
   ShoppingBag, HandHeart, Settings,
 } from 'lucide-react';
 import { useTree } from '@/contexts/TreeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { AppTopBar } from '@/components/shells/AppTopBar';
+import KutumbFooter from '@/components/shells/KutumbFooter';
 import { UPCOMING_SERVICES } from '@/config/upcomingServices.config';
 import { fetchVanshaTree, setPersistedVanshaId } from '@/services/api';
 import { backendPayloadToTreeState } from '@/services/mapVanshaPayload';
@@ -22,7 +23,6 @@ const navItems = [
   { icon: ShieldCheck,  labelKey: 'verification'     as const, path: '/verification' },
   { icon: Search,       labelKey: 'discovery'        as const, path: '/discovery' },
   { icon: CalendarDays, labelKey: 'kutumbCalendar'   as const, path: '/eco-panchang' },
-  { icon: Radar,        labelKey: 'kutumbRadar'      as const, path: '/radar' },
   { icon: Archive,      labelKey: 'legacyBox'        as const, path: '/legacy-box' },
   { icon: Receipt,      labelKey: 'transactions'     as const, path: '/transactions' },
   { icon: Leaf,         labelKey: 'haritCircleNav'   as const, path: '/harit-circle' },
@@ -166,7 +166,10 @@ const AppShell: React.FC<AppShellProps> = ({ children }) => {
         </aside>
 
         {/* Main content */}
-        <main className="flex-1 overflow-auto">{children}</main>
+        <main className="flex-1 overflow-auto flex flex-col">
+          <div className="flex-1">{children}</div>
+          <KutumbFooter />
+        </main>
       </div>
     </div>
   );

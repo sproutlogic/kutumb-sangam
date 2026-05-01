@@ -1,1430 +1,243 @@
-/**
- * Sewa Chakra — Kutumb Map's community service exchange.
- *
- * Features:
- *  • Two-sided marketplace (Offers + Needs)
- *  • Local (branch) + Global credits
- *  • "Simple Handshake": helper marks done → both rate → credits transfer
- *  • Double-entry zero-sum ledger with negative-balance cap
- *  • D-score diversification engine (C_final = hours × (1 + D))
- *  • Community Pillar badge if D ≥ 0.7
- *  • Manager dashboard: approval queue, private ledger toggle, flagged trades
- *  • Social worker teams (standalone branch, no vansha required)
- *  • Kutumb Map node-ID linkage
- */
-
-import { useState, useEffect, useCallback } from 'react';
-import {
-  Heart, Plus, Star, X, ChevronDown, Globe, Lock,
-  CheckCircle, XCircle, AlertTriangle, Shield, Users,
-  Clock, TrendingUp, Award, Megaphone, Wrench,
-  ToggleLeft, ToggleRight, Flag, Sparkles,
-} from 'lucide-react';
+import { useState } from 'react';
 import AppShell from '@/components/shells/AppShell';
-import { useLang } from '@/i18n/LanguageContext';
-import { getApiBaseUrl, resolveVanshaIdForApi } from '@/services/api';
-import { useTree } from '@/contexts/TreeContext';
 import { useAuth } from '@/contexts/AuthContext';
-import { toast } from '@/hooks/use-toast';
-import { EcoSewaPanel } from '@/pages/EcoSewaPage';
 
-// ── Types ─────────────────────────────────────────────────────────────────────
+type LedgerKind = 'earned' | 'spent' | 'pending' | 'request';
 
-interface SamayBranch {
-  id: string; name: string; manager_id: string; vansha_id?: string;
-  is_private_ledger: boolean; requires_manager_approval: boolean;
-  allow_global: boolean; negative_limit_hours: number;
-  my_local_balance?: number; my_role?: string;
+interface LedgerRow {
+  id: number;
+  kind: LedgerKind;
+  who: string;
+  what: string;
+  hours: number;
+  when: string;
+  category: string;
+  status: string;
 }
 
-interface BranchMember {
-  user_id: string; display_name?: string; node_id?: string;
-  role: string; local_balance: number | null;
-}
+const LEDGER: LedgerRow[] = [
+  { id: 1, kind: 'earned',  who: 'Bua ji',          what: 'Cooked dal-baati for Holi gathering',     hours: 3.0, when: '2 days ago',  category: 'Cooking',   status: 'settled'   },
+  { id: 2, kind: 'spent',   who: 'Verma parivar',   what: 'Tutored Aanya in Sanskrit (4 sessions)', hours: 4.0, when: 'last week',   category: 'Tutoring',  status: 'settled'   },
+  { id: 3, kind: 'earned',  who: 'Pt. Ramesh',      what: 'Helped set up Satyanarayan puja',        hours: 2.5, when: 'last week',   category: 'Ritual',    status: 'settled'   },
+  { id: 4, kind: 'pending', who: 'Mausi ji',        what: 'Eldercare for dadiji while travelling',  hours: 6.0, when: 'tomorrow',    category: 'Eldercare', status: 'scheduled' },
+  { id: 5, kind: 'earned',  who: 'Joshi parivar',   what: 'Stitched ceremonial dupattas',           hours: 5.0, when: '2 weeks ago', category: 'Crafts',    status: 'settled'   },
+  { id: 6, kind: 'spent',   who: 'Tripathi parivar',what: 'Borrowed cook for housewarming',         hours: 3.0, when: '3 weeks ago', category: 'Cooking',   status: 'settled'   },
+  { id: 7, kind: 'request', who: 'You',             what: 'Request: Hindi calligraphy for invite',  hours: 2.0, when: 'open',        category: 'Crafts',    status: 'open'      },
+];
 
-interface SamayRequest {
-  id: string; requester_id: string; requester_name?: string;
-  request_type: 'offer' | 'need'; scope: 'local' | 'global';
-  title: string; description?: string; category: string;
-  hours_estimate?: number; status: string; visible_from: string;
-  created_at: string;
-}
+const OFFERS = [
+  { who: 'Mausi Sushma', cat: 'Eldercare', desc: 'Available 2 hrs/day to sit with elders. Reads Ramayan aloud.', rate: 1, dist: '2.3 km', avail: 'Mon–Fri', mine: false },
+  { who: 'Pt. Vyas',     cat: 'Ritual',    desc: 'Will help set up small pujas, no fee — bank as time.',         rate: 1, dist: '5.1 km', avail: 'Evenings', mine: false },
+  { who: 'Aanya (16)',   cat: 'Tutoring',  desc: 'Will tutor classes 6–8 in math and English.',                  rate: 1, dist: '1.4 km', avail: 'After 5pm', mine: false },
+  { who: 'Verma chachi', cat: 'Cooking',   desc: 'Can prep festival sweets in batches of 50.',                   rate: 2, dist: '3.0 km', avail: 'Sat', mine: false },
+  { who: 'Ravi bhaiya',  cat: 'Crafts',    desc: 'Wood carving for mandir frames, will exchange for cooking.',   rate: 2, dist: '8.2 km', avail: 'Weekends', mine: false },
+  { who: 'You',          cat: 'Tutoring',  desc: 'Sanskrit basics, 1hr sessions. 2 takers waiting.',            rate: 1, dist: '—',     avail: 'Wed/Fri', mine: true },
+];
 
-interface SamayTransaction {
-  id: string; request_id?: string;
-  helper_id: string; helper_name?: string;
-  requester_id: string; requester_name?: string;
-  branch_id?: string; hours: number;
-  credit_type: 'local' | 'global'; final_value?: number;
-  status: 'pending' | 'assigned' | 'helper_done' | 'confirmed' | 'disputed' | 'cancelled';
-  requires_manager_approval: boolean; manager_approved?: boolean;
-  helper_confirmed_at?: string; requester_confirmed_at?: string;
-  description?: string; is_flagged: boolean; flag_reason?: string;
-  created_at: string;
-  both_rated?: boolean;
-}
-
-interface SamayProfile {
-  user_id: string; node_id?: string; display_name?: string;
-  total_global_credits: number; total_verified_hours: number;
-  avg_quality_rating: number; avg_behavior_rating: number;
-  d_score: number; is_community_pillar: boolean; rating_count: number;
-}
-
-// ── Constants ─────────────────────────────────────────────────────────────────
-
-// Eco-Sewa categories aligned with Prakriti by Aarush terminology
 const CATEGORIES = [
-  'tree_planting','waste_cleanup','water_conservation','eco_awareness',
-  'skill_sharing','eco_volunteering','composting','solar_energy','nature_care','general',
-];
-const CAT_EMOJI: Record<string, string> = {
-  tree_planting:'🌳', waste_cleanup:'♻️', water_conservation:'🌊', eco_awareness:'📢',
-  skill_sharing:'🌱', eco_volunteering:'🤝', composting:'🍂', solar_energy:'☀️',
-  nature_care:'🐦', general:'⭐',
-};
-// Human-readable labels for display in UI
-const CAT_LABEL: Record<string, string> = {
-  tree_planting:'वृक्षारोपण', waste_cleanup:'कचरा सफाई', water_conservation:'जल संरक्षण',
-  eco_awareness:'पर्यावरण जागरूकता', skill_sharing:'कौशल साझा', eco_volunteering:'इको स्वयंसेवा',
-  composting:'कम्पोस्टिंग', solar_energy:'सौर ऊर्जा', nature_care:'प्रकृति सेवा', general:'सामान्य',
-};
-const STATUS_PILL: Record<string, string> = {
-  pending:     'bg-amber-100 text-amber-700',
-  assigned:    'bg-blue-100 text-blue-700',
-  helper_done: 'bg-purple-100 text-purple-700',
-  confirmed:   'bg-green-100 text-green-700',
-  disputed:    'bg-red-100 text-red-700',
-  cancelled:   'bg-secondary text-muted-foreground',
-};
-
-const USE_CASES = [
-  { emoji: '🌳', title: 'Tree planting drives', desc: 'Organise or join a Van Mahotsav / plantation drive. Earn 1.5× Eco-Sewa Credits for every hour contributed.' },
-  { emoji: '♻️', title: 'Waste segregation & clean-up', desc: 'Lead or support waste segregation camps, SwachhBharat drives, and neighbourhood clean-up efforts.' },
-  { emoji: '🌊', title: 'Water & river conservation', desc: 'Help with Jal Puja, river clean-up, rainwater harvesting awareness, or community well restoration.' },
-  { emoji: '📢', title: 'Environmental awareness', desc: 'Conduct eco-awareness sessions in schools, colonies, or markets. Share knowledge that multiplies impact.' },
-  { emoji: '🌱', title: 'Sustainable skills sharing', desc: 'Teach composting, organic farming, natural dyes, solar cooking, or any skill that reduces environmental harm.' },
-  { emoji: '🤝', title: 'Community eco-volunteering', desc: 'Join or organise any community service that protects nature — forests, wetlands, urban green spaces, or air quality.' },
+  { cat: 'Cooking',     earned: 8, spent: 5, color: 'var(--ds-saffron)' },
+  { cat: 'Eldercare',   earned: 6, spent: 0, color: 'var(--ds-plum-rose)' },
+  { cat: 'Ritual',      earned: 5, spent: 2, color: 'var(--ds-gold-deep)' },
+  { cat: 'Tutoring',    earned: 4, spent: 4, color: '#2aa86b' },
+  { cat: 'Crafts',      earned: 5, spent: 0, color: 'var(--ds-plum)' },
+  { cat: 'Travel help', earned: 0, spent: 3, color: 'var(--ds-ink-soft)' },
 ];
 
-// ── Auth helper ───────────────────────────────────────────────────────────────
+const kindMeta: Record<LedgerKind, { color: string; tag: string; sign: string; dir: 'in' | 'out' }> = {
+  earned:  { color: '#2aa86b',              tag: 'Earned',    sign: '+', dir: 'in'  },
+  spent:   { color: 'var(--ds-saffron)',    tag: 'Spent',     sign: '−', dir: 'out' },
+  pending: { color: 'var(--ds-gold-deep)', tag: 'Scheduled', sign: '·', dir: 'in'  },
+  request: { color: 'var(--ds-plum-rose)', tag: 'Request',   sign: '?', dir: 'out' },
+};
 
-function getToken(): string {
-  try {
-    for (const k of Object.keys(localStorage).filter(k => k.endsWith('-auth-token'))) {
-      const p = JSON.parse(localStorage.getItem(k) || '{}');
-      if (p?.access_token) return p.access_token;
-    }
-  } catch { /* ignore */ }
-  return '';
-}
-
-// ── Small helpers ─────────────────────────────────────────────────────────────
-
-function minsUntilVisible(visibleFrom: string): number {
-  const diff = new Date(visibleFrom).getTime() - Date.now();
-  return diff > 0 ? Math.ceil(diff / 60000) : 0;
-}
-
-function StarRow({ value, onChange }: { value: number; onChange?: (v: number) => void }) {
-  return (
-    <div className="flex gap-1">
-      {[1,2,3,4,5].map(n => (
-        <button key={n} type="button" onClick={() => onChange?.(n)} className={onChange ? 'cursor-pointer' : 'cursor-default'}>
-          <Star className={`w-5 h-5 ${n <= value ? 'fill-amber-400 text-amber-400' : 'text-muted-foreground/30'}`} />
-        </button>
-      ))}
-    </div>
-  );
-}
-
-function DScoreBadge({ d, pillar }: { d: number; pillar: boolean }) {
-  const pct = Math.round(d * 100);
-  return (
-    <span className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full ${
-      pillar ? 'bg-amber-100 text-amber-700' : 'bg-secondary text-muted-foreground'
-    }`}>
-      {pillar && <Award className="w-3 h-3" />}
-      D {pct}%{pillar && ' · Pillar'}
-    </span>
-  );
-}
-
-// ── Main Component ─────────────────────────────────────────────────────────────
-
-export default function TimeBankPage() {
-  const { tr } = useLang();
+const TimeBankPage = () => {
   const { appUser } = useAuth();
-  const vanshaId = resolveVanshaIdForApi(null);
-  const { state: treeState } = useTree();
+  const [tab, setTab] = useState<'ledger' | 'offers' | 'categories'>('ledger');
+  const [filter, setFilter] = useState<string>('all');
+  const [showLog, setShowLog] = useState(false);
 
-  const myNodeId = treeState.nodes.find(n => n.id)?.id ?? null;
+  const balance = 14;
+  const earned = 28;
+  const spent = 14;
+  const pending = 3;
 
-  const [branches, setBranches] = useState<SamayBranch[]>([]);
-  const [branch, setBranch] = useState<SamayBranch | null>(null);
-  const [profile, setProfile] = useState<SamayProfile | null>(null);
-  const [feed, setFeed] = useState<SamayRequest[]>([]);
-  const [myTxns, setMyTxns] = useState<SamayTransaction[]>([]);
-  const [members, setMembers] = useState<BranchMember[]>([]);
-  const [adminTxns, setAdminTxns] = useState<SamayTransaction[]>([]);
-  const [flagged, setFlagged] = useState<SamayTransaction[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  const [tab, setTab] = useState<'feed' | 'eco' | 'activity' | 'admin'>('eco');
-  const [feedScope, setFeedScope] = useState<'local' | 'global'>('local');
-  const [feedType, setFeedType] = useState<'all' | 'offer' | 'need'>('all');
-  const [feedCategory, setFeedCategory] = useState('all');
-  const [showBranchMenu, setShowBranchMenu] = useState(false);
-
-  const [showNewPost, setShowNewPost] = useState(false);
-  const [showCreateBranch, setShowCreateBranch] = useState(false);
-  const [ratingTxn, setRatingTxn] = useState<SamayTransaction | null>(null);
-  const [respondingTo, setRespondingTo] = useState<SamayRequest | null>(null);
-
-  const [npType, setNpType] = useState<'offer' | 'need'>('offer');
-  const [npScope, setNpScope] = useState<'local' | 'global'>('local');
-  const [npTitle, setNpTitle] = useState('');
-  const [npDesc, setNpDesc] = useState('');
-  const [npCat, setNpCat] = useState('general');
-  const [npHours, setNpHours] = useState(1);
-  const [npSaving, setNpSaving] = useState(false);
-
-  const [respHours, setRespHours] = useState(1);
-  const [respDesc, setRespDesc] = useState('');
-  const [respSaving, setRespSaving] = useState(false);
-
-  const [rateQ, setRateQ] = useState(5);
-  const [rateB, setRateB] = useState(5);
-  const [rateComment, setRateComment] = useState('');
-  const [rateSaving, setRateSaving] = useState(false);
-
-  const [cbName, setCbName] = useState('');
-  const [cbPrivate, setCbPrivate] = useState(false);
-  const [cbApproval, setCbApproval] = useState(false);
-  const [cbSaving, setCbSaving] = useState(false);
-
-  const token = getToken();
-  const headers = { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) };
-  const api = `${getApiBaseUrl()}/api/samay`;
-
-  // ── API ──────────────────────────────────────────────────────────────────────
-
-  const loadFeed = useCallback(async (b: SamayBranch, scope: string, type: string, cat: string) => {
-    try {
-      const params = new URLSearchParams({ scope, req_type: type, category: cat });
-      if (scope === 'local') params.set('branch_id', b.id);
-      const res = await fetch(`${api}/requests?${params}`, { headers });
-      if (res.ok) setFeed(await res.json());
-    } catch { /* silent */ }
-  }, [api]);
-
-  const loadMyTxns = useCallback(async (b: SamayBranch) => {
-    try {
-      const res = await fetch(`${api}/transactions?branch_id=${b.id}`, { headers });
-      if (res.ok) setMyTxns(await res.json());
-    } catch { /* silent */ }
-  }, [api]);
-
-  const loadAdminData = useCallback(async (b: SamayBranch) => {
-    if (b.my_role !== 'manager') return;
-    try {
-      const [txnRes, flagRes, mbrRes] = await Promise.all([
-        fetch(`${api}/admin/transactions?branch_id=${b.id}`, { headers }),
-        fetch(`${api}/admin/flagged?branch_id=${b.id}`, { headers }),
-        fetch(`${api}/branches/${b.id}/members`, { headers }),
-      ]);
-      if (txnRes.ok) setAdminTxns(await txnRes.json());
-      if (flagRes.ok) setFlagged(await flagRes.json());
-      if (mbrRes.ok) setMembers(await mbrRes.json());
-    } catch { /* silent */ }
-  }, [api]);
-
-  useEffect(() => {
-    (async () => {
-      setLoading(true);
-      try {
-        let activeBranch: SamayBranch | null = null;
-        if (vanshaId) {
-          const joinRes = await fetch(`${api}/branches/auto-join`, {
-            method: 'POST', headers,
-            body: JSON.stringify({ vansha_id: vanshaId, node_id: myNodeId }),
-          });
-          if (joinRes.ok) {
-            const { branch: b, member } = await joinRes.json();
-            activeBranch = { ...b, my_local_balance: member?.local_balance ?? 0, my_role: member?.role ?? 'member' };
-          }
-        }
-
-        const brRes = await fetch(`${api}/branches`, { headers });
-        if (brRes.ok) {
-          const allBranches: SamayBranch[] = await brRes.json();
-          setBranches(allBranches);
-          if (!activeBranch && allBranches.length > 0) activeBranch = allBranches[0];
-        }
-
-        const profRes = await fetch(`${api}/profile`, { headers });
-        if (profRes.ok) setProfile(await profRes.json());
-
-        if (activeBranch) {
-          setBranch(activeBranch);
-          await Promise.all([
-            loadFeed(activeBranch, 'local', 'all', 'all'),
-            loadMyTxns(activeBranch),
-            loadAdminData(activeBranch),
-          ]);
-        }
-      } finally {
-        setLoading(false);
-      }
-    })();
-  }, [vanshaId]);
-
-  useEffect(() => {
-    if (branch) loadFeed(branch, feedScope, feedType, feedCategory);
-  }, [feedScope, feedType, feedCategory, branch]);
-
-  // ── Handlers ─────────────────────────────────────────────────────────────────
-
-  async function selectBranch(b: SamayBranch) {
-    setBranch(b); setShowBranchMenu(false);
-    await Promise.all([loadFeed(b, feedScope, feedType, feedCategory), loadMyTxns(b), loadAdminData(b)]);
-  }
-
-  async function submitNewPost() {
-    if (!npTitle.trim()) { toast({ title: tr('fillRequired'), variant: 'destructive' }); return; }
-    if (npScope === 'local' && !branch) { toast({ title: tr('noVanshaId'), variant: 'destructive' }); return; }
-    setNpSaving(true);
-    try {
-      const res = await fetch(`${api}/requests`, {
-        method: 'POST', headers,
-        body: JSON.stringify({
-          branch_id: npScope === 'local' ? branch?.id : null,
-          request_type: npType, scope: npScope,
-          title: npTitle.trim(), description: npDesc || null,
-          category: npCat, hours_estimate: npHours,
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data?.detail || tr('errorGeneric'));
-      if (npScope === 'local') setFeed(prev => [data, ...prev]);
-      toast({ title: npScope === 'global' ? tr('globalPostScheduled') : tr('postCreated') });
-      setShowNewPost(false); setNpTitle(''); setNpDesc(''); setNpCat('general'); setNpHours(1);
-    } catch (e) { toast({ title: String(e), variant: 'destructive' }); }
-    finally { setNpSaving(false); }
-  }
-
-  async function submitRespond() {
-    if (!respondingTo) return;
-    setRespSaving(true);
-    try {
-      const res = await fetch(`${api}/requests/${respondingTo.id}/respond`, {
-        method: 'POST', headers,
-        body: JSON.stringify({ hours: respHours, description: respDesc || null }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data?.detail || tr('errorGeneric'));
-      setMyTxns(prev => [data, ...prev]);
-      toast({ title: tr('requestSent') });
-      setRespondingTo(null); setRespHours(1); setRespDesc('');
-      if (branch) loadFeed(branch, feedScope, feedType, feedCategory);
-    } catch (e) { toast({ title: String(e), variant: 'destructive' }); }
-    finally { setRespSaving(false); }
-  }
-
-  async function markHelperDone(txnId: string) {
-    const res = await fetch(`${api}/transactions/${txnId}`, {
-      method: 'PUT', headers, body: JSON.stringify({ action: 'helper_done' }),
-    });
-    if (res.ok) {
-      const updated = await res.json();
-      setMyTxns(prev => prev.map(t => t.id === txnId ? { ...t, ...updated } : t));
-      toast({ title: tr('markedDone') });
-    }
-  }
-
-  async function submitRating() {
-    if (!ratingTxn) return;
-    setRateSaving(true);
-    try {
-      const res = await fetch(`${api}/transactions/${ratingTxn.id}/rate`, {
-        method: 'POST', headers,
-        body: JSON.stringify({ quality_rating: rateQ, behavior_rating: rateB, comment: rateComment || null }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data?.detail || tr('errorGeneric'));
-      setMyTxns(prev => prev.map(t => t.id === ratingTxn.id ? { ...t, ...data } : t));
-      if (data.both_rated) {
-        toast({ title: tr('creditsTransferred') });
-        if (branch) loadMyTxns(branch);
-      } else {
-        toast({ title: tr('ratingSubmitted') });
-      }
-      setRatingTxn(null); setRateQ(5); setRateB(5); setRateComment('');
-      const profRes = await fetch(`${api}/profile`, { headers });
-      if (profRes.ok) setProfile(await profRes.json());
-    } catch (e) { toast({ title: String(e), variant: 'destructive' }); }
-    finally { setRateSaving(false); }
-  }
-
-  async function cancelTxn(txnId: string) {
-    const res = await fetch(`${api}/transactions/${txnId}`, {
-      method: 'PUT', headers, body: JSON.stringify({ action: 'cancel' }),
-    });
-    if (res.ok) {
-      setMyTxns(prev => prev.map(t => t.id === txnId ? { ...t, status: 'cancelled' } : t));
-      toast({ title: tr('cancelled') });
-    }
-  }
-
-  async function approveTransaction(txnId: string) {
-    const res = await fetch(`${api}/admin/transactions/${txnId}/approve`, { method: 'PUT', headers });
-    if (res.ok) {
-      toast({ title: tr('creditsTransferred') });
-      if (branch) loadAdminData(branch);
-    }
-  }
-
-  async function togglePrivateLedger() {
-    if (!branch) return;
-    const newVal = !branch.is_private_ledger;
-    const res = await fetch(`${api}/branches/${branch.id}/settings`, {
-      method: 'PUT', headers, body: JSON.stringify({ is_private_ledger: newVal }),
-    });
-    if (res.ok) {
-      setBranch(prev => prev ? { ...prev, is_private_ledger: newVal } : prev);
-      setBranches(prev => prev.map(b => b.id === branch.id ? { ...b, is_private_ledger: newVal } : b));
-    }
-  }
-
-  async function createBranch() {
-    if (!cbName.trim()) { toast({ title: tr('fillRequired'), variant: 'destructive' }); return; }
-    setCbSaving(true);
-    try {
-      const res = await fetch(`${api}/branches`, {
-        method: 'POST', headers,
-        body: JSON.stringify({
-          name: cbName.trim(), is_private_ledger: cbPrivate,
-          requires_manager_approval: cbApproval, allow_global: true,
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data?.detail || tr('errorGeneric'));
-      const newBranch: SamayBranch = { ...data, my_local_balance: 0, my_role: 'manager' };
-      setBranches(prev => [...prev, newBranch]);
-      await selectBranch(newBranch);
-      setShowCreateBranch(false); setCbName(''); setCbPrivate(false); setCbApproval(false);
-      toast({ title: tr('branchCreated') });
-    } catch (e) { toast({ title: String(e), variant: 'destructive' }); }
-    finally { setCbSaving(false); }
-  }
-
-  // ── Derived ───────────────────────────────────────────────────────────────────
-
-  const userId = appUser?.id ?? '';
-  const inProgress = myTxns.filter(t => ['pending','assigned'].includes(t.status));
-  const history = myTxns.filter(t => ['confirmed','cancelled','disputed'].includes(t.status));
-  const isManager = branch?.my_role === 'manager';
-  const isPlatformAdmin = appUser?.role === 'admin' || appUser?.role === 'superadmin';
-  const pendingApproval = adminTxns.filter(t => t.requires_manager_approval && !t.manager_approved && t.status === 'helper_done');
-
-  // ── Loading ────────────────────────────────────────────────────────────────────
-
-  if (loading) {
-    return (
-      <AppShell>
-        <div className="flex flex-col items-center justify-center py-24 text-center">
-          <div className="w-16 h-16 rounded-2xl gradient-hero flex items-center justify-center mb-5 shadow-warm">
-            <Clock className="w-8 h-8 text-white animate-spin" />
-          </div>
-          <p className="text-sm text-muted-foreground font-body">{tr('loading')}</p>
-        </div>
-      </AppShell>
-    );
-  }
-
-  // ── Render ─────────────────────────────────────────────────────────────────────
+  const filtered = LEDGER.filter(r => filter === 'all' || r.kind === filter);
 
   return (
     <AppShell>
+      <div style={{ maxWidth: 1100, margin: '0 auto', padding: '48px 24px 80px', fontFamily: 'var(--ds-sans)', color: 'var(--ds-ink)' }}>
 
-      {/* ══════════════════════════════════════
-          HERO
-      ══════════════════════════════════════ */}
-      <div className="relative overflow-hidden gradient-hero">
-
-        {/* Background decoration */}
-        <div className="absolute inset-0 pointer-events-none select-none overflow-hidden">
-          <div className="absolute -top-28 -right-28 w-[420px] h-[420px] rounded-full border border-white/[0.06]" />
-          <div className="absolute -top-12 -right-12 w-[240px] h-[240px] rounded-full border border-white/[0.04]" />
-          <div className="absolute top-1/2 -left-32 w-[360px] h-[360px] rounded-full border border-white/[0.04]" />
-          <div className="absolute bottom-0 left-[15%] w-px h-40 bg-gradient-to-t from-amber-400/0 via-amber-400/20 to-amber-400/0" />
-          <div className="absolute bottom-0 left-[55%] w-px h-56 bg-gradient-to-t from-amber-400/0 via-amber-400/18 to-amber-400/0" />
-          <div className="absolute bottom-0 left-[80%] w-px h-32 bg-gradient-to-t from-amber-400/0 via-amber-400/15 to-amber-400/0" />
-          <div className="absolute -bottom-2 right-4 font-heading text-[100px] leading-none text-white/[0.03] select-none">सेवा</div>
-        </div>
-
-        <div className="relative container px-4 pt-8 pb-6">
-
-          {/* ── Title row + branch selector ── */}
-          <div className="flex items-start justify-between gap-4 mb-5">
-            <div>
-              <div className="flex items-center gap-2.5 mb-1.5">
-                <div className="w-8 h-8 gradient-gold rounded-lg flex items-center justify-center shadow-gold flex-shrink-0">
-                  <Heart className="w-4 h-4 text-white" />
-                </div>
-                <h1 className="font-heading text-2xl sm:text-3xl font-bold text-white">Sewa Chakra</h1>
-                <span className="text-[10px] px-2.5 py-0.5 rounded-full bg-amber-400/20 text-amber-300 font-body font-bold tracking-widest border border-amber-400/30">
-                  LIVE
-                </span>
-              </div>
-              <p className="text-white/60 font-body text-sm">
-                Give your time · Gain community trust · Grow together
-              </p>
-            </div>
-
-            {/* Branch selector */}
-            <div className="relative flex-shrink-0">
-              <button
-                onClick={() => setShowBranchMenu(!showBranchMenu)}
-                className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white/10 text-white text-xs font-semibold hover:bg-white/[0.18] transition border border-white/20 backdrop-blur-sm"
-              >
-                {branch?.name ?? tr('selectBranch')}
-                <ChevronDown className="w-3 h-3" />
-              </button>
-              {showBranchMenu && (
-                <div className="absolute right-0 top-full mt-1 z-30 bg-card border border-border rounded-2xl shadow-elevated min-w-[200px] overflow-hidden">
-                  {branches.map(b => (
-                    <button
-                      key={b.id}
-                      onClick={() => selectBranch(b)}
-                      className={`w-full text-left px-4 py-2.5 text-sm font-body hover:bg-secondary/50 transition-colors ${b.id === branch?.id ? 'text-primary font-semibold' : ''}`}
-                    >
-                      {b.name}
-                      {b.vansha_id && <span className="ml-1 text-[10px] text-muted-foreground">· kutumb</span>}
-                    </button>
-                  ))}
-                  <div className="border-t border-border/50" />
-                  <button
-                    onClick={() => { setShowBranchMenu(false); setShowCreateBranch(true); }}
-                    className="w-full text-left px-4 py-2.5 text-sm font-body text-primary hover:bg-secondary/50 flex items-center gap-1.5"
-                  >
-                    <Plus className="w-3.5 h-3.5" /> {tr('createTeamBranch')}
-                  </button>
-                </div>
-              )}
-            </div>
+        {/* Header */}
+        <div style={{ background: 'linear-gradient(135deg, var(--ds-plum) 0%, var(--ds-plum-mid) 100%)', color: 'var(--ds-ivory)', padding: '40px 36px', borderRadius: 16, position: 'relative', overflow: 'hidden', marginBottom: 24 }}>
+          <div style={{ position: 'absolute', top: -60, right: -40, width: 280, height: 280, background: 'radial-gradient(circle, rgba(212,154,31,0.18) 0%, transparent 70%)', pointerEvents: 'none' }} />
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 6 }}>
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--ds-gold-light)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><path d="M12 6v6l4 2" /></svg>
+            <span className="ds-eyebrow" style={{ color: 'var(--ds-gold-light)' }}>Sewa Time Bank</span>
           </div>
+          <h1 style={{ fontFamily: 'var(--ds-serif)', fontSize: 40, fontWeight: 700, letterSpacing: '-0.02em', color: 'var(--ds-paper)' }}>Exchange hours, not money</h1>
+          <p style={{ marginTop: 10, fontSize: 15, color: 'rgba(255,255,255,0.7)', maxWidth: 560 }}>
+            Cooking, eldercare, rituals, tutoring. The old village economy, ledgered.{' '}
+            <span className="ds-sanskrit" style={{ color: 'var(--ds-gold-light)' }}>परस्परं भावयन्तः</span> — uplift one another.
+          </p>
 
-          {/* ── Concept pills ── */}
-          <div className="flex flex-wrap gap-2 mb-6">
+          {/* Balance row */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr 1fr 1fr', gap: 14, marginTop: 32 }} className="tb-summary">
+            <div style={{ padding: '18px 22px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(212,154,31,0.3)', borderRadius: 10 }}>
+              <span className="ds-eyebrow" style={{ color: 'var(--ds-gold-light)' }}>Your balance</span>
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginTop: 8 }}>
+                <span className="ds-score-num" style={{ fontSize: 64, color: 'var(--ds-gold-light)', lineHeight: 1 }}>+{balance}</span>
+                <span style={{ fontSize: 14, color: 'rgba(255,255,255,0.55)' }}>hours owed to you</span>
+              </div>
+              <div style={{ marginTop: 14, height: 6, borderRadius: 3, background: 'rgba(255,255,255,0.1)', overflow: 'hidden' }}>
+                <div style={{ width: '56%', height: '100%', background: 'linear-gradient(90deg,var(--ds-saffron),var(--ds-gold))' }} />
+              </div>
+              <div style={{ marginTop: 6, fontSize: 11, fontFamily: 'var(--ds-mono)', color: 'rgba(255,255,255,0.5)' }}>56% toward Vriksh-tier (25 hr)</div>
+            </div>
             {[
-              { icon: '🤝', text: 'Give your time, gain trust' },
-              { icon: '⚡', text: 'Every sewa earns verified credits' },
-              { icon: '🌀', text: 'Karma made measurable' },
-            ].map((p, i) => (
-              <div key={i} className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/10 border border-white/20 text-white/85 text-xs font-body backdrop-blur-sm">
-                <span>{p.icon}</span>{p.text}
+              { label: 'Earned', value: earned, color: '#7adba0', sub: 'lifetime' },
+              { label: 'Spent', value: spent, color: '#e9c267', sub: 'lifetime' },
+              { label: 'Open requests', value: pending, color: 'var(--ds-saffron)', sub: 'this month' },
+            ].map(s => (
+              <div key={s.label} style={{ padding: '18px 22px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 10 }}>
+                <span className="ds-eyebrow" style={{ color: 'rgba(255,255,255,0.55)' }}>{s.label}</span>
+                <div className="ds-score-num" style={{ fontSize: 38, color: s.color, lineHeight: 1, marginTop: 10 }}>{s.value}<span style={{ fontSize: 14, color: 'rgba(255,255,255,0.45)', marginLeft: 6 }}>hr</span></div>
+                <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.45)', marginTop: 6, fontFamily: 'var(--ds-mono)' }}>{s.sub}</div>
               </div>
             ))}
           </div>
-
-          {/* ── Sewa Identity Card ── */}
-          {appUser && (
-            <div
-              className="rounded-2xl border border-white/20 shadow-warm overflow-hidden"
-              style={{ background: 'rgba(255,255,255,0.07)', backdropFilter: 'blur(14px)' }}
-            >
-              <div className="p-5 flex flex-col sm:flex-row sm:items-center gap-5">
-                {/* Identity */}
-                <div className="flex-1 min-w-0">
-                  <p className="text-[9px] tracking-[0.25em] uppercase text-white/45 font-body mb-0.5">
-                    Sewa Chakra Member
-                  </p>
-                  <p className="font-heading text-xl font-bold text-white tracking-wide truncate">
-                    {profile?.display_name ?? appUser.full_name ?? 'Member'}
-                  </p>
-                  {appUser.kutumb_id && (
-                    <p className="text-[11px] text-amber-300/70 font-mono tracking-widest mt-0.5">
-                      {appUser.kutumb_id}
-                    </p>
-                  )}
-                  {profile?.is_community_pillar && (
-                    <span className="inline-flex items-center gap-1 mt-2 text-[10px] px-2.5 py-0.5 rounded-full bg-amber-300/20 text-amber-300 font-bold border border-amber-300/30">
-                      <Award className="w-3 h-3" /> Community Pillar
-                    </span>
-                  )}
-                </div>
-
-                {/* Balances */}
-                <div className="flex gap-5 sm:border-l sm:border-white/20 sm:pl-6">
-                  <div className="text-center">
-                    <p className="font-heading text-2xl font-bold text-white">
-                      {(branch?.my_local_balance ?? 0).toFixed(1)}
-                    </p>
-                    <p className="text-[10px] text-white/45 font-body uppercase tracking-wider">Local hrs</p>
-                  </div>
-                  <div className="text-center">
-                    <p className="font-heading text-2xl font-bold text-amber-300">
-                      {(profile?.total_global_credits ?? 0).toFixed(1)}
-                    </p>
-                    <p className="text-[10px] text-white/45 font-body uppercase tracking-wider">Global credits</p>
-                  </div>
-                  {profile && profile.rating_count > 0 && (
-                    <div className="text-center">
-                      <p className="font-heading text-2xl font-bold text-green-300">
-                        {profile.avg_quality_rating.toFixed(1)}
-                      </p>
-                      <p className="text-[10px] text-white/45 font-body uppercase tracking-wider">Avg rating</p>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* ── CTA bar ── */}
-          <div className="flex flex-wrap gap-3 mt-5">
-            <button
-              onClick={() => setShowNewPost(true)}
-              className="flex items-center gap-2 px-5 py-2.5 rounded-xl gradient-gold text-white font-semibold font-body text-sm hover:opacity-90 transition shadow-gold"
-            >
-              <Sparkles className="w-4 h-4" /> Post a Sewa
-            </button>
-            <button
-              onClick={() => setTab('activity')}
-              className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-white/10 border border-white/20 text-white font-semibold font-body text-sm hover:bg-white/[0.18] transition backdrop-blur-sm"
-            >
-              <TrendingUp className="w-4 h-4" /> My Sewa Journey
-            </button>
-          </div>
         </div>
-      </div>
 
-      {/* ══════════════════════════════════════
-          PUBLISHED FEED STRIP — most important
-          notifications shown immediately below hero
-      ══════════════════════════════════════ */}
-      {feed.length > 0 && (
-        <div className="border-b border-border bg-card/60 backdrop-blur-sm">
-          <div className="container px-4 py-4">
-            <div className="flex items-center gap-2 mb-3">
-              <span className="inline-flex items-center gap-1.5 text-[10px] font-bold tracking-[0.18em] uppercase text-primary">
-                <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse inline-block" />
-                Live Sewa Board
-              </span>
-              <span className="text-[10px] text-muted-foreground font-body">{feed.length} active post{feed.length !== 1 ? 's' : ''} in your community</span>
+        {/* Tabs */}
+        <div style={{ display: 'flex', gap: 6, marginBottom: 18, flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div style={{ display: 'flex', gap: 6 }}>
+            {([['ledger', 'Ledger'], ['offers', 'Offers around you'], ['categories', 'Categories']] as [string, string][]).map(([k, l]) => (
+              <button key={k} onClick={() => setTab(k as typeof tab)} className={`ds-btn ds-btn-sm ${tab === k ? 'ds-btn-plum' : 'ds-btn-ghost'}`}>{l}</button>
+            ))}
+          </div>
+          <button onClick={() => setShowLog(true)} className="ds-btn ds-btn-sm ds-btn-gold">+ Log a sewa</button>
+        </div>
+
+        {/* Ledger tab */}
+        {tab === 'ledger' && (
+          <>
+            <div style={{ display: 'flex', gap: 6, marginBottom: 14, flexWrap: 'wrap' }}>
+              {([['all', 'All'], ['earned', 'Earned'], ['spent', 'Spent'], ['pending', 'Scheduled'], ['request', 'Open requests']] as [string, string][]).map(([k, l]) => (
+                <button key={k} onClick={() => setFilter(k)} className="ds-btn ds-btn-sm" style={{ background: filter === k ? 'var(--ds-ivory-warm)' : 'transparent', border: '1px solid var(--ds-hairline)', color: 'var(--ds-ink-soft)', fontWeight: filter === k ? 700 : 500 }}>{l}</button>
+              ))}
             </div>
-            <div className="flex gap-3 overflow-x-auto pb-1 scrollbar-hide">
-              {feed.slice(0, 8).map(req => {
-                const isOffer = req.request_type === 'offer';
+            <div className="ds-card" style={{ padding: 0, overflow: 'hidden' }}>
+              {filtered.map((r, i) => {
+                const meta = kindMeta[r.kind];
                 return (
-                  <div
-                    key={req.id}
-                    className={`flex-shrink-0 w-64 rounded-xl border p-3 bg-card shadow-sm hover:shadow-card transition-all cursor-default ${
-                      isOffer ? 'border-green-200/70' : 'border-blue-200/70'
-                    }`}
-                  >
-                    <div className="flex items-center gap-2 mb-1.5">
-                      <span className="text-lg leading-none">{CAT_EMOJI[req.category] || '⭐'}</span>
-                      <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
-                        isOffer ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'
-                      }`}>
-                        {isOffer ? '🙋 Offering' : '🙏 Needs help'}
-                      </span>
+                  <div key={r.id} style={{ display: 'grid', gridTemplateColumns: 'auto 1fr auto auto', gap: 18, padding: '18px 22px', borderBottom: i < filtered.length - 1 ? '1px solid var(--ds-hairline)' : 'none', alignItems: 'center' }}>
+                    <div style={{ width: 40, height: 40, borderRadius: 8, background: 'var(--ds-ivory-warm)', border: '1px solid var(--ds-hairline)', display: 'grid', placeItems: 'center', color: meta.color }}>
+                      {meta.dir === 'in' ? '→' : '←'}
                     </div>
-                    <p className="text-sm font-semibold font-body line-clamp-1">{req.title}</p>
-                    <p className="text-[11px] text-muted-foreground font-body mt-0.5">
-                      {req.requester_name}{req.hours_estimate ? ` · ${req.hours_estimate}h` : ''}
-                    </p>
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ fontSize: 14, color: 'var(--ds-ink)' }}>
+                        <strong style={{ color: 'var(--ds-plum)' }}>{r.who}</strong> · {r.what}
+                      </div>
+                      <div style={{ fontSize: 12, color: 'var(--ds-ink-mute)', marginTop: 3, display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                        <span>{r.when}</span>
+                        <span>·</span>
+                        <span>{r.category}</span>
+                        <span>·</span>
+                        <span style={{ color: meta.color, fontWeight: 600 }}>{meta.tag}</span>
+                      </div>
+                    </div>
+                    <div className="ds-score-num" style={{ fontSize: 22, color: meta.color, fontWeight: 700 }}>{meta.sign}{r.hours}<span style={{ fontSize: 11, color: 'var(--ds-ink-mute)', marginLeft: 4, fontWeight: 400 }}>hr</span></div>
+                    <button className="ds-btn ds-btn-sm ds-btn-ghost">{r.status === 'open' ? 'Accept' : 'Details'}</button>
                   </div>
                 );
               })}
             </div>
-          </div>
-        </div>
-      )}
+          </>
+        )}
 
-      {/* ══════════════════════════════════════
-          HOW IT WORKS
-      ══════════════════════════════════════ */}
-      <div className="border-b border-border" style={{ backgroundColor: 'hsl(290 18% 95%)' }}>
-        <div className="container px-4 py-10">
-          <div className="text-center mb-8">
-            <h2 className="font-heading text-xl font-bold mb-1">How Sewa Chakra Works</h2>
-            <div className="gold-line mx-auto mb-2" style={{ maxWidth: 48 }} />
-            <p className="text-sm text-muted-foreground font-body max-w-md mx-auto">
-              A living circle of service — no cash, no debt, just community karma made measurable.
-            </p>
-          </div>
-          <div className="grid sm:grid-cols-3 gap-4">
-            {[
-              { step: '1', icon: Megaphone, title: 'Post what you offer or need', desc: 'Share a skill, a service, or a request. 30 seconds. Your community sees it instantly.' },
-              { step: '2', icon: CheckCircle, title: 'Complete the sewa together',  desc: 'Connect, help, and mark it done. Both parties verify with a simple handshake.' },
-              { step: '3', icon: Award,      title: 'Earn verified Sewa Credits',   desc: 'Credits land in your Sewa Bank. Use them to receive help next time.' },
-            ].map(({ step, icon: Icon, title, desc }) => (
-              <div key={step} className="flex gap-4 bg-card rounded-2xl p-5 border border-border shadow-card hover:shadow-elevated hover:-translate-y-0.5 transition-all duration-300 group">
-                <div className="w-9 h-9 rounded-xl gradient-hero text-white font-bold font-heading text-sm flex items-center justify-center flex-shrink-0 shadow-warm group-hover:scale-110 transition-transform duration-300">
-                  {step}
+        {/* Offers tab */}
+        {tab === 'offers' && (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14 }} className="tb-offers">
+            {OFFERS.map((o, i) => (
+              <div key={i} className="ds-card" style={{ padding: 18, position: 'relative' }}>
+                {o.mine && <div style={{ position: 'absolute', top: 14, right: 14, fontSize: 10, fontFamily: 'var(--ds-mono)', letterSpacing: '0.15em', textTransform: 'uppercase', color: 'var(--ds-gold-deep)', fontWeight: 700 }}>Your offer</div>}
+                <span className="ds-tag ds-tag-plum">{o.cat}</span>
+                <div style={{ fontFamily: 'var(--ds-serif)', fontSize: 18, fontWeight: 700, color: 'var(--ds-ink)', marginTop: 10 }}>{o.who}</div>
+                <p style={{ fontSize: 13, color: 'var(--ds-ink-soft)', marginTop: 6, lineHeight: 1.5 }}>{o.desc}</p>
+                <div style={{ marginTop: 14, paddingTop: 14, borderTop: '1px solid var(--ds-hairline)', display: 'flex', justifyContent: 'space-between', fontSize: 12, color: 'var(--ds-ink-mute)' }}>
+                  <span>{o.dist} · {o.avail}</span>
+                  <span style={{ color: 'var(--ds-gold-deep)', fontWeight: 700, fontFamily: 'var(--ds-mono)' }}>{o.rate} hr : 1 hr</span>
                 </div>
-                <div>
-                  <div className="flex items-center gap-2 mb-1.5">
-                    <Icon className="w-4 h-4 text-primary" />
-                    <p className="font-body font-semibold text-sm">{title}</p>
-                  </div>
-                  <p className="text-xs text-muted-foreground font-body leading-relaxed">{desc}</p>
-                </div>
+                {!o.mine && <button className="ds-btn ds-btn-sm ds-btn-plum" style={{ marginTop: 12, width: '100%', justifyContent: 'center' }}>Request →</button>}
               </div>
             ))}
           </div>
-        </div>
-      </div>
+        )}
 
-      {/* ══════════════════════════════════════
-          USE CASES
-      ══════════════════════════════════════ */}
-      <div className="container px-4 py-10">
-        <div className="mb-6">
-          <h2 className="font-heading text-xl font-bold mb-1">What can you exchange?</h2>
-          <div className="gold-line mb-1" style={{ maxWidth: 48 }} />
-          <p className="text-sm text-muted-foreground font-body">
-            Real services, real impact. Every skill has value in the Sewa Chakra.
-          </p>
-        </div>
-
-        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3 mb-8">
-          {USE_CASES.map(uc => (
-            <div
-              key={uc.title}
-              className="flex gap-3 bg-card border border-border rounded-2xl p-4 hover:border-primary/25 hover:shadow-card transition-all duration-200"
-            >
-              <span className="text-2xl flex-shrink-0 leading-none mt-0.5">{uc.emoji}</span>
-              <div>
-                <p className="font-body font-semibold text-sm mb-0.5">{uc.title}</p>
-                <p className="text-xs text-muted-foreground font-body leading-relaxed">{uc.desc}</p>
-              </div>
-            </div>
-          ))}
-        </div>
-
-        {/* D-score explainer */}
-        <div className="bg-card border border-amber-200/60 rounded-2xl p-5 flex gap-4 items-start shadow-card">
-          <div className="w-11 h-11 rounded-xl gradient-gold flex items-center justify-center flex-shrink-0 shadow-gold">
-            <Shield className="w-5 h-5 text-white" />
-          </div>
-          <div>
-            <div className="text-[10px] font-bold text-amber-600 uppercase tracking-widest mb-1">Diversification Score</div>
-            <p className="font-body font-semibold text-sm mb-1">The more you diversify, the more you earn</p>
-            <p className="text-xs text-muted-foreground font-body leading-relaxed">
-              Our <strong>D-score</strong> rewards members who help across multiple categories.
-              Serve in 5+ categories and your credits are multiplied — earn the <strong>Community Pillar</strong> badge.
-              Real community builders show up wherever they're needed.
-            </p>
-          </div>
-        </div>
-      </div>
-
-      {/* ══════════════════════════════════════
-          BRANCH CONTENT
-      ══════════════════════════════════════ */}
-      <div className="container px-4 pb-8 space-y-5">
-
-        {/* No branch state */}
-        {!branch && (
-          <div className="bg-card rounded-2xl p-10 text-center border border-border shadow-card">
-            <div className="w-16 h-16 rounded-2xl gradient-hero flex items-center justify-center mx-auto mb-5 shadow-warm">
-              <Users className="w-8 h-8 text-white" />
-            </div>
-            <h3 className="font-heading font-bold text-lg mb-2">{tr('noBranchYet')}</h3>
-            <p className="text-sm text-muted-foreground font-body mb-6 max-w-sm mx-auto">{tr('noBranchDesc')}</p>
-            <button
-              onClick={() => setShowCreateBranch(true)}
-              className="px-6 py-3 rounded-xl gradient-hero text-primary-foreground font-semibold font-body text-sm shadow-warm hover:opacity-90 transition"
-            >
-              {tr('createTeamBranch')}
-            </button>
+        {/* Categories tab */}
+        {tab === 'categories' && (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 14 }} className="tb-cats">
+            {CATEGORIES.map(c => {
+              const total = Math.max(c.earned + c.spent, 1);
+              return (
+                <div key={c.cat} className="ds-card" style={{ padding: 18 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontFamily: 'var(--ds-serif)', fontSize: 18, fontWeight: 700 }}>{c.cat}</span>
+                    <span style={{ fontFamily: 'var(--ds-mono)', fontSize: 12, color: c.color, fontWeight: 700 }}>+{c.earned - c.spent} hr</span>
+                  </div>
+                  <div style={{ display: 'flex', height: 8, borderRadius: 4, overflow: 'hidden', marginTop: 12, background: 'var(--ds-ivory-warm)' }}>
+                    <div style={{ width: `${(c.earned / total) * 100}%`, background: c.color, opacity: 0.85 }} />
+                    <div style={{ width: `${(c.spent / total) * 100}%`, background: c.color, opacity: 0.35 }} />
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 8, fontSize: 11, color: 'var(--ds-ink-mute)', fontFamily: 'var(--ds-mono)' }}>
+                    <span>Earned {c.earned}</span><span>Spent {c.spent}</span>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         )}
 
-        {branch && (
-          <>
-            {/* ── Tab bar ── */}
-            <div className="flex gap-1 bg-secondary/50 rounded-xl p-1">
-              {(['eco','feed','activity', ...(isPlatformAdmin ? ['admin'] : [])] as const).map(t => (
-                <button
-                  key={t}
-                  onClick={() => setTab(t as typeof tab)}
-                  className={`flex-1 py-2.5 rounded-lg text-sm font-semibold font-body transition-all relative ${
-                    tab === t ? 'bg-card shadow-card text-foreground' : 'text-muted-foreground hover:text-foreground'
-                  }`}
-                >
-                  {t === 'eco' ? 'Eco-Sewa' : t === 'feed' ? tr('feed') : t === 'activity' ? tr('activity') : tr('adminTab')}
-                  {t === 'activity' && myTxns.filter(x => x.status === 'helper_done').length > 0 && (
-                    <span className="absolute top-1.5 right-2 w-2 h-2 bg-destructive rounded-full" />
-                  )}
-                  {t === 'admin' && pendingApproval.length > 0 && (
-                    <span className="absolute top-1.5 right-2 w-2 h-2 bg-amber-500 rounded-full" />
-                  )}
-                </button>
-              ))}
+        {/* Log sewa modal */}
+        {showLog && (
+          <div onClick={() => setShowLog(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(28,13,46,0.6)', backdropFilter: 'blur(8px)', zIndex: 200, display: 'grid', placeItems: 'center', padding: 24 }}>
+            <div onClick={e => e.stopPropagation()} className="ds-card" style={{ width: 'min(480px,100%)', padding: 28 }}>
+              <h3 style={{ fontFamily: 'var(--ds-serif)', fontSize: 24, color: 'var(--ds-plum)' }}>Log a sewa</h3>
+              <p style={{ fontSize: 13, color: 'var(--ds-ink-mute)', marginTop: 4 }}>Record a service you gave or received in the parivar economy.</p>
+              <div style={{ marginTop: 18, display: 'flex', flexDirection: 'column', gap: 12 }}>
+                <input className="ds-input" placeholder="Who did you help? (name)" />
+                <input className="ds-input" placeholder="What service? (e.g. cooked for Holi)" />
+                <div style={{ display: 'flex', gap: 10 }}>
+                  <input className="ds-input" placeholder="Hours" type="number" style={{ flex: 1 }} />
+                  <select className="ds-input" style={{ flex: 1 }}>
+                    <option>Cooking</option>
+                    <option>Eldercare</option>
+                    <option>Tutoring</option>
+                    <option>Ritual</option>
+                    <option>Crafts</option>
+                    <option>Travel help</option>
+                  </select>
+                </div>
+              </div>
+              <div style={{ display: 'flex', gap: 10, marginTop: 18, justifyContent: 'flex-end' }}>
+                <button onClick={() => setShowLog(false)} className="ds-btn ds-btn-ghost ds-btn-sm">Cancel</button>
+                <button onClick={() => setShowLog(false)} className="ds-btn ds-btn-plum ds-btn-sm">Log sewa →</button>
+              </div>
             </div>
-
-            {tab === 'eco' && <EcoSewaPanel embedded branchId={branch.id} />}
-
-            {/* ══ FEED TAB ══ */}
-            {tab === 'feed' && (
-              <div className="space-y-4">
-                {/* Filters */}
-                <div className="flex gap-2 flex-wrap">
-                  <div className="flex gap-1 bg-secondary/50 rounded-lg p-1">
-                    {(['local','global'] as const).map(s => (
-                      <button
-                        key={s}
-                        onClick={() => setFeedScope(s)}
-                        className={`flex items-center gap-1 px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${
-                          feedScope === s ? 'bg-card shadow-sm text-foreground' : 'text-muted-foreground'
-                        }`}
-                      >
-                        {s === 'local' ? <Lock className="w-3 h-3" /> : <Globe className="w-3 h-3" />}
-                        {s === 'local' ? tr('local') : tr('global')}
-                      </button>
-                    ))}
-                  </div>
-                  <div className="flex gap-1 bg-secondary/50 rounded-lg p-1">
-                    {(['all','offer','need'] as const).map(tp => (
-                      <button
-                        key={tp}
-                        onClick={() => setFeedType(tp)}
-                        className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${
-                          feedType === tp ? 'bg-card shadow-sm text-foreground' : 'text-muted-foreground'
-                        }`}
-                      >
-                        {tp === 'all' ? tr('all') : tp === 'offer' ? tr('offers') : tr('needs')}
-                      </button>
-                    ))}
-                  </div>
-                  <button
-                    onClick={() => setShowNewPost(true)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg gradient-hero text-primary-foreground text-xs font-bold shadow-warm hover:opacity-90 ml-auto"
-                  >
-                    <Plus className="w-3.5 h-3.5" /> {tr('newPost')}
-                  </button>
-                </div>
-
-                {/* Category pills */}
-                <div className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-hide">
-                  {['all', ...CATEGORIES].map(c => (
-                    <button
-                      key={c}
-                      onClick={() => setFeedCategory(c)}
-                      className={`flex-shrink-0 flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-semibold transition-all ${
-                        feedCategory === c ? 'gradient-hero text-primary-foreground shadow-warm' : 'bg-secondary text-foreground hover:bg-secondary/80'
-                      }`}
-                    >
-                      {c !== 'all' && <span>{CAT_EMOJI[c]}</span>}
-                      {c === 'all' ? tr('all') : (CAT_LABEL[c] ?? c)}
-                    </button>
-                  ))}
-                </div>
-
-                {/* Feed cards */}
-                {feed.length === 0 ? (
-                  <div className="bg-card rounded-2xl p-10 text-center border border-border">
-                    <div className="w-12 h-12 rounded-xl gradient-hero flex items-center justify-center mx-auto mb-4 shadow-warm">
-                      <Users className="w-6 h-6 text-white" />
-                    </div>
-                    <p className="text-sm text-muted-foreground font-body">{tr('noPostsYet')}</p>
-                    <button
-                      onClick={() => setShowNewPost(true)}
-                      className="mt-4 px-5 py-2 rounded-xl gradient-gold text-white text-xs font-bold shadow-gold hover:opacity-90 transition"
-                    >
-                      Be the first to post
-                    </button>
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    {feed.map(req => {
-                      const minsLeft = minsUntilVisible(req.visible_from);
-                      const isOwn = req.requester_id === userId;
-                      const isOffer = req.request_type === 'offer';
-                      return (
-                        <div
-                          key={req.id}
-                          className={`bg-card rounded-2xl p-4 border shadow-card hover:shadow-elevated transition-all duration-200 ${
-                            isOffer ? 'border-green-200/60' : 'border-blue-200/60'
-                          }`}
-                        >
-                          <div className="flex items-start gap-3">
-                            <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 text-lg ${
-                              isOffer ? 'bg-green-50' : 'bg-blue-50'
-                            }`}>
-                              {CAT_EMOJI[req.category] || '⭐'}
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-2 flex-wrap mb-1">
-                                <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
-                                  isOffer ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'
-                                }`}>
-                                  {isOffer ? `🙋 ${tr('canHelp')}` : `🙏 ${tr('needsHelp')}`}
-                                </span>
-                                {req.scope === 'global' && (
-                                  <span className="flex items-center gap-0.5 text-[10px] text-muted-foreground">
-                                    <Globe className="w-3 h-3" /> global
-                                  </span>
-                                )}
-                              </div>
-                              <p className="font-semibold font-body text-sm">{req.title}</p>
-                              <p className="text-xs text-muted-foreground font-body mt-0.5">
-                                {req.requester_name}
-                                {req.hours_estimate && ` · ${req.hours_estimate}h est.`}
-                              </p>
-                              {req.description && (
-                                <p className="text-xs text-muted-foreground font-body mt-1 line-clamp-2">
-                                  {req.description}
-                                </p>
-                              )}
-                            </div>
-                            {!isOwn && (
-                              minsLeft > 0 ? (
-                                <span className="flex-shrink-0 text-[10px] text-muted-foreground font-body flex items-center gap-1">
-                                  <Clock className="w-3 h-3" />{tr('opensIn')} {minsLeft}m
-                                </span>
-                              ) : (
-                                <button
-                                  onClick={() => { setRespondingTo(req); setRespHours(req.hours_estimate ?? 1); }}
-                                  className={`flex-shrink-0 px-3 py-1.5 rounded-xl text-xs font-bold text-white shadow-sm hover:opacity-90 transition ${
-                                    isOffer ? 'bg-green-500' : 'bg-blue-500'
-                                  }`}
-                                >
-                                  {isOffer ? tr('requestHelp') : tr('offerHelp')}
-                                </button>
-                              )
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* ══ ACTIVITY TAB ══ */}
-            {tab === 'activity' && (
-              <div className="space-y-6">
-
-                {/* Needs action */}
-                {myTxns.filter(t => t.status === 'helper_done').length > 0 && (
-                  <div>
-                    <h3 className="font-heading font-bold text-sm mb-3 flex items-center gap-2 text-destructive">
-                      <AlertTriangle className="w-4 h-4" /> {tr('needsYourAction')}
-                    </h3>
-                    <div className="space-y-3">
-                      {myTxns.filter(t => t.status === 'helper_done').map(t => {
-                        const iAmHelper = t.helper_id === userId;
-                        const partner = iAmHelper ? t.requester_name : t.helper_name;
-                        return (
-                          <div key={t.id} className="bg-card rounded-2xl p-4 border border-destructive/20 shadow-card">
-                            <p className="font-semibold font-body text-sm mb-1">
-                              {iAmHelper ? `${tr('waitingFor')} ${partner} ${tr('toConfirm')}` : `${partner} ${tr('markedWorkDone')}`}
-                            </p>
-                            <p className="text-xs text-muted-foreground font-body mb-3">{t.hours}h · {t.credit_type}</p>
-                            <div className="flex gap-2">
-                              <button
-                                onClick={() => setRatingTxn(t)}
-                                className="flex-1 py-2.5 rounded-xl gradient-hero text-primary-foreground text-xs font-bold shadow-warm hover:opacity-90"
-                              >
-                                <Star className="w-3 h-3 inline mr-1" />
-                                {iAmHelper ? tr('rateNow') : tr('confirmAndRate')}
-                              </button>
-                              <button
-                                onClick={() => cancelTxn(t.id)}
-                                className="px-4 py-2.5 rounded-xl bg-destructive/10 text-destructive text-xs font-semibold hover:bg-destructive/20"
-                              >
-                                {tr('dispute')}
-                              </button>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
-
-                {/* In progress */}
-                {inProgress.length > 0 && (
-                  <div>
-                    <h3 className="font-heading font-bold text-sm mb-3 flex items-center gap-2">
-                      <Clock className="w-4 h-4 text-primary" /> {tr('inProgress')}
-                    </h3>
-                    <div className="space-y-3">
-                      {inProgress.map(t => {
-                        const iAmHelper = t.helper_id === userId;
-                        return (
-                          <div key={t.id} className="bg-card rounded-2xl p-4 border border-border shadow-card flex items-center gap-3">
-                            <div className="flex-1 min-w-0">
-                              <p className="font-semibold font-body text-sm">
-                                {iAmHelper ? `${tr('helpingLabel')} ${t.requester_name}` : `${t.helper_name} ${tr('helpingYou')}`}
-                              </p>
-                              <div className="flex items-center gap-2 mt-1 flex-wrap">
-                                <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${STATUS_PILL[t.status]}`}>{t.status}</span>
-                                <span className="text-xs text-muted-foreground font-body">{t.hours}h</span>
-                                {t.is_flagged && (
-                                  <span className="text-[10px] text-destructive flex items-center gap-0.5">
-                                    <Flag className="w-2.5 h-2.5" /> {tr('flagged')}
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-                            <div className="flex gap-1.5 flex-shrink-0">
-                              {iAmHelper && t.status === 'assigned' && (
-                                <button
-                                  onClick={() => markHelperDone(t.id)}
-                                  className="px-3 py-1.5 rounded-xl bg-green-100 text-green-700 text-xs font-bold"
-                                >
-                                  <CheckCircle className="w-3.5 h-3.5 inline mr-1" />{tr('markDone')}
-                                </button>
-                              )}
-                              <button
-                                onClick={() => cancelTxn(t.id)}
-                                className="p-1.5 rounded-xl bg-secondary text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors"
-                              >
-                                <XCircle className="w-4 h-4" />
-                              </button>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
-
-                {/* History */}
-                {history.length > 0 && (
-                  <div>
-                    <h3 className="font-heading font-bold text-sm mb-3 flex items-center gap-2">
-                      <TrendingUp className="w-4 h-4 text-primary" /> {tr('history')}
-                    </h3>
-                    <div className="space-y-2">
-                      {history.map(t => (
-                        <div key={t.id} className="bg-card rounded-2xl p-3 border border-border/50 flex items-center gap-3">
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-body font-semibold">
-                              {t.helper_id === userId ? `${tr('gaveTo')} ${t.requester_name}` : `${tr('receivedFrom')} ${t.helper_name}`}
-                            </p>
-                            <div className="flex items-center gap-2 mt-0.5">
-                              <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${STATUS_PILL[t.status]}`}>{t.status}</span>
-                              <span className="text-xs text-muted-foreground font-body">{t.hours}h</span>
-                              {t.final_value && t.final_value !== t.hours && (
-                                <span className="text-xs text-green-600 font-semibold">→ {t.final_value.toFixed(2)} credits</span>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {myTxns.length === 0 && (
-                  <div className="bg-card rounded-2xl p-10 text-center border border-border">
-                    <div className="w-12 h-12 rounded-xl gradient-hero flex items-center justify-center mx-auto mb-4 shadow-warm">
-                      <Clock className="w-6 h-6 text-white" />
-                    </div>
-                    <p className="text-sm text-muted-foreground font-body">{tr('noActivityYet')}</p>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* ══ ADMIN TAB ══ */}
-            {tab === 'admin' && isPlatformAdmin && (
-              <div className="space-y-6">
-
-                {/* Branch settings */}
-                <div className="bg-card rounded-2xl p-5 border border-border shadow-card space-y-4">
-                  <h3 className="font-heading font-bold text-sm">{tr('branchSettings')}</h3>
-                  {[
-                    { label: tr('privateLedger'), desc: tr('privateLedgerDesc'), val: branch.is_private_ledger, toggle: togglePrivateLedger },
-                    {
-                      label: tr('requireApproval'), desc: tr('requireApprovalDesc'),
-                      val: branch.requires_manager_approval,
-                      toggle: async () => {
-                        const newVal = !branch.requires_manager_approval;
-                        const res = await fetch(`${api}/branches/${branch.id}/settings`, {
-                          method: 'PUT', headers, body: JSON.stringify({ requires_manager_approval: newVal }),
-                        });
-                        if (res.ok) setBranch(prev => prev ? { ...prev, requires_manager_approval: newVal } : prev);
-                      },
-                    },
-                  ].map(({ label, desc, val, toggle }) => (
-                    <div key={label} className="flex items-center justify-between gap-4">
-                      <div>
-                        <p className="text-sm font-body font-semibold">{label}</p>
-                        <p className="text-xs text-muted-foreground font-body">{desc}</p>
-                      </div>
-                      <button onClick={toggle}>
-                        {val
-                          ? <ToggleRight className="w-8 h-8 text-primary" />
-                          : <ToggleLeft className="w-8 h-8 text-muted-foreground" />}
-                      </button>
-                    </div>
-                  ))}
-                </div>
-
-                {/* Pending approval */}
-                {pendingApproval.length > 0 && (
-                  <div>
-                    <h3 className="font-heading font-bold text-sm mb-3 flex items-center gap-2 text-amber-600">
-                      <Megaphone className="w-4 h-4" /> {tr('pendingApproval')} ({pendingApproval.length})
-                    </h3>
-                    <div className="space-y-3">
-                      {pendingApproval.map(t => (
-                        <div key={t.id} className="bg-amber-50 border border-amber-200/60 rounded-2xl p-4 flex items-center gap-3">
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-semibold font-body">{t.helper_name} → {t.requester_name}</p>
-                            <p className="text-xs text-muted-foreground font-body">{t.hours}h · {t.description || '—'}</p>
-                          </div>
-                          <button
-                            onClick={() => approveTransaction(t.id)}
-                            className="flex-shrink-0 px-3 py-1.5 rounded-xl bg-green-500 text-white text-xs font-bold hover:bg-green-600"
-                          >
-                            <CheckCircle className="w-3.5 h-3.5 inline mr-1" />{tr('approve')}
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* Member balances */}
-                {members.length > 0 && (
-                  <div>
-                    <h3 className="font-heading font-bold text-sm mb-3 flex items-center gap-2">
-                      <Users className="w-4 h-4 text-primary" /> {tr('memberBalances')}
-                    </h3>
-                    <div className="bg-card rounded-2xl border border-border overflow-hidden shadow-card">
-                      {members.map((m, i) => (
-                        <div key={m.user_id} className={`flex items-center px-4 py-3 gap-3 ${i < members.length - 1 ? 'border-b border-border/40' : ''}`}>
-                          <div className="w-8 h-8 rounded-full gradient-hero text-white flex items-center justify-center text-sm font-bold flex-shrink-0">
-                            {(m.display_name || 'M').charAt(0).toUpperCase()}
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-semibold font-body">{m.display_name || tr('member')}</p>
-                            {m.node_id && <p className="text-[10px] text-muted-foreground font-body">node: {m.node_id}</p>}
-                          </div>
-                          <div className="text-right flex-shrink-0">
-                            {m.local_balance !== null
-                              ? <p className={`font-bold font-heading text-sm ${m.local_balance >= 0 ? 'text-green-600' : 'text-destructive'}`}>
-                                  {m.local_balance >= 0 ? '+' : ''}{m.local_balance}h
-                                </p>
-                              : <p className="text-xs text-muted-foreground font-body italic">{tr('hidden')}</p>
-                            }
-                            <p className="text-[10px] text-muted-foreground font-body">{m.role}</p>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* Flagged trades */}
-                {flagged.length > 0 && (
-                  <div>
-                    <h3 className="font-heading font-bold text-sm mb-3 flex items-center gap-2 text-destructive">
-                      <Flag className="w-4 h-4" /> {tr('flaggedTrades')} ({flagged.length})
-                    </h3>
-                    <div className="space-y-2">
-                      {flagged.map(t => (
-                        <div key={t.id} className="bg-card rounded-2xl p-3 border border-destructive/30 flex items-center gap-3">
-                          <AlertTriangle className="w-4 h-4 text-destructive flex-shrink-0" />
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-body font-semibold">{t.helper_name} → {t.requester_name}</p>
-                            <p className="text-xs text-muted-foreground font-body">{t.flag_reason} · {t.hours}h · {t.status}</p>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* Audit trail */}
-                {adminTxns.length > 0 && (
-                  <div>
-                    <h3 className="font-heading font-bold text-sm mb-3 flex items-center gap-2">
-                      <Wrench className="w-4 h-4 text-primary" /> {tr('auditTrail')} ({adminTxns.length})
-                    </h3>
-                    <div className="space-y-2">
-                      {adminTxns.map(t => (
-                        <div key={t.id} className="bg-card rounded-2xl p-3 border border-border/40 flex items-center gap-3">
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-body">{t.helper_name} → {t.requester_name}</p>
-                            <div className="flex items-center gap-2 mt-0.5">
-                              <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${STATUS_PILL[t.status]}`}>{t.status}</span>
-                              <span className="text-xs text-muted-foreground font-body">{t.hours}h</span>
-                              {t.is_flagged && <Flag className="w-3 h-3 text-destructive" />}
-                            </div>
-                          </div>
-                          {t.requires_manager_approval && !t.manager_approved && t.status === 'helper_done' && (
-                            <button
-                              onClick={() => approveTransaction(t.id)}
-                              className="flex-shrink-0 px-2.5 py-1 rounded-lg bg-green-100 text-green-700 text-xs font-bold"
-                            >
-                              {tr('approve')}
-                            </button>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-          </>
+          </div>
         )}
       </div>
 
-      {/* ═══════════════════ MODALS ═══════════════════ */}
-
-      {/* New Post */}
-      {showNewPost && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-          <div className="bg-card w-full max-w-md rounded-2xl shadow-elevated border border-border max-h-[92vh] overflow-y-auto">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-border sticky top-0 bg-card z-10">
-              <h3 className="font-heading font-bold">{tr('newPost')}</h3>
-              <button onClick={() => setShowNewPost(false)}><X className="w-4 h-4 text-muted-foreground" /></button>
-            </div>
-            <div className="px-6 py-5 space-y-4">
-              <div>
-                <label className="block text-xs font-semibold mb-2 text-muted-foreground">{tr('postType')}</label>
-                <div className="grid grid-cols-2 gap-2">
-                  {(['offer','need'] as const).map(tp => (
-                    <button
-                      key={tp}
-                      onClick={() => setNpType(tp)}
-                      className={`py-3 rounded-xl text-sm font-bold transition-all ${
-                        npType === tp ? 'gradient-hero text-primary-foreground shadow-warm' : 'bg-secondary text-foreground'
-                      }`}
-                    >
-                      {tp === 'offer' ? `🙋 ${tr('iCanHelp')}` : `🙏 ${tr('iNeedHelp')}`}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold mb-2 text-muted-foreground">{tr('visibility')}</label>
-                <div className="grid grid-cols-2 gap-2">
-                  {(['local','global'] as const).map(s => (
-                    <button
-                      key={s}
-                      onClick={() => setNpScope(s)}
-                      className={`py-2.5 rounded-xl text-sm font-semibold flex items-center justify-center gap-1.5 transition-all ${
-                        npScope === s ? 'gradient-hero text-primary-foreground shadow-warm' : 'bg-secondary text-foreground'
-                      }`}
-                    >
-                      {s === 'local' ? <Lock className="w-3.5 h-3.5" /> : <Globe className="w-3.5 h-3.5" />}
-                      {s === 'local' ? tr('local') : tr('global')}
-                    </button>
-                  ))}
-                </div>
-                {npScope === 'global' && (
-                  <p className="text-[10px] text-muted-foreground font-body mt-1.5">⏱ {tr('globalDelay30')}</p>
-                )}
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold mb-2 text-muted-foreground">{tr('category')}</label>
-                <div className="grid grid-cols-5 gap-1.5">
-                  {CATEGORIES.map(c => (
-                    <button
-                      key={c}
-                      onClick={() => setNpCat(c)}
-                      className={`flex flex-col items-center gap-0.5 p-2 rounded-xl text-center transition-all ${
-                        npCat === c ? 'bg-primary/10 border border-primary/30' : 'bg-secondary/50 hover:bg-secondary'
-                      }`}
-                    >
-                      <span className="text-base">{CAT_EMOJI[c]}</span>
-                      <span className="text-[9px] font-body leading-tight">{CAT_LABEL[c] ?? c}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold mb-1.5 text-muted-foreground">{tr('title')}</label>
-                <input
-                  value={npTitle}
-                  onChange={e => setNpTitle(e.target.value)}
-                  maxLength={200}
-                  placeholder={npType === 'offer' ? tr('offerTitlePlaceholder') : tr('needTitlePlaceholder')}
-                  className="w-full px-3 py-2.5 rounded-xl border border-border bg-background text-sm font-body focus:outline-none focus:ring-2 focus:ring-primary/40"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold mb-1.5 text-muted-foreground">{tr('hoursEstimate')}: {npHours}h</label>
-                <input type="range" min={0.5} max={20} step={0.5} value={npHours} onChange={e => setNpHours(Number(e.target.value))} className="w-full accent-primary" />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold mb-1.5 text-muted-foreground">
-                  {tr('description')} <span className="font-normal">(optional)</span>
-                </label>
-                <textarea
-                  value={npDesc}
-                  onChange={e => setNpDesc(e.target.value)}
-                  rows={3}
-                  maxLength={1000}
-                  className="w-full px-3 py-2.5 rounded-xl border border-border bg-background text-sm font-body resize-none focus:outline-none focus:ring-2 focus:ring-primary/40"
-                />
-              </div>
-            </div>
-            <div className="px-6 py-4 border-t border-border flex gap-3">
-              <button onClick={() => setShowNewPost(false)} className="flex-1 py-2.5 rounded-xl border border-border text-sm font-body">{tr('cancel')}</button>
-              <button
-                onClick={submitNewPost}
-                disabled={npSaving}
-                className="flex-1 py-2.5 rounded-xl gradient-hero text-primary-foreground font-semibold text-sm shadow-warm hover:opacity-90 disabled:opacity-50"
-              >
-                {npSaving ? tr('posting') : tr('post')}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Respond to Post */}
-      {respondingTo && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-          <div className="bg-card w-full max-w-sm rounded-2xl shadow-elevated border border-border">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-border">
-              <h3 className="font-heading font-bold">{respondingTo.request_type === 'offer' ? tr('requestHelp') : tr('offerHelp')}</h3>
-              <button onClick={() => setRespondingTo(null)}><X className="w-4 h-4 text-muted-foreground" /></button>
-            </div>
-            <div className="px-6 py-5 space-y-4">
-              <div className="bg-secondary/40 rounded-xl p-3">
-                <p className="text-sm font-semibold font-body">{respondingTo.title}</p>
-                <p className="text-xs text-muted-foreground font-body">{respondingTo.requester_name} · {CAT_EMOJI[respondingTo.category]} {CAT_LABEL[respondingTo.category] ?? respondingTo.category}</p>
-              </div>
-              <div>
-                <label className="block text-xs font-semibold mb-1.5 text-muted-foreground">{tr('hoursRequested')}: {respHours}h</label>
-                <input type="range" min={0.5} max={respondingTo.hours_estimate ?? 20} step={0.5} value={respHours} onChange={e => setRespHours(Number(e.target.value))} className="w-full accent-primary" />
-              </div>
-              <div>
-                <label className="block text-xs font-semibold mb-1.5 text-muted-foreground">{tr('notes')} <span className="font-normal">(optional)</span></label>
-                <textarea
-                  value={respDesc}
-                  onChange={e => setRespDesc(e.target.value)}
-                  rows={2}
-                  maxLength={500}
-                  className="w-full px-3 py-2.5 rounded-xl border border-border bg-background text-sm font-body resize-none focus:outline-none focus:ring-2 focus:ring-primary/40"
-                />
-              </div>
-            </div>
-            <div className="px-6 py-4 border-t border-border flex gap-3">
-              <button onClick={() => setRespondingTo(null)} className="flex-1 py-2.5 rounded-xl border border-border text-sm font-body">{tr('cancel')}</button>
-              <button
-                onClick={submitRespond}
-                disabled={respSaving}
-                className="flex-1 py-2.5 rounded-xl gradient-hero text-primary-foreground font-semibold text-sm shadow-warm hover:opacity-90 disabled:opacity-50"
-              >
-                {respSaving ? tr('sending') : tr('sendRequest')}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Rate & Confirm */}
-      {ratingTxn && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-          <div className="bg-card w-full max-w-sm rounded-2xl shadow-elevated border border-border">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-border">
-              <h3 className="font-heading font-bold">{tr('rateAndConfirm')}</h3>
-              <button onClick={() => setRatingTxn(null)}><X className="w-4 h-4 text-muted-foreground" /></button>
-            </div>
-            <div className="px-6 py-5 space-y-5">
-              <div className="bg-secondary/40 rounded-xl p-3 text-center">
-                <p className="text-xs text-muted-foreground font-body mb-1">{tr('ratingPartner')}</p>
-                <p className="font-semibold font-body">{ratingTxn.helper_id === userId ? ratingTxn.requester_name : ratingTxn.helper_name}</p>
-                <p className="text-xs text-muted-foreground font-body">{ratingTxn.hours}h · {ratingTxn.credit_type}</p>
-              </div>
-              <div>
-                <label className="block text-xs font-semibold mb-2 text-muted-foreground">{tr('workQuality')}</label>
-                <StarRow value={rateQ} onChange={setRateQ} />
-              </div>
-              <div>
-                <label className="block text-xs font-semibold mb-2 text-muted-foreground">{tr('behaviour')}</label>
-                <StarRow value={rateB} onChange={setRateB} />
-              </div>
-              <div>
-                <label className="block text-xs font-semibold mb-1.5 text-muted-foreground">{tr('comment')} <span className="font-normal">(optional)</span></label>
-                <textarea
-                  value={rateComment}
-                  onChange={e => setRateComment(e.target.value)}
-                  rows={2}
-                  maxLength={500}
-                  className="w-full px-3 py-2.5 rounded-xl border border-border bg-background text-sm font-body resize-none focus:outline-none focus:ring-2 focus:ring-primary/40"
-                />
-              </div>
-              <p className="text-[10px] text-muted-foreground font-body">{tr('bothRateNote')}</p>
-            </div>
-            <div className="px-6 py-4 border-t border-border flex gap-3">
-              <button onClick={() => setRatingTxn(null)} className="flex-1 py-2.5 rounded-xl border border-border text-sm font-body">{tr('cancel')}</button>
-              <button
-                onClick={submitRating}
-                disabled={rateSaving}
-                className="flex-1 py-2.5 rounded-xl gradient-hero text-primary-foreground font-semibold text-sm shadow-warm hover:opacity-90 disabled:opacity-50"
-              >
-                {rateSaving ? tr('saving') : tr('submitRating')}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Create Branch */}
-      {showCreateBranch && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-          <div className="bg-card w-full max-w-sm rounded-2xl shadow-elevated border border-border">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-border">
-              <h3 className="font-heading font-bold">{tr('createTeamBranch')}</h3>
-              <button onClick={() => setShowCreateBranch(false)}><X className="w-4 h-4 text-muted-foreground" /></button>
-            </div>
-            <div className="px-6 py-5 space-y-4">
-              <div>
-                <label className="block text-xs font-semibold mb-1.5 text-muted-foreground">{tr('branchName')}</label>
-                <input
-                  value={cbName}
-                  onChange={e => setCbName(e.target.value)}
-                  maxLength={100}
-                  placeholder={tr('branchNamePlaceholder')}
-                  className="w-full px-3 py-2.5 rounded-xl border border-border bg-background text-sm font-body focus:outline-none focus:ring-2 focus:ring-primary/40"
-                />
-              </div>
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input type="checkbox" checked={cbPrivate} onChange={e => setCbPrivate(e.target.checked)} className="accent-primary" />
-                <span className="text-sm font-body">{tr('privateLedger')}</span>
-              </label>
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input type="checkbox" checked={cbApproval} onChange={e => setCbApproval(e.target.checked)} className="accent-primary" />
-                <span className="text-sm font-body">{tr('requireApproval')}</span>
-              </label>
-              <p className="text-[10px] text-muted-foreground font-body">{tr('socialWorkerNote')}</p>
-            </div>
-            <div className="px-6 py-4 border-t border-border flex gap-3">
-              <button onClick={() => setShowCreateBranch(false)} className="flex-1 py-2.5 rounded-xl border border-border text-sm font-body">{tr('cancel')}</button>
-              <button
-                onClick={createBranch}
-                disabled={cbSaving}
-                className="flex-1 py-2.5 rounded-xl gradient-hero text-primary-foreground font-semibold text-sm shadow-warm hover:opacity-90 disabled:opacity-50"
-              >
-                {cbSaving ? tr('creating') : tr('create')}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <style>{`
+        @media (max-width: 1000px) {
+          .tb-summary { grid-template-columns: 1fr 1fr !important; }
+          .tb-offers, .tb-cats { grid-template-columns: 1fr !important; }
+        }
+        @media (max-width: 560px) {
+          .tb-summary { grid-template-columns: 1fr !important; }
+        }
+      `}</style>
     </AppShell>
   );
-}
+};
+
+export default TimeBankPage;

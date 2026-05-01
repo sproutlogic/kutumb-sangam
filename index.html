@@ -20,6 +20,14 @@
 </head>
 
   <body>
+    <script>
+      (function(){
+        var p = localStorage.getItem('ks_palette') || 'emerald';
+        var d = localStorage.getItem('ks_density') || 'comfortable';
+        document.body.setAttribute('data-palette', p);
+        document.body.setAttribute('data-density', d);
+      })();
+    </script>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

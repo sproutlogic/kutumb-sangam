@@ -1,907 +1,679 @@
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { resolveVanshaIdForApi, fetchPrakritiScore, type PrakritiScore, fetchFamilyRank, type FamilyRank, fetchPanchangCalendar, type PanchangCalendarRow } from '@/services/api';
-import { mergeTithiWithFallback, type Paksha } from '@/lib/tithiFallback';
-import { useLang } from '@/i18n/LanguageContext';
-import { usePlan } from '@/contexts/PlanContext';
+import { useAuth } from '@/contexts/AuthContext';
 import { useTree } from '@/contexts/TreeContext';
+import { usePlan } from '@/contexts/PlanContext';
+import { useLang } from '@/i18n/LanguageContext';
 import AppShell from '@/components/shells/AppShell';
-import LockedBanner from '@/components/states/LockedBanner';
-import TrustBadge from '@/components/ui/TrustBadge';
-import TreeCompletionScore from '@/components/ui/TreeCompletionScore';
-import ClanMilestone from '@/components/ui/ClanMilestone';
-import MilestoneCelebration from '@/components/ui/MilestoneCelebration';
-import { useState, useEffect, useRef, useCallback } from 'react';
-import { Users, Layers, Mail, TreePine, UserPlus, ShieldCheck, Clock, Search, Heart, Check, X, GitFork, ArrowUpCircle, BarChart3, Rocket, HandHeart, Leaf, UserCircle2, Loader2, Share2, Flame, TrendingUp, Mic } from 'lucide-react';
-import { UPCOMING_SERVICES } from '@/config/upcomingServices.config';
 import { JoinSEModal } from '@/components/sales/JoinSEModal';
 import { EarningsWallet } from '@/components/sales/EarningsWallet';
-import { useAuth } from '@/contexts/AuthContext';
-import { MovementBelief } from '@/components/prakriti/MovementBelief';
+import {
+  resolveVanshaIdForApi, fetchPrakritiScore, type PrakritiScore,
+  fetchFamilyRank, type FamilyRank,
+} from '@/services/api';
 
 const SALES_ROLES = new Set(['se', 'cp', 'rp', 'zp', 'np', 'admin', 'superadmin']);
 
-const Dashboard = () => {
-  const { tr, lang } = useLang();
-  const navigate = useNavigate();
-  const [searchParams, setSearchParams] = useSearchParams();
-  const [showJoinSE, setShowJoinSE] = useState(false);
-  const { plan, planId, membersUsed, generationsUsed, hasEntitlement } = usePlan();
-  const { state, trustScore, isTreeInitialized, approvePending, objectPending } = useTree();
-  const { appUser } = useAuth();
-
-  const isSalesMember = appUser ? SALES_ROLES.has(appUser.role) : false;
-
-  const [prakritiScore, setPrakritiScore] = useState<PrakritiScore | null>(null);
-  const [familyRank, setFamilyRank] = useState<FamilyRank | null>(null);
-  const [notificationStatus, setNotificationStatus] = useState(() => {
-    try { return localStorage.getItem('prakriti_pulse_notifications') ?? 'off'; } catch { return 'off'; }
-  });
-  const [firstSeenAt, setFirstSeenAt] = useState(() => {
-    try { return Number(localStorage.getItem('prakriti_first_seen_at') ?? '0'); } catch { return 0; }
-  });
-  // Streak: read from localStorage until backend endpoint is wired
-  const streakDays = (() => {
-    try { return parseInt(localStorage.getItem('prakriti_streak') ?? '0', 10) || 0; } catch { return 0; }
-  })();
-  useEffect(() => {
-    if (firstSeenAt > 0) return;
-    const now = Date.now();
-    try { localStorage.setItem('prakriti_first_seen_at', String(now)); } catch { /* ignore */ }
-    setFirstSeenAt(now);
-  }, [firstSeenAt]);
-
-  useEffect(() => {
-    const vid = resolveVanshaIdForApi(null);
-    if (!vid) {
-      setPrakritiScore(null);
-      setFamilyRank(null);
-      return;
-    }
-    fetchPrakritiScore(vid).then(setPrakritiScore).catch(() => setPrakritiScore(null));
-    fetchFamilyRank(vid).then(setFamilyRank).catch(() => setFamilyRank(null));
-  }, [state.nodes.length, appUser?.vansha_id]);
-
-  useEffect(() => {
-    if (searchParams.get('join-team') !== '1' || isSalesMember) return;
-    setShowJoinSE(true);
-  }, [searchParams, isSalesMember]);
-
-  const closeJoinSE = () => {
-    setShowJoinSE(false);
-    if (searchParams.get('join-team') !== '1') return;
-    const nextParams = new URLSearchParams(searchParams);
-    nextParams.delete('join-team');
-    setSearchParams(nextParams, { replace: true });
-  };
-
-  const pendingCount = state.pendingActions.filter(a => a.status === 'pending').length;
-  const activeDisputes = state.disputes.filter(d => d.status === 'active').length;
-
-  const stats = [
-    { icon: Users, label: tr('members'), value: `${membersUsed}/${plan.maxNodes}` },
-    { icon: Layers, label: tr('generations'), value: `${generationsUsed}/${plan.generationCap}` },
-    { icon: Mail, label: tr('pendingInvites'), value: `${pendingCount}` },
-    { icon: Leaf, label: tr('prakritScoreLabel'), value: prakritiScore ? String(prakritiScore.score) : '—', eco: true },
-  ];
-
-  const milestones = [
-    { key: 'firstBranch' as const, earned: membersUsed >= 2 },
-    { key: 'threeGen' as const, earned: generationsUsed >= 3 },
-    { key: 'panditVerified' as const, earned: false },
-    { key: 'fiftyMembers' as const, earned: membersUsed >= 50 },
-  ];
-
-  const [celebrationMilestone, setCelebrationMilestone] = useState<typeof milestones[0]['key'] | null>(null);
-
-  useEffect(() => {
-    if (!appUser?.vansha_id) return;
-    const storageKey = `prakriti_celebrated_${appUser.vansha_id}`;
-    const celebrated: string[] = JSON.parse(localStorage.getItem(storageKey) ?? '[]');
-    const newlyEarned = milestones.find(m => m.earned && !celebrated.includes(m.key));
-    if (!newlyEarned) return;
-    setCelebrationMilestone(newlyEarned.key);
-    localStorage.setItem(storageKey, JSON.stringify([...celebrated, newlyEarned.key]));
-  }, [membersUsed, generationsUsed, appUser?.vansha_id]);
-
-  const dismissCelebration = useCallback(() => setCelebrationMilestone(null), []);
-
-  const familyName = appUser?.family_name ?? appUser?.full_name?.split(' ').slice(-1)[0] ?? 'Aapka';
-  const now = Date.now();
-  const hoursSinceFirstSeen = firstSeenAt > 0 ? (now - firstSeenAt) / 36e5 : 0;
-  const showDay2Hook = hoursSinceFirstSeen >= 24 && hoursSinceFirstSeen <= 72;
-  const lastPulseAt = (() => {
-    try { return Number(localStorage.getItem('prakriti_last_pulse_at') ?? '0'); } catch { return 0; }
-  })();
-  const missedPulseDays = lastPulseAt > 0 ? Math.floor((now - lastPulseAt) / 86_400_000) : 0;
-  const showReactivation = missedPulseDays >= 3;
-
-  const enablePulseWorkflow = async () => {
-    try {
-      localStorage.setItem('prakriti_pulse_notifications', 'on');
-      if ('Notification' in window && Notification.permission === 'default') {
-        await Notification.requestPermission();
-      }
-      setNotificationStatus('on');
-    } catch {
-      setNotificationStatus('on');
-    }
-  };
-
-  const logDailyPulse = () => {
-    try {
-      localStorage.setItem('prakriti_last_pulse_at', String(Date.now()));
-      localStorage.setItem('prakriti_streak', String(streakDays + 1));
-    } catch { /* ignore */ }
-    navigate('/time-bank');
-  };
-
-  // Format time ago
-  const timeAgo = (timestamp: number) => {
-    const diff = Date.now() - timestamp;
-    const mins = Math.floor(diff / 60000);
-    if (mins < 1) return tr('justNow');
-    if (mins < 60) return `${mins}m`;
-    const hours = Math.floor(mins / 60);
-    if (hours < 24) return `${hours}h`;
-    const days = Math.floor(hours / 24);
-    return `${days}d`;
-  };
-
-  // Compute profile node (onboarding name) for hero greeting
-  const profileNode =
-    (state.currentUserId ? state.nodes.find(n => n.id === state.currentUserId) : undefined) ??
-    state.nodes.find(n => n.relation.toLowerCase() === 'self') ??
-    state.nodes.find(n => (n.generation ?? 0) === 0) ??
-    null;
-  const profileNodeName = profileNode
-    ? [profileNode.givenName, profileNode.middleName, profileNode.surname].filter(Boolean).join(' ')
-    : null;
-
+/* ── Streak Ribbon — sticky 7-day ────────────────────────────── */
+const StreakRibbon = ({ streak }: { streak: number }) => {
+  const days = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+  const today = new Date().getDay() === 0 ? 6 : new Date().getDay() - 1;
+  const done = days.map((_, i) => i < today);
   return (
-    <AppShell>
-      {/* Header Bar */}
-      <div className="relative gradient-hero text-primary-foreground py-8 overflow-hidden">
-        <div className="absolute inset-0 pointer-events-none" style={{ backgroundImage: 'radial-gradient(circle at 20% 50%, rgba(255,255,255,0.06) 0%, transparent 55%)' }} />
-        <div className="container relative">
-          <div className="flex items-center justify-between flex-wrap gap-3">
-            <div>
-              {(profileNodeName || appUser?.full_name) && (
-                <p className="text-sm opacity-75 font-body mb-0.5">नमस्ते, {profileNodeName || appUser?.full_name} 🌿</p>
-              )}
-              <h1 className="font-heading text-2xl font-bold mb-0">
-                {familyName ? `${familyName} Parivar` : tr('dashboardTitle')}
-              </h1>
-              {appUser?.kutumb_id && (
-                <p className="text-[10px] opacity-50 font-body mt-0.5 font-mono">ID: {appUser.kutumb_id}</p>
-              )}
-            </div>
-            <div className="flex items-center gap-2 flex-wrap">
-              {/* Streak counter */}
-              <span className="flex items-center gap-1 text-xs px-3 py-1.5 rounded-full bg-orange-500/80 text-white font-semibold font-body">
-                <Flame className="w-3.5 h-3.5" /> {streakDays}-day streak
-              </span>
-              <span className="text-xs px-3 py-1.5 rounded-full bg-primary-foreground/10 border border-primary-foreground/25 text-primary-foreground font-semibold font-body backdrop-blur-sm">
-                ✦ {tr(plan.nameKey as any)}
-              </span>
-            </div>
+    <section style={{ padding: '16px 0', background: 'linear-gradient(90deg, var(--ds-plum-deep), var(--ds-plum) 50%, var(--ds-plum-deep))', color: 'var(--ds-paper)', position: 'sticky', top: 64, zIndex: 50, borderBottom: '1px solid rgba(212,154,31,0.2)' }}>
+      <div style={{ maxWidth: 1240, margin: '0 auto', padding: '0 24px', display: 'flex', alignItems: 'center', gap: 24, justifyContent: 'space-between', flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+          <div style={{ position: 'relative', width: 48, height: 48, display: 'grid', placeItems: 'center', flexShrink: 0 }}>
+            <svg width="48" height="48" viewBox="0 0 48 48" style={{ position: 'absolute' }}>
+              <circle cx="24" cy="24" r="20" fill="none" stroke="rgba(255,255,255,0.1)" strokeWidth="3" />
+              <circle cx="24" cy="24" r="20" fill="none" stroke="var(--ds-gold)" strokeWidth="3" strokeDasharray="125.6" strokeDashoffset={125.6 * (1 - Math.min(streak / 30, 1))} transform="rotate(-90 24 24)" strokeLinecap="round" />
+            </svg>
+            <span style={{ fontFamily: 'var(--ds-serif)', fontWeight: 700, fontSize: 18, color: 'var(--ds-gold-light)' }}>{streak}</span>
+          </div>
+          <div>
+            <div style={{ fontSize: 13, fontWeight: 600 }}>{streak}-day <span style={{ color: 'var(--ds-gold-light)', fontFamily: 'var(--ds-serif)', fontStyle: 'italic' }}>Nitya</span> streak</div>
+            <div style={{ fontSize: 11, opacity: 0.65 }}>One small kin act each day · keeps the diya lit</div>
           </div>
         </div>
-        <div className="absolute inset-x-0 bottom-0 gold-line opacity-60" />
-      </div>
-
-      <div className="container py-8 space-y-8">
-        {/* Weekly Panchang Strip */}
-        <div>
-          <DashboardWeekStrip />
-          <p className="text-xs text-muted-foreground text-center mt-2 font-body">
-            किसी तिथि पर क्लिक करें — अधिक जानकारी और अनुशंसाओं के लिए
-          </p>
-        </div>
-        <MovementBelief variant="compact" />
-
-        {/* Not initialized banner */}
-        {!isTreeInitialized && (
-          <div className="bg-primary/5 border border-primary/20 rounded-xl p-6 text-center">
-            <TreePine className="w-10 h-10 text-primary mx-auto mb-3" />
-            <p className="font-heading text-lg font-semibold mb-2">{tr('treeEmpty')}</p>
-            <button
-              onClick={() => navigate('/onboarding')}
-              className="px-6 py-2.5 rounded-lg gradient-hero text-primary-foreground font-semibold font-body text-sm shadow-warm hover:opacity-90 transition-opacity"
-            >
-              {tr('startTree')}
-            </button>
-          </div>
-        )}
-
-        {showDay2Hook && (
-          <div className="rounded-xl border border-sky-200 bg-sky-50 p-5 dark:border-sky-900 dark:bg-sky-950/30">
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-sky-700 dark:text-sky-300">Day-2 nudge</p>
-                <h3 className="mt-1 font-heading text-lg font-bold">Join your village circle before the trail goes cold.</h3>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  Connect your family to a village/community space in the next 24 hours. If you are not ready,
-                  complete one missing family detail to keep discovery active.
-                </p>
+        <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+          {days.map((d, i) => (
+            <div key={i} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+              <div style={{ width: 28, height: 28, borderRadius: '50%', background: done[i] ? 'linear-gradient(135deg, var(--ds-gold-light), var(--ds-gold))' : i === today ? 'rgba(212,154,31,0.15)' : 'rgba(255,255,255,0.06)', border: i === today && !done[i] ? '1.5px dashed var(--ds-gold-light)' : 'none', display: 'grid', placeItems: 'center', fontSize: 11, fontWeight: 700, color: done[i] ? 'var(--ds-plum-deep)' : 'rgba(255,255,255,0.5)' }}>
+                {done[i] ? '🪔' : i === today ? '?' : ''}
               </div>
-              <div className="flex shrink-0 gap-2">
-                <button
-                  type="button"
-                  onClick={() => navigate('/org/my')}
-                  className="rounded-lg bg-sky-700 px-4 py-2 text-sm font-semibold text-white hover:bg-sky-800"
-                >
-                  Join village
-                </button>
-                <button
-                  type="button"
-                  onClick={() => navigate('/tree')}
-                  className="rounded-lg border border-sky-300 px-4 py-2 text-sm font-semibold text-sky-800 hover:bg-sky-100 dark:text-sky-200"
-                >
-                  Complete tree
-                </button>
-              </div>
+              <span style={{ fontSize: 9, fontFamily: 'var(--ds-mono)', opacity: i === today ? 1 : 0.4, color: i === today ? 'var(--ds-gold-light)' : 'var(--ds-paper)' }}>{d}</span>
             </div>
-          </div>
-        )}
-
-        {/* ── My Profile card — pre-fills saved personal details ── */}
-        {isTreeInitialized && (() => {
-          // Logged-in member's tree node — not "lowest generation" (that is often father / ancestors).
-          const profileNode =
-            (state.currentUserId
-              ? state.nodes.find((n) => n.id === state.currentUserId)
-              : undefined) ??
-            state.nodes.find((n) => n.relation.toLowerCase() === "self") ??
-            state.nodes.find((n) => (n.generation ?? 0) === 0) ??
-            null;
-          if (!profileNode) return null;
-          return (
-            <div className="bg-card rounded-xl p-5 shadow-card border border-border/50 animate-fade-in">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="font-heading text-base font-semibold flex items-center gap-2">
-                  <UserCircle2 className="w-5 h-5 text-primary" />
-                  मेरी प्रोफ़ाइल
-                </h3>
-                <button
-                  onClick={() => navigate(`/node/${profileNode.id}`)}
-                  className="text-xs text-primary font-body font-medium hover:underline"
-                >
-                  संपादित करें →
-                </button>
-              </div>
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-3 text-sm font-body">
-                <div>
-                  <p className="text-xs text-muted-foreground mb-0.5">नाम</p>
-                  <p className="font-medium">
-                    {[profileNode.givenName, profileNode.middleName, profileNode.surname].filter(Boolean).join(' ') || profileNode.name}
-                  </p>
-                </div>
-                {appUser?.phone && (
-                  <div>
-                    <p className="text-xs text-muted-foreground mb-0.5">फ़ोन</p>
-                    <p className="font-medium">{appUser.phone}</p>
-                  </div>
-                )}
-                {appUser?.kutumb_id && (
-                  <div>
-                    <p className="text-xs text-muted-foreground mb-0.5">Kutumb ID</p>
-                    <p className="font-medium font-mono text-xs">{appUser.kutumb_id}</p>
-                  </div>
-                )}
-                {profileNode.dateOfBirth && (
-                  <div>
-                    <p className="text-xs text-muted-foreground mb-0.5">जन्मतिथि</p>
-                    <p className="font-medium">{profileNode.dateOfBirth}</p>
-                  </div>
-                )}
-                {profileNode.ancestralPlace && (
-                  <div>
-                    <p className="text-xs text-muted-foreground mb-0.5">पैतृक स्थान</p>
-                    <p className="font-medium">{profileNode.ancestralPlace}</p>
-                  </div>
-                )}
-                {profileNode.currentResidence && (
-                  <div>
-                    <p className="text-xs text-muted-foreground mb-0.5">वर्तमान निवास</p>
-                    <p className="font-medium">{profileNode.currentResidence}</p>
-                  </div>
-                )}
-              </div>
-            </div>
-          );
-        })()}
-
-        {/* ── Pinned Score Card ── */}
-        <div className="bg-card rounded-2xl shadow-elevated border border-border/50 overflow-hidden animate-fade-in">
-          <div className="gradient-hero text-primary-foreground p-5">
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <p className="text-xs font-body tracking-[0.2em] uppercase opacity-70 mb-1">Prakriti Score</p>
-                <div className="flex items-end gap-3">
-                  <span className="font-heading text-5xl font-bold">{prakritiScore?.score ?? '—'}</span>
-                  {familyRank?.rank != null && (
-                    <span className="text-sm font-body opacity-80 mb-1 flex items-center gap-1">
-                      <TrendingUp className="w-3.5 h-3.5" /> ▲ this week
-                    </span>
-                  )}
-                </div>
-                {familyRank && (
-                  <p className="text-sm font-body opacity-80 mt-1">
-                    Higher than {familyRank.top_percentile}% of families ·{' '}
-                    <button onClick={() => navigate('/leaderboard')} className="underline underline-offset-2 hover:opacity-100">
-                      #{familyRank.rank} in India
-                    </button>
-                  </p>
-                )}
-              </div>
-              <button
-                onClick={() => {
-                  const url = appUser?.vansha_id ? `${window.location.origin}/green-legacy/${appUser.vansha_id}` : window.location.origin;
-                  if (navigator.share) {
-                    navigator.share({ title: 'My family\'s Prakriti Score', url }).catch(() => {});
-                  } else {
-                    navigator.clipboard.writeText(url).then(() => {}).catch(() => {});
-                  }
-                }}
-                className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-primary-foreground/15 hover:bg-primary-foreground/25 text-primary-foreground text-xs font-semibold font-body transition-colors flex-shrink-0"
-              >
-                <Share2 className="w-3.5 h-3.5" /> Share
-              </button>
-            </div>
-          </div>
-          {/* Completeness gap */}
-          <div className="px-5 py-3 bg-secondary/30 border-t border-border/40">
-            <TreeCompletionScore membersUsed={membersUsed} maxNodes={plan.maxNodes} generationsUsed={generationsUsed} generationCap={plan.generationCap} size="sm" />
-          </div>
-        </div>
-
-        {/* ── Daily Pulse — Today's Action ── */}
-        <div className="bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 rounded-xl p-4 flex items-center gap-4 animate-fade-in">
-          <div className="w-10 h-10 rounded-xl bg-emerald-600 flex items-center justify-center flex-shrink-0">
-            <Leaf className="w-5 h-5 text-white" />
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-xs font-body text-emerald-700 dark:text-emerald-300 uppercase tracking-wider mb-0.5">Today's eco-action</p>
-            <p className="font-semibold font-body text-sm text-emerald-900 dark:text-white">Water a tree today → <span className="text-emerald-600">+5 Prakriti</span></p>
-          </div>
-          <button
-            onClick={logDailyPulse}
-            className="flex-shrink-0 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold font-body text-sm transition-colors"
-          >
-            Log it →
-          </button>
-          {notificationStatus !== 'on' && (
-            <button
-              type="button"
-              onClick={enablePulseWorkflow}
-              className="hidden rounded-xl border border-emerald-300 px-3 py-2 text-xs font-semibold text-emerald-800 hover:bg-emerald-100 dark:text-emerald-200 md:block"
-            >
-              Remind daily
-            </button>
-          )}
-        </div>
-
-        {showReactivation && (
-          <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 dark:border-rose-900 dark:bg-rose-950/30">
-            <div className="flex items-center gap-3">
-              <Flame className="h-5 w-5 shrink-0 text-rose-600" />
-              <p className="flex-1 text-sm font-body text-rose-900 dark:text-rose-100">
-                You missed {missedPulseDays} days of Prakriti Pulse. Restart with one small sewa today and recover the streak loop.
-              </p>
-              <button
-                type="button"
-                onClick={logDailyPulse}
-                className="rounded-lg bg-rose-600 px-3 py-2 text-xs font-semibold text-white hover:bg-rose-700"
-              >
-                Restart
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* ── Alert Strip — contextual, max 1 ── */}
-        {state.nodes.length > 0 && (
-          <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-xl px-4 py-3 flex items-center gap-3 animate-fade-in">
-            <span className="text-xl flex-shrink-0">🪔</span>
-            <p className="text-sm font-body text-amber-900 dark:text-amber-200 flex-1">
-              {prakritiScore && prakritiScore.score < 30
-                ? `Your tree has no voice recordings yet. Elders won't wait.`
-                : `Your family's Prakriti is growing — keep the streak alive.`}
-            </p>
-            <button
-              onClick={() => navigate('/legacy-box')}
-              className="flex-shrink-0 text-xs font-semibold font-body text-amber-700 dark:text-amber-300 hover:underline whitespace-nowrap"
-            >
-              Record now →
-            </button>
-          </div>
-        )}
-
-        {/* ── Quick Actions Row — 4 icons ── */}
-        <div className="grid grid-cols-4 gap-3">
-          {[
-            { icon: TreePine, label: 'View Tree', onClick: () => navigate('/tree') },
-            { icon: UserPlus, label: 'Add Member', onClick: () => { const v = resolveVanshaIdForApi(null); navigate(v ? `/node?vansha_id=${encodeURIComponent(v)}` : '/node'); } },
-            { icon: Leaf, label: 'Log Eco-Sewa', onClick: () => navigate('/time-bank') },
-            { icon: Mic, label: 'Record Elder', onClick: () => navigate('/legacy-box') },
-          ].map(({ icon: Icon, label, onClick }, i) => (
-            <button
-              key={label}
-              onClick={onClick}
-              className="flex flex-col items-center gap-2 bg-card rounded-xl p-3 shadow-card border border-border/50 hover:shadow-elevated transition-all hover:-translate-y-0.5 text-center animate-fade-in"
-              style={{ animationDelay: `${i * 60}ms` }}
-            >
-              <div className="w-10 h-10 rounded-lg gradient-hero flex items-center justify-center">
-                <Icon className="w-5 h-5 text-primary-foreground" />
-              </div>
-              <p className="text-xs font-semibold font-body leading-tight">{label}</p>
-            </button>
           ))}
         </div>
-
-        {/* Sales quick-access (role-gated) */}
-        {isSalesMember && (
-          <button
-            onClick={() => navigate('/sales')}
-            className="flex items-center gap-3 bg-card rounded-xl px-4 py-3 shadow-card border border-border/50 hover:shadow-elevated transition-all w-full text-left"
-          >
-            <div className="w-9 h-9 rounded-lg gradient-hero flex items-center justify-center flex-shrink-0">
-              <BarChart3 className="w-4 h-4 text-primary-foreground" />
-            </div>
-            <p className="text-sm font-semibold font-body">Sales Dashboard →</p>
-          </button>
-        )}
-
-        {/* Pending Actions */}
-        {state.pendingActions.filter(a => a.status === 'pending').length > 0 && (
-          <div className="bg-card rounded-xl p-6 shadow-card border border-border/50 animate-fade-in">
-            <h3 className="font-heading text-lg font-semibold mb-4 flex items-center gap-2">
-              <GitFork className="w-5 h-5 text-accent" />
-              {tr('pendingReviews')}
-            </h3>
-            <div className="space-y-3">
-              {state.pendingActions.filter(a => a.status === 'pending').map(action => {
-                const node = state.nodes.find(n => n.id === action.nodeId);
-                return (
-                  <div key={action.id} className="flex items-center justify-between bg-secondary/30 rounded-lg p-4">
-                    <div>
-                      <p className="text-sm font-body font-medium">
-                        {tr('correctionProposed')}: <span className="text-primary">{action.field}</span>
-                      </p>
-                      <p className="text-xs text-muted-foreground font-body">
-                        {node?.name} — {action.oldValue || '—'} → {action.proposedValue}
-                      </p>
-                    </div>
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => approvePending(action.id)}
-                        className="p-2 rounded-lg bg-primary/10 text-primary hover:bg-primary/20 transition-colors"
-                      >
-                        <Check className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={() => objectPending(action.id)}
-                        className="p-2 rounded-lg bg-destructive/10 text-destructive hover:bg-destructive/20 transition-colors"
-                      >
-                        <X className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
-
-        {/* Active Disputes */}
-        {activeDisputes > 0 && (
-          <div className="bg-accent/5 border border-accent/20 rounded-xl p-5 animate-fade-in">
-            <p className="text-sm font-semibold font-body flex items-center gap-2">
-              <GitFork className="w-4 h-4 text-accent" />
-              {activeDisputes} {tr('activeDisputes')}
-            </p>
-            <p className="text-xs text-muted-foreground font-body mt-1">{tr('disputeForkDesc')}</p>
-          </div>
-        )}
-
-        {/* Trust Seal Strip */}
-        <div className="bg-card rounded-xl p-5 shadow-card border border-border/50 animate-fade-in">
-          <p className="font-heading text-sm font-semibold mb-3 flex items-center gap-2">
-            <ShieldCheck className="w-4 h-4 text-primary" />
-            Trust Seals
-          </p>
-          <div className="grid grid-cols-3 gap-3">
-            <div className="flex flex-col items-center gap-1.5 p-3 rounded-lg border-2 border-green-300 dark:border-green-700 bg-green-50/50 dark:bg-green-950/20 text-center">
-              <div className="w-9 h-9 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
-                <Leaf className="w-5 h-5 text-green-600" />
-              </div>
-              <p className="text-xs font-semibold font-body leading-tight">Paryavaran Mitra</p>
-              <span className="text-[9px] px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300 font-medium">Pending</span>
-            </div>
-            <div className="flex flex-col items-center gap-1.5 p-3 rounded-lg border-2 border-blue-300 dark:border-blue-700 bg-blue-50/50 dark:bg-blue-950/20 text-center">
-              <div className="w-9 h-9 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
-                <ShieldCheck className="w-5 h-5 text-blue-600" />
-              </div>
-              <p className="text-xs font-semibold font-body leading-tight">Trust / NGO</p>
-              <span className="text-[9px] px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300 font-medium">Pending</span>
-            </div>
-            <div className="flex flex-col items-center gap-1.5 p-3 rounded-lg border-2 border-purple-300 dark:border-purple-700 bg-purple-50/50 dark:bg-purple-950/20 text-center">
-              <div className="w-9 h-9 rounded-full bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center">
-                <UserCircle2 className="w-5 h-5 text-purple-600" />
-              </div>
-              <p className="text-xs font-semibold font-body leading-tight">KYC</p>
-              <span className="text-[9px] px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300 font-medium">Pending</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Clan Milestones */}
-        <div className="animate-fade-in">
-          <ClanMilestone milestones={milestones} />
-        </div>
-
-        {/* Feature Teasers */}
-        <div className="grid sm:grid-cols-3 gap-4">
-          <div className="bg-card rounded-xl p-5 shadow-card border border-border/50 hover:shadow-elevated transition-all animate-fade-in">
-            <ShieldCheck className="w-6 h-6 text-primary mb-2" />
-            <p className="font-body font-medium text-sm mb-1">{tr('verification')}</p>
-            <p className="text-xs text-muted-foreground font-body mb-3">{tr('verificationTeaser')}</p>
-            {hasEntitlement('panditVerification') ? (
-              <button onClick={() => navigate('/verification')} className="text-xs text-primary font-medium font-body hover:underline">{tr('explore')} →</button>
-            ) : (
-              <LockedBanner featureKey="panditVerification" />
-            )}
-          </div>
-          <div className="bg-card rounded-xl p-5 shadow-card border border-border/50 hover:shadow-elevated transition-all animate-fade-in">
-            <Search className="w-6 h-6 text-primary mb-2" />
-            <p className="font-body font-medium text-sm mb-1">{tr('discovery')}</p>
-            <p className="text-xs text-muted-foreground font-body mb-3">{tr('discoveryTeaser')}</p>
-            {hasEntitlement('discovery') ? (
-              <button onClick={() => navigate('/discovery')} className="text-xs text-primary font-medium font-body hover:underline">{tr('explore')} →</button>
-            ) : (
-              <LockedBanner featureKey="discovery" />
-            )}
-          </div>
-          <div className="bg-card rounded-xl p-5 shadow-card border border-border/50 hover:shadow-elevated transition-all animate-fade-in">
-            <Heart className="w-6 h-6 text-primary mb-2" />
-            <p className="font-body font-medium text-sm mb-1">{tr('matrimony')}</p>
-            <p className="text-xs text-muted-foreground font-body mb-3">{tr('matrimonyTeaser')}</p>
-            {hasEntitlement('matrimony') ? (
-              <button onClick={() => navigate('/matrimony')} className="text-xs text-primary font-medium font-body hover:underline">{tr('explore')} →</button>
-            ) : (
-              <LockedBanner featureKey="matrimony" />
-            )}
-          </div>
-        </div>
-
-        {/* Upgrade CTA */}
-        {planId === 'beej' && (
-          <div className="bg-gradient-to-r from-primary/10 to-accent/10 rounded-xl p-6 border border-primary/20 text-center animate-fade-in">
-            <ArrowUpCircle className="w-8 h-8 text-primary mx-auto mb-3" />
-            <p className="font-heading text-lg font-bold mb-1">{tr('upgradePlan')}</p>
-            <p className="text-sm text-muted-foreground font-body mb-4">{tr('upgradeSubtitle')}</p>
-            <button
-              onClick={() => navigate('/upgrade')}
-              className="px-8 py-2.5 rounded-lg gradient-hero text-primary-foreground font-semibold font-body text-sm shadow-warm hover:opacity-90 transition-opacity"
-            >
-              {tr('upgradePlan')} →
-            </button>
-          </div>
-        )}
-
-        {/* Launching Soon — Kutumb Map Ecosystem */}
-        <div className="bg-gradient-to-br from-primary/5 to-accent/5 rounded-2xl border border-primary/15 p-6 animate-fade-in">
-          <div className="flex items-center gap-2 mb-1">
-            <Rocket className="w-5 h-5 text-primary" />
-            <h3 className="font-heading text-lg font-bold">{tr('upcomingSection')}</h3>
-          </div>
-          <p className="text-sm text-muted-foreground font-body mb-5">{tr('upcomingSectionDesc')}</p>
-          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
-            {UPCOMING_SERVICES.map((svc) => {
-              const dest = svc.isLive ? (svc.livePath ?? svc.path) : svc.path;
-              return (
-                <button
-                  key={svc.id}
-                  onClick={() => navigate(dest)}
-                  className="flex items-start gap-3 bg-card/80 rounded-xl p-4 border border-border/50 hover:border-primary/30 hover:shadow-card transition-all text-left group"
-                >
-                  <span className="text-2xl mt-0.5 flex-shrink-0">{svc.emoji}</span>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-1.5 mb-0.5">
-                      <p className="font-semibold font-body text-sm">{svc.title[lang]}</p>
-                      {!svc.isLive && (
-                        <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-accent/15 text-accent font-bold tracking-wide flex-shrink-0">
-                          SOON
-                        </span>
-                      )}
-                    </div>
-                    <p className="text-xs text-muted-foreground font-body line-clamp-2">{svc.tagline[lang]}</p>
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Recent Activity */}
-        <div className="bg-card rounded-xl p-6 shadow-card border border-border/50 animate-fade-in">
-          <h3 className="font-heading text-lg font-semibold mb-4">{tr('recentActivity')}</h3>
-          {state.activityLog.length === 0 ? (
-            <p className="text-sm text-muted-foreground font-body text-center py-4">{tr('noDataYet')}</p>
-          ) : (
-            <div className="space-y-4">
-              {state.activityLog.slice(0, 10).map((a) => (
-                <div key={a.id} className="flex items-start gap-3">
-                  <Clock className="w-4 h-4 text-muted-foreground mt-0.5 flex-shrink-0" />
-                  <div>
-                    <p className="text-sm font-body">
-                      {tr(a.textKey as any)}
-                      {a.params.memberName && ` — ${a.params.memberName}`}
-                      {a.params.treeName && ` — ${a.params.treeName}`}
-                      {a.params.field && ` (${a.params.field})`}
-                      {a.textKey === 'activityTreeBroadcast' && a.params.message
-                        ? ` — ${a.params.message.slice(0, 120)}${a.params.message.length > 120 ? '…' : ''}`
-                        : ''}
-                      {a.textKey === 'activitySosSent' && a.params.note
-                        ? ` — ${a.params.note.slice(0, 80)}`
-                        : ''}
-                      {a.textKey === 'activitySosSent' && a.params.count
-                        ? ` [${a.params.count} recipients]`
-                        : ''}
-                      {a.textKey === 'activityLinkedSpouses' && a.params.a && a.params.b
-                        ? ` — ${a.params.a} & ${a.params.b}`
-                        : ''}
-                    </p>
-                    <p className="text-xs text-muted-foreground font-body">{timeAgo(a.time)}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* Earnings Wallet — shown to active sales members */}
-        <EarningsWallet />
-
-        {/* Join Sales Team CTA — only shown to non-sales users */}
-        {!isSalesMember && (
-          <div className="bg-gradient-to-r from-accent/8 to-primary/8 rounded-xl p-5 border border-accent/20 flex items-center gap-4 animate-fade-in">
-            <div className="w-10 h-10 rounded-lg bg-accent/15 flex items-center justify-center flex-shrink-0">
-              <HandHeart className="w-5 h-5 text-accent" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="font-semibold font-body text-sm">{tr('joinSalesTeam')}</p>
-              <p className="text-xs text-muted-foreground font-body">{tr('seContributeSub')}</p>
-            </div>
-            <button
-              onClick={() => setShowJoinSE(true)}
-              className="flex-shrink-0 px-4 py-2 rounded-lg gradient-hero text-primary-foreground font-semibold font-body text-xs shadow-warm hover:opacity-90 transition-opacity"
-            >
-              {tr('getStarted')} →
-            </button>
-          </div>
-        )}
-
-        {/* Disclaimer */}
-        <div className="text-center text-xs text-muted-foreground font-body py-4 border-t border-border">
-          {tr('disclaimer')}
-        </div>
+        <button className="ds-btn ds-btn-sm ds-btn-gold">🎙️ Record today's Smriti →</button>
       </div>
-
-      {showJoinSE && <JoinSEModal onClose={closeJoinSE} />}
-
-      {celebrationMilestone && (
-        <MilestoneCelebration
-          familyName={familyName}
-          milestoneKey={celebrationMilestone}
-          onDismiss={dismissCelebration}
-          shareUrl={appUser?.vansha_id ? `${window.location.origin}/green-legacy/${appUser.vansha_id}` : undefined}
-        />
-      )}
-    </AppShell>
+    </section>
   );
 };
 
-// ── Dashboard Week Strip ──────────────────────────────────────────────────────
+/* ── Pal Stories — 24h disappearing moments ─────────────────── */
+const PalStories = ({ familyName }: { familyName: string }) => {
+  const [open, setOpen] = useState<number | null>(null);
+  const [progress, setProgress] = useState(0);
 
-/**
- * Approximate tithi ID (1–30) for a date using the synodic period.
- * Reference new moon: 2000-01-06T18:14:00Z
- */
-function estimateTithiForDate(dateStr: string): { tithi_id: number; paksha: Paksha } {
-  const REF_NEW_MOON_MS = 946_939_440_000; // 2000-01-06T18:14:00Z
-  const SYNODIC_MS = 29.530_588_67 * 86_400_000;
-  const t = new Date(dateStr + 'T12:00:00Z').getTime();
-  const phase = ((t - REF_NEW_MOON_MS) % SYNODIC_MS + SYNODIC_MS) % SYNODIC_MS;
-  const raw = Math.floor((phase / SYNODIC_MS) * 30) + 1;
-  const tithi_id = Math.min(30, Math.max(1, raw));
-  const paksha: Paksha = tithi_id <= 15 ? 'shukla' : 'krishna';
-  return { tithi_id, paksha };
-}
-
-/** Returns a vrat/festival label for a tithi + special_flag. */
-function getVratLabel(tithi_id: number, special_flag?: string | null): string {
-  if (special_flag) {
-    const map: Record<string, string> = {
-      ekadashi: 'एकादशी व्रत', purnima: 'पूर्णिमा', amavasya: 'अमावस्या',
-      pradosh: 'प्रदोष व्रत', chaturthi: 'चतुर्थी व्रत', ashtami: 'अष्टमी',
-      navami: 'नवमी', sankranti: 'संक्रांति',
-    };
-    if (map[special_flag]) return map[special_flag];
-  }
-  const tithiVrats: Record<number, string> = {
-    11: 'एकादशी', 26: 'एकादशी', 15: 'पूर्णिमा', 30: 'अमावस्या',
-    4: 'चतुर्थी', 19: 'चतुर्थी', 14: 'प्रदोष', 29: 'प्रदोष',
-    8: 'अष्टमी', 23: 'अष्टमी',
-  };
-  return tithiVrats[tithi_id] ?? '';
-}
-
-function addDaysLocal(dateStr: string, days: number): string {
-  const d = new Date(dateStr + 'T00:00:00');
-  d.setDate(d.getDate() + days);
-  return d.toISOString().slice(0, 10);
-}
-
-const ECO_SEWA_ITEMS = [
-  { emoji: '🌳', label: 'पेड़ लगाएं', sub: 'Plant a Tree', path: '/time-bank' },
-  { emoji: '💧', label: 'जल संरक्षण', sub: 'Water Body Restoration', path: '/time-bank' },
-  { emoji: '🧹', label: 'स्वच्छता अभियान', sub: 'Cleanliness Drive', path: '/time-bank' },
-  { emoji: '🌾', label: 'जैविक खेती', sub: 'Organic Farming', path: '/time-bank' },
-  { emoji: '🦋', label: 'वन्यजीव सेवा', sub: 'Wildlife Care', path: '/time-bank' },
-];
-
-function DashboardWeekStrip() {
-  const navigate = useNavigate();
-  const today = new Date().toISOString().slice(0, 10);
-  const [showEcoMenu, setShowEcoMenu] = useState(false);
-  const menuRef = useRef<HTMLDivElement>(null);
-
-  // Start from Monday of current week
-  const weekStart = (() => {
-    const d = new Date(today + 'T00:00:00');
-    const day = d.getDay();
-    const offset = day === 0 ? -6 : 1 - day;
-    d.setDate(d.getDate() + offset);
-    return d.toISOString().slice(0, 10);
-  })();
-
-  const [rows, setRows] = useState<PanchangCalendarRow[]>([]);
-  const [loading, setLoading] = useState(true);
+  const stories = [
+    { who: 'You', ring: 'gold', avatar: 'Y', label: 'Add pal', isAdd: true },
+    { who: 'Dadiji', ring: 'live', avatar: 'द', label: 'Aashirvaad · 12s', kind: 'voice', text: '"Beta, aaj ka din shubh hai. Sab kaam siddh honge."', tint: '#7a3a8e' },
+    { who: 'Pita ji', ring: 'live', avatar: 'P', label: 'Tulsi puja · 2h', kind: 'photo', text: 'Morning tulsi aarti — 47 years unbroken', tint: 'var(--ds-saffron)' },
+    { who: 'Chacha ji', ring: 'live', avatar: 'C', label: 'Family trip', kind: 'photo', text: 'Family at weekend getaway', tint: '#2a8068' },
+    { who: 'Pt. Ramesh', ring: 'gold', avatar: 'पं', label: "Today's muhurat", kind: 'note', text: '10:48–11:32 AM · Abhijit · best for new starts', tint: 'var(--ds-gold-deep)' },
+  ];
 
   useEffect(() => {
-    fetchPanchangCalendar(weekStart, addDaysLocal(weekStart, 6))
-      .then(cal => {
-        if (cal.length > 0) {
-          setRows(cal.map(row => ({
-            ...row,
-            tithis: mergeTithiWithFallback(
-              row.tithis as Record<string, unknown> | null | undefined,
-              row.tithi_id,
-              row.paksha as Paksha,
-            ) as unknown as PanchangCalendarRow['tithis'],
-          })));
-        }
-        setLoading(false);
-      })
-      .catch(() => setLoading(false));
-  }, [weekStart]);
+    if (open === null) return;
+    setProgress(0);
+    const id = setInterval(() => setProgress(p => {
+      if (p >= 100) { clearInterval(id); setOpen(o => o !== null && o < stories.length - 1 ? o + 1 : null); return 0; }
+      return p + 1.4;
+    }), 60);
+    return () => clearInterval(id);
+  }, [open]);
 
-  // Close menu on outside click
-  useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setShowEcoMenu(false);
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, []);
+  const cur = open !== null ? stories[open] : null;
 
   return (
-    <div className="border border-green-200 dark:border-green-800 bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-950/30 dark:to-emerald-950/20 rounded-xl overflow-hidden">
-      <div className="px-3 py-2 border-b border-green-100 dark:border-green-900 flex items-center justify-between">
-        <span className="text-xs font-semibold text-green-800 dark:text-green-300">🌿 साप्ताहिक तिथि पंचांग</span>
-        <div className="flex items-center gap-2">
-          {loading && <Loader2 className="w-3.5 h-3.5 animate-spin text-green-600" />}
-          {/* Commit Environmental Service CTA */}
-          <div ref={menuRef} className="relative">
-            <button
-              onClick={() => setShowEcoMenu(v => !v)}
-              className="flex items-center gap-1 text-[10px] font-semibold px-2 py-1 rounded-md bg-green-600 hover:bg-green-700 text-white transition-colors"
-            >
-              🌱 पर्यावरण सेवा
-              <svg className="w-3 h-3 ml-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
-            </button>
-            {showEcoMenu && (
-              <div className="absolute right-0 top-8 z-50 w-56 bg-card border border-border rounded-xl shadow-xl overflow-hidden">
-                <div className="px-3 py-2 border-b border-border/60">
-                  <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">स्वयं करें</p>
-                </div>
-                {ECO_SEWA_ITEMS.map(item => (
-                  <button
-                    key={item.label}
-                    onClick={() => { setShowEcoMenu(false); navigate(item.path); }}
-                    className="w-full flex items-center gap-2.5 px-3 py-2 hover:bg-secondary/60 text-left transition-colors"
-                  >
-                    <span className="text-base">{item.emoji}</span>
-                    <div className="min-w-0">
-                      <p className="text-xs font-medium text-foreground leading-tight">{item.label}</p>
-                      <p className="text-[10px] text-muted-foreground leading-tight">{item.sub}</p>
-                    </div>
-                  </button>
-                ))}
-                <div className="border-t border-border/60">
-                  <button
-                    onClick={() => { setShowEcoMenu(false); navigate('/services'); }}
-                    className="w-full flex items-center gap-2.5 px-3 py-2.5 hover:bg-primary/5 text-left transition-colors"
-                  >
-                    <span className="text-base">🛍️</span>
-                    <div>
-                      <p className="text-xs font-semibold text-primary leading-tight">Prakriti के साथ बुक करें</p>
-                      <p className="text-[10px] text-muted-foreground leading-tight">Book with Prakriti</p>
-                    </div>
-                  </button>
+    <section style={{ padding: '24px 0 8px', background: 'var(--ds-ivory)', borderBottom: '1px solid var(--ds-hairline)' }}>
+      <div style={{ maxWidth: 1240, margin: '0 auto', padding: '0 24px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+          <div>
+            <span className="ds-eyebrow">Pal · today</span>
+            <h2 style={{ fontFamily: 'var(--ds-serif)', fontSize: 22, marginTop: 4 }}>Family moments <span style={{ fontStyle: 'italic', color: 'var(--ds-gold-deep)', fontWeight: 400 }}>that vanish at sunset</span></h2>
+          </div>
+          <span style={{ fontSize: 11, fontFamily: 'var(--ds-mono)', color: 'var(--ds-ink-mute)', letterSpacing: '0.12em', textTransform: 'uppercase' }}>Tap to view</span>
+        </div>
+        <div style={{ display: 'flex', gap: 14, overflowX: 'auto', paddingBottom: 8 }}>
+          {stories.map((s, i) => (
+            <button key={i} onClick={() => !s.isAdd && setOpen(i)} style={{ flexShrink: 0, background: 'transparent', border: 'none', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, width: 78 }}>
+              <div style={{ position: 'relative', width: 64, height: 64, borderRadius: '50%', padding: 3, background: s.ring === 'live' ? 'conic-gradient(from 180deg, var(--ds-saffron), var(--ds-gold), var(--ds-plum-rose), var(--ds-saffron))' : s.ring === 'gold' ? 'linear-gradient(135deg, var(--ds-gold-light), var(--ds-gold-deep))' : 'linear-gradient(135deg, #2a8068, #7adba0)' }}>
+                <div style={{ width: '100%', height: '100%', borderRadius: '50%', background: 'var(--ds-ivory)', display: 'grid', placeItems: 'center', color: 'var(--ds-plum)', fontFamily: 'var(--ds-serif)', fontWeight: 700, fontSize: 22 }}>
+                  {s.isAdd ? <span style={{ fontSize: 28, color: 'var(--ds-gold-deep)', fontWeight: 300 }}>+</span> : s.avatar}
                 </div>
               </div>
-            )}
+              <span style={{ fontSize: 11, color: 'var(--ds-ink-soft)', fontWeight: 600, textAlign: 'center', lineHeight: 1.2 }}>{s.who}</span>
+              <span style={{ fontSize: 9, color: 'var(--ds-ink-mute)', fontFamily: 'var(--ds-mono)', textAlign: 'center' }}>{s.label}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+      {cur && !cur.isAdd && (
+        <div onClick={() => setOpen(null)} style={{ position: 'fixed', inset: 0, background: '#000', zIndex: 400, display: 'grid', placeItems: 'center' }}>
+          <div onClick={e => e.stopPropagation()} style={{ width: 'min(420px, 100%)', height: 'min(720px, 92vh)', background: `linear-gradient(180deg, ${cur.tint}, var(--ds-plum-deep))`, borderRadius: 14, position: 'relative', overflow: 'hidden', display: 'flex', flexDirection: 'column', color: 'var(--ds-paper)' }}>
+            <div style={{ position: 'absolute', top: 10, left: 10, right: 10, display: 'flex', gap: 4, zIndex: 10 }}>
+              {stories.map((_, i) => i === 0 ? null : (
+                <div key={i} style={{ flex: 1, height: 3, borderRadius: 2, background: 'rgba(255,255,255,0.25)', overflow: 'hidden' }}>
+                  {i === open && <div style={{ width: `${progress}%`, height: '100%', background: 'var(--ds-paper)' }} />}
+                  {i < (open ?? 0) && <div style={{ width: '100%', height: '100%', background: 'var(--ds-paper)' }} />}
+                </div>
+              ))}
+            </div>
+            <div style={{ padding: '30px 18px 14px', display: 'flex', alignItems: 'center', gap: 10 }}>
+              <div style={{ width: 38, height: 38, borderRadius: '50%', background: 'rgba(255,255,255,0.15)', display: 'grid', placeItems: 'center', fontFamily: 'var(--ds-serif)', fontWeight: 700, fontSize: 16 }}>{cur.avatar}</div>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 14, fontWeight: 700 }}>{cur.who}</div>
+                <div style={{ fontSize: 11, opacity: 0.7 }}>{cur.label}</div>
+              </div>
+              <button onClick={() => setOpen(null)} style={{ background: 'transparent', color: 'var(--ds-paper)', border: 'none', fontSize: 24, cursor: 'pointer' }}>×</button>
+            </div>
+            <div style={{ flex: 1, display: 'grid', placeItems: 'center', padding: 30, textAlign: 'center' }}>
+              {cur.kind === 'voice' && <p style={{ fontFamily: 'var(--ds-serif)', fontSize: 24, lineHeight: 1.4, fontStyle: 'italic' }}>{cur.text}</p>}
+              {cur.kind === 'photo' && <div><div style={{ width: 240, height: 240, borderRadius: 12, background: `linear-gradient(135deg, ${cur.tint}, rgba(255,255,255,0.1))`, border: '2px solid rgba(255,255,255,0.3)', display: 'grid', placeItems: 'center', fontSize: 64, marginBottom: 18 }}>📷</div><p style={{ fontFamily: 'var(--ds-serif)', fontSize: 20, fontStyle: 'italic' }}>{cur.text}</p></div>}
+              {cur.kind === 'note' && <p style={{ fontFamily: 'var(--ds-serif)', fontSize: 24, lineHeight: 1.4, fontStyle: 'italic' }}>{cur.text}</p>}
+            </div>
+          </div>
+        </div>
+      )}
+    </section>
+  );
+};
+
+/* ── Dash Hero — score + today's date + todo ─────────────────── */
+const DashHero = ({ appUser, score, familyRank }: {
+  appUser: { full_name?: string | null } | null;
+  score: PrakritiScore | null;
+  familyRank: FamilyRank | null;
+}) => {
+  const navigate = useNavigate();
+  const displayScore = score?.total_score ?? 78;
+  const familyName = appUser?.full_name?.split(' ').slice(-1)[0] ?? 'Parivar';
+  const [todos, setTodos] = useState([
+    { icon: '🌱', t: 'Plant a sapling · Akshaya Tritiya 2× day', done: false, src: 'eco' },
+    { icon: '🪔', t: 'Light a single ghee diya, no waste', done: true, src: 'eco' },
+    { icon: '🌳', t: 'Vat Savitri reminder · 4 days', done: false, src: 'panchang' },
+    { icon: '☎️', t: 'Call dadaji about Smriti recording', done: false, src: 'self' },
+    { icon: '📜', t: 'Review vanshavali draft from Pt. Ramesh', done: true, src: 'self' },
+  ]);
+  const [newTask, setNewTask] = useState('');
+  const doneCnt = todos.filter(t => t.done).length;
+
+  return (
+    <section style={{ background: 'linear-gradient(180deg, var(--ds-plum-deep), var(--ds-plum) 80%)', color: 'var(--ds-paper)', padding: '40px 0 80px', position: 'relative', overflow: 'hidden' }}>
+      <div style={{ maxWidth: 1240, margin: '0 auto', padding: '0 24px', position: 'relative', zIndex: 1 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 24 }}>
+          <div>
+            <div className="ds-eyebrow" style={{ color: 'var(--ds-gold-light)' }}>Welcome back</div>
+            <h1 style={{ fontFamily: 'var(--ds-serif)', fontSize: 'clamp(28px,3.6vw,48px)', marginTop: 8, color: 'var(--ds-paper)' }}>
+              Namaste, <span style={{ fontStyle: 'italic', color: 'var(--ds-gold-light)' }}>{familyName}</span> parivar.
+            </h1>
+            <p style={{ marginTop: 10, fontSize: 15, color: 'rgba(255,255,255,0.65)' }}>
+              Your family's nature score is live · <span style={{ color: 'var(--ds-gold-light)' }}>2 verifications pending</span>
+            </p>
+          </div>
+          <div style={{ display: 'flex', gap: 10 }}>
+            <button onClick={() => navigate('/invite')} className="ds-btn ds-btn-ghost ds-btn-sm" style={{ color: 'var(--ds-paper)', borderColor: 'rgba(255,255,255,0.25)' }}>Invite kin</button>
+            <button onClick={() => navigate('/tree')} className="ds-btn ds-btn-gold ds-btn-sm">Open tree →</button>
+          </div>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: '1.1fr 1fr 1fr', gap: 18, marginTop: 40 }} className="dash-hero-grid">
+          {/* Score card */}
+          <div className="ds-card" style={{ padding: 28, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(212,154,31,0.3)', color: 'var(--ds-paper)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span className="ds-eyebrow" style={{ color: 'var(--ds-gold-light)' }}>Prakriti score</span>
+              <span className="ds-pill" style={{ background: 'rgba(122,219,160,0.12)', borderColor: 'rgba(122,219,160,0.3)', color: '#7adba0' }}>↑ +6 this week</span>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'flex-end', gap: 18, marginTop: 18 }}>
+              <div className="ds-score-num" style={{ fontSize: 110, color: 'var(--ds-gold-light)', lineHeight: 1 }}>{displayScore}</div>
+              <div style={{ paddingBottom: 18, color: 'rgba(255,255,255,0.55)' }}>
+                <div style={{ fontSize: 14 }}>/100</div>
+                {familyRank && <div style={{ fontSize: 12, marginTop: 4 }}>#{familyRank.city_rank} in {familyRank.city ?? 'your city'}</div>}
+                {familyRank && <div style={{ fontSize: 12 }}>#{familyRank.state_rank} in {familyRank.state ?? 'your state'}</div>}
+              </div>
+            </div>
+            <div style={{ marginTop: 18, height: 6, borderRadius: 3, background: 'rgba(255,255,255,0.1)', overflow: 'hidden' }}>
+              <div style={{ width: `${displayScore}%`, height: '100%', background: 'linear-gradient(90deg,var(--ds-saffron),var(--ds-gold))' }} />
+            </div>
+            <div style={{ marginTop: 8, display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'rgba(255,255,255,0.4)', fontFamily: 'var(--ds-mono)' }}>
+              <span>Beej</span><span>Ankur</span><span>Vriksh</span><span>Vansh</span>
+            </div>
+          </div>
+
+          {/* Today calendar */}
+          <div className="ds-card" style={{ padding: 24, background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', color: 'var(--ds-paper)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span className="ds-eyebrow" style={{ color: 'rgba(255,255,255,0.55)' }}>Today</span>
+              <span className="ds-pill" style={{ background: 'rgba(122,219,160,0.12)', borderColor: 'rgba(122,219,160,0.3)', color: '#7adba0' }}><span className="ds-pill-dot live" />Auspicious day</span>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: 14, marginTop: 14 }}>
+              <div className="ds-score-num" style={{ fontSize: 80, color: 'var(--ds-gold-light)', lineHeight: 1 }}>{new Date().getDate()}</div>
+              <div>
+                <div style={{ fontFamily: 'var(--ds-serif)', fontSize: 22, color: 'var(--ds-paper)', lineHeight: 1.1 }}>{new Date().toLocaleString('en-IN', { month: 'long' })}</div>
+                <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.55)', marginTop: 4 }}>{new Date().toLocaleString('en-IN', { weekday: 'long' })} · {new Date().getFullYear()}</div>
+              </div>
+            </div>
+            <div style={{ marginTop: 14, paddingTop: 14, borderTop: '1px solid rgba(255,255,255,0.08)', fontSize: 12, color: 'rgba(255,255,255,0.55)' }}>
+              <div className="ds-sanskrit" style={{ color: 'var(--ds-gold-light)', fontSize: 14, marginBottom: 4 }}>वैशाख शुक्ल तृतीया</div>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Sunrise · Sunset</span><span>05:42 · 18:51</span></div>
+            </div>
+            <button onClick={() => navigate('/eco-panchang')} className="ds-btn ds-btn-sm" style={{ marginTop: 14, background: 'var(--ds-gold)', color: 'var(--ds-plum-deep)', fontWeight: 700, width: '100%', justifyContent: 'center' }}>Open panchang →</button>
+          </div>
+
+          {/* Auto Todo */}
+          <div className="ds-card" style={{ padding: 24, background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', color: 'var(--ds-paper)', display: 'flex', flexDirection: 'column' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span className="ds-eyebrow" style={{ color: 'rgba(255,255,255,0.55)' }}>Today's to-do</span>
+              <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.45)', fontFamily: 'var(--ds-mono)' }}>{doneCnt} of {todos.length} done</span>
+            </div>
+            <div style={{ marginTop: 14, display: 'flex', flexDirection: 'column', gap: 8, flex: 1 }}>
+              {todos.map((td, i) => (
+                <label key={i} style={{ display: 'flex', gap: 10, alignItems: 'flex-start', cursor: 'pointer' }}>
+                  <input type="checkbox" checked={td.done} onChange={() => setTodos(t => t.map((x, j) => j === i ? { ...x, done: !x.done } : x))} style={{ marginTop: 3, accentColor: 'var(--ds-gold)' }} />
+                  <span style={{ fontSize: 13, color: td.done ? 'rgba(255,255,255,0.4)' : 'rgba(255,255,255,0.85)', textDecoration: td.done ? 'line-through' : 'none', flex: 1, lineHeight: 1.4 }}>
+                    <span style={{ marginRight: 6 }}>{td.icon}</span>{td.t}
+                  </span>
+                  <span style={{ fontSize: 9, fontFamily: 'var(--ds-mono)', textTransform: 'uppercase', color: td.src === 'eco' ? '#7adba0' : td.src === 'panchang' ? 'var(--ds-gold-light)' : 'rgba(255,255,255,0.4)', flexShrink: 0, marginTop: 3 }}>{td.src}</span>
+                </label>
+              ))}
+            </div>
+            <div style={{ marginTop: 14, display: 'flex', gap: 6 }}>
+              <input value={newTask} onChange={e => setNewTask(e.target.value)} placeholder="+ Add your own task" style={{ flex: 1, padding: '8px 10px', borderRadius: 6, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', color: 'var(--ds-paper)', fontSize: 12, fontFamily: 'inherit' }} />
+              <button onClick={() => { if (newTask.trim()) { setTodos(t => [...t, { icon: '✅', t: newTask, done: false, src: 'self' }]); setNewTask(''); } }} className="ds-btn ds-btn-sm" style={{ background: 'var(--ds-gold)', color: 'var(--ds-plum-deep)', fontWeight: 700, padding: '8px 12px' }}>Add</button>
+            </div>
           </div>
         </div>
       </div>
-      <div className="grid grid-cols-7 divide-x divide-green-100 dark:divide-green-900/50">
-        {Array.from({ length: 7 }).map((_, i) => {
-          const d = addDaysLocal(weekStart, i);
-          const row = rows.find(r => r.gregorian_date === d);
-          const isToday = d === today;
-
-          // Always compute tithi — use API row when available, else offline estimate
-          const { tithi_id: estId, paksha: estPaksha } = estimateTithiForDate(d);
-          const apiTithi_id = row?.tithi_id ?? estId;
-          const apiPaksha = (row?.paksha ?? estPaksha) as Paksha;
-          const tithiObj = mergeTithiWithFallback(
-            row?.tithis as Record<string, unknown> | null | undefined,
-            apiTithi_id,
-            apiPaksha,
-          );
-          const tithiName = tithiObj.name_sanskrit || tithiObj.name_common || '';
-          const vratLabel = getVratLabel(apiTithi_id, row?.special_flag);
-          const pakshaSymbol = apiPaksha === 'shukla' ? '☀' : '🌙';
-
-          return (
-            <button
-              key={d}
-              onClick={() => navigate('/eco-panchang')}
-              title="पूरा पंचांग देखें"
-              className={[
-                'flex flex-col items-center gap-0.5 py-2 px-0.5 text-center transition-all',
-                isToday
-                  ? 'bg-green-600 hover:bg-green-700 text-white'
-                  : 'hover:bg-green-100/70 dark:hover:bg-green-900/30',
-              ].join(' ')}
-            >
-              <span className={`text-[9px] sm:text-[10px] font-medium leading-none ${isToday ? 'text-green-100' : 'text-muted-foreground'}`}>
-                {new Date(d + 'T00:00:00').toLocaleDateString('en-IN', { weekday: 'short' })}
-              </span>
-              <span className={`text-sm font-bold leading-tight ${isToday ? 'text-white' : 'text-foreground'}`}>
-                {new Date(d + 'T00:00:00').getDate()}
-              </span>
-              {/* Tithi — always shown */}
-              <span className={`text-[8px] sm:text-[9px] font-semibold leading-tight line-clamp-2 px-0.5 ${isToday ? 'text-white' : 'text-green-800 dark:text-green-300'}`}>
-                {pakshaSymbol} {tithiName}
-              </span>
-              {/* Vrat / festival label */}
-              {vratLabel && (
-                <span className={`text-[7px] font-bold leading-tight px-1 py-0.5 rounded-full mt-0.5 ${isToday ? 'bg-white/20 text-white' : 'bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300'}`}>
-                  {vratLabel}
-                </span>
-              )}
-              {isToday && (
-                <span className="text-[7px] bg-white/25 text-white rounded-full px-1 leading-tight mt-0.5">आज</span>
-              )}
-            </button>
-          );
-        })}
-      </div>
-    </div>
+    </section>
   );
-}
+};
+
+/* ── Live Tiles — Radar / Time Bank / Eco Panchang ───────────── */
+const LiveTiles = () => {
+  const navigate = useNavigate();
+  const tiles = [
+    {
+      key: 'radar', path: '/radar',
+      eyebrow: 'Kutumb Radar', title: '3 kin within 10 km',
+      sub: 'Rahul Sharma 2.3 km · Priya Verma 5.1 km · Amit Kumar 8.7 km',
+      cta: 'Open radar →', accent: 'var(--ds-plum-rose)', live: true,
+      glyph: <svg viewBox="0 0 80 80" width="64" height="64" fill="none" stroke="currentColor" strokeWidth="1.2"><circle cx="40" cy="40" r="32" opacity="0.25" /><circle cx="40" cy="40" r="22" opacity="0.4" /><circle cx="40" cy="40" r="12" opacity="0.6" /><circle cx="40" cy="40" r="2" fill="currentColor" /><circle cx="56" cy="30" r="3" fill="var(--ds-saffron)" stroke="none" /><circle cx="28" cy="52" r="3" fill="var(--ds-gold)" stroke="none" /></svg>,
+    },
+    {
+      key: 'time-bank', path: '/time-bank',
+      eyebrow: 'Sewa Time Bank', title: '14 hrs banked',
+      sub: '2 owed to Bua ji · 5 owed by Verma parivar · 1 request open',
+      cta: 'View ledger →', accent: 'var(--ds-gold-deep)', live: false,
+      glyph: <svg viewBox="0 0 80 80" width="64" height="64" fill="none" stroke="currentColor" strokeWidth="1.4"><circle cx="40" cy="40" r="30" opacity="0.4" /><path d="M40 22 L40 40 L52 48" strokeLinecap="round" /><circle cx="40" cy="40" r="2" fill="currentColor" /></svg>,
+    },
+    {
+      key: 'eco-panchang', path: '/eco-panchang',
+      eyebrow: 'Eco Panchang · Today', title: 'Akshaya Tritiya',
+      sub: 'Plant a tree · Tithi: Tritiya · Nakshatra: Rohini · 2× Prakriti',
+      cta: 'See today →', accent: '#7adba0', live: true,
+      glyph: <svg viewBox="0 0 80 80" width="64" height="64" fill="none" stroke="currentColor" strokeWidth="1.4"><circle cx="40" cy="40" r="14" opacity="0.5" />{Array.from({ length: 12 }).map((_, i) => { const a = (i * 30) * Math.PI / 180; return <line key={i} x1={40 + 18 * Math.cos(a)} y1={40 + 18 * Math.sin(a)} x2={40 + 26 * Math.cos(a)} y2={40 + 26 * Math.sin(a)} opacity="0.6" strokeLinecap="round" />; })}</svg>,
+    },
+  ];
+  return (
+    <section style={{ padding: '8px 0 24px', background: 'var(--ds-ivory)' }}>
+      <div style={{ maxWidth: 1240, margin: '0 auto', padding: '0 24px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 18, flexWrap: 'wrap', gap: 12 }}>
+          <div>
+            <span className="ds-eyebrow">Live now</span>
+            <h2 style={{ fontFamily: 'var(--ds-serif)', fontSize: 26, marginTop: 6, color: 'var(--ds-ink)' }}>Around your parivar</h2>
+          </div>
+          <span className="ds-pill"><span className="ds-pill-dot live" />Synced 12s ago</span>
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14 }} className="dash-live-tiles">
+          {tiles.map(t => (
+            <button key={t.key} onClick={() => navigate(t.path)} className="ds-card" style={{ padding: 22, display: 'flex', flexDirection: 'column', gap: 14, textDecoration: 'none', position: 'relative', overflow: 'hidden', cursor: 'pointer', background: 'var(--ds-paper)', border: '1px solid var(--ds-hairline)', textAlign: 'left', width: '100%' }}>
+              <div style={{ position: 'absolute', top: -10, right: -10, opacity: 0.18, color: t.accent }}>{t.glyph}</div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', position: 'relative' }}>
+                <span className="ds-eyebrow" style={{ color: t.accent }}>{t.eyebrow}</span>
+                {t.live && <span className="ds-pill"><span className="ds-pill-dot live" />Live</span>}
+              </div>
+              <div style={{ position: 'relative' }}>
+                <div style={{ fontFamily: 'var(--ds-serif)', fontSize: 24, fontWeight: 700, color: 'var(--ds-ink)', letterSpacing: '-0.01em' }}>{t.title}</div>
+                <p style={{ fontSize: 12, color: 'var(--ds-ink-mute)', marginTop: 6, lineHeight: 1.5 }}>{t.sub}</p>
+              </div>
+              <div style={{ marginTop: 'auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center', position: 'relative' }}>
+                <span style={{ fontSize: 13, fontWeight: 600, color: t.accent, borderBottom: `1px solid ${t.accent}`, paddingBottom: 1 }}>{t.cta}</span>
+              </div>
+            </button>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+};
+
+/* ── Next Actions — 4 quick wins ─────────────────────────────── */
+const NextActions = () => {
+  const navigate = useNavigate();
+  const actions = [
+    { title: "Verify dadaji's gotra", sub: 'Pt. Ramesh Mishra · 2hr response', cta: '₹49', icon: '🪔', color: 'var(--ds-saffron)', urgent: true, path: '/verification' },
+    { title: "Record dadiji's aashirvaad", sub: '5min · Voice in her language', cta: '₹9 / min', icon: '🎙️', color: 'var(--ds-plum-rose)', path: '/legacy-box' },
+    { title: 'Add 3 missing cousins', sub: 'WhatsApp invite · auto-sync', cta: 'Free', icon: '➕', color: 'var(--ds-ink-soft)', path: '/invite' },
+    { title: 'Generate vanshavali PDF', sub: 'Print-ready · pandit stamped', cta: '₹149', icon: '📜', color: 'var(--ds-gold-deep)', path: '/tree' },
+  ];
+  return (
+    <section style={{ padding: '72px 0', background: 'var(--ds-ivory)' }}>
+      <div style={{ maxWidth: 1240, margin: '0 auto', padding: '0 24px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 24, flexWrap: 'wrap', gap: 12 }}>
+          <div>
+            <span className="ds-eyebrow">Next actions</span>
+            <h2 style={{ fontFamily: 'var(--ds-serif)', fontSize: 32, marginTop: 6, color: 'var(--ds-ink)' }}>Four quick wins for your parivar</h2>
+          </div>
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14 }} className="dash-next-actions">
+          {actions.map(a => (
+            <div key={a.title} className="ds-card" style={{ padding: 22, position: 'relative' }}>
+              {a.urgent && <div style={{ position: 'absolute', top: 14, right: 14, fontSize: 10, fontFamily: 'var(--ds-mono)', letterSpacing: '0.15em', textTransform: 'uppercase', color: 'var(--ds-saffron)', fontWeight: 700 }}>Priority</div>}
+              <div style={{ width: 44, height: 44, borderRadius: 10, background: 'var(--ds-ivory-warm)', border: '1px solid var(--ds-hairline)', display: 'grid', placeItems: 'center', fontSize: 22 }}>{a.icon}</div>
+              <h3 style={{ fontSize: 16, marginTop: 14, fontFamily: 'var(--ds-sans)', fontWeight: 700, color: 'var(--ds-ink)' }}>{a.title}</h3>
+              <p style={{ fontSize: 12, color: 'var(--ds-ink-mute)', marginTop: 4 }}>{a.sub}</p>
+              <div style={{ marginTop: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontFamily: 'var(--ds-serif)', fontWeight: 700, fontSize: 18, color: a.color }}>{a.cta}</span>
+                <button onClick={() => navigate(a.path)} className="ds-btn ds-btn-sm ds-btn-plum">Do it →</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+};
+
+/* ── On This Day ─────────────────────────────────────────────── */
+const OnThisDay = () => {
+  const items = [
+    { yr: '1962', who: 'Pita ji', text: 'Born today · turning 63 next year', icon: '🎂', cta: 'Send aashirvaad', tone: '#7a3a8e' },
+    { yr: '1947', who: 'Pardada', text: 'Reached Kanpur from Lahore · 78 years ago', icon: '🚂', cta: 'Hear the story →', tone: '#9a6e16' },
+    { yr: '2018', who: 'Family', text: 'Last Holi all 23 of us were together', icon: '📷', cta: 'Open album →', tone: 'var(--ds-saffron)' },
+    { yr: '1989', who: 'Dadiji', text: 'Recorded the gotra mantra · listen now', icon: '🎙️', cta: 'Play 47s', tone: 'var(--ds-plum)' },
+  ];
+  const today = new Date().toLocaleString('en-IN', { day: 'numeric', month: 'long' });
+  return (
+    <section style={{ padding: '72px 0', background: 'linear-gradient(180deg, #f4ecdb, var(--ds-ivory))', position: 'relative' }}>
+      <div style={{ maxWidth: 1240, margin: '0 auto', padding: '0 24px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 24, flexWrap: 'wrap', gap: 12 }}>
+          <div>
+            <span className="ds-eyebrow" style={{ color: 'var(--ds-gold-deep)' }}>On this day · in your parivar</span>
+            <h2 style={{ fontFamily: 'var(--ds-serif)', fontSize: 32, marginTop: 6, color: 'var(--ds-ink)' }}>The {today} <span style={{ fontStyle: 'italic', color: 'var(--ds-plum-rose)' }}>has happened before</span></h2>
+          </div>
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14 }} className="dash-otd-grid">
+          {items.map((it, i) => (
+            <div key={i} className="ds-card" style={{ padding: 22, position: 'relative', overflow: 'hidden' }}>
+              <div style={{ position: 'absolute', top: -10, right: -10, fontSize: 80, opacity: 0.06, fontFamily: 'var(--ds-serif)', color: it.tone, fontWeight: 700 }}>{it.yr}</div>
+              <div style={{ fontSize: 32, marginBottom: 10 }}>{it.icon}</div>
+              <div className="ds-eyebrow" style={{ color: it.tone }}>{it.yr} · {it.who}</div>
+              <p style={{ fontSize: 14, marginTop: 8, fontFamily: 'var(--ds-serif)', lineHeight: 1.4, color: 'var(--ds-ink)', position: 'relative' }}>{it.text}</p>
+              <button className="ds-btn ds-btn-sm ds-btn-plum" style={{ marginTop: 14 }}>{it.cta}</button>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+};
+
+/* ── Sanskaras — achievements ────────────────────────────────── */
+const Sanskaras = () => {
+  const tiers = [
+    { name: 'Gotra Keeper', icon: '🪔', sub: 'Verified 4 generations', earned: true, rare: 'Common' },
+    { name: 'Smriti Voice', icon: '🎙️', sub: 'Recorded 60 min audio', earned: true, rare: 'Uncommon' },
+    { name: 'Vat Vriksh', icon: '🌳', sub: 'Planted 7 saplings', earned: true, rare: 'Uncommon' },
+    { name: 'Karta', icon: '👑', sub: 'Lead 8 family members', earned: true, rare: 'Rare' },
+    { name: 'Sangam', icon: '🌊', sub: 'Connect 2 partner trees', earned: false, rare: 'Rare', progress: 50 },
+    { name: 'Vansh-Setu', icon: '🌉', sub: 'Trace 6 generations', earned: false, rare: 'Epic', progress: 67 },
+    { name: 'Yagna Patron', icon: '🔥', sub: 'Sponsor 3 community rites', earned: false, rare: 'Epic', progress: 33 },
+    { name: 'Akshaya', icon: '♾️', sub: '365-day nitya streak', earned: false, rare: 'Mythic', progress: 1.9 },
+  ];
+  const rarityColor: Record<string, string> = { Common: 'var(--ds-ink-mute)', Uncommon: '#2a8068', Rare: 'var(--ds-plum-rose)', Epic: 'var(--ds-saffron)', Mythic: 'var(--ds-gold-deep)' };
+  return (
+    <section style={{ padding: '72px 0', background: 'var(--ds-plum-deep)', color: 'var(--ds-paper)', position: 'relative', overflow: 'hidden' }}>
+      <div style={{ position: 'absolute', inset: 0, background: 'radial-gradient(circle at 20% 50%, rgba(212,154,31,0.08), transparent 50%)' }} />
+      <div style={{ maxWidth: 1240, margin: '0 auto', padding: '0 24px', position: 'relative' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 24, flexWrap: 'wrap', gap: 12 }}>
+          <div>
+            <span className="ds-eyebrow" style={{ color: 'var(--ds-gold-light)' }}>Sanskaras · earned &amp; sought</span>
+            <h2 style={{ fontFamily: 'var(--ds-serif)', fontSize: 32, marginTop: 6, color: 'var(--ds-paper)' }}>Mark your <span style={{ fontStyle: 'italic', color: 'var(--ds-gold-light)' }}>journey</span> in the parivar</h2>
+          </div>
+          <div style={{ display: 'flex', gap: 10 }}>
+            <div style={{ padding: '10px 16px', borderRadius: 8, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)' }}>
+              <div style={{ fontSize: 11, fontFamily: 'var(--ds-mono)', color: 'rgba(255,255,255,0.5)', letterSpacing: '0.1em', textTransform: 'uppercase' }}>Earned</div>
+              <div style={{ fontFamily: 'var(--ds-serif)', fontSize: 24, color: 'var(--ds-gold-light)' }}>4 <span style={{ fontSize: 14, color: 'rgba(255,255,255,0.4)' }}>/ 24</span></div>
+            </div>
+          </div>
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }} className="dash-sk-grid">
+          {tiers.map(t => (
+            <div key={t.name} style={{ padding: 18, borderRadius: 10, background: t.earned ? 'linear-gradient(180deg, rgba(212,154,31,0.1), rgba(212,154,31,0.02))' : 'rgba(255,255,255,0.03)', border: t.earned ? '1px solid rgba(212,154,31,0.4)' : '1px dashed rgba(255,255,255,0.12)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                <div style={{ fontSize: 36, filter: t.earned ? 'none' : 'grayscale(1) opacity(0.4)' }}>{t.icon}</div>
+                <span style={{ fontSize: 9, fontFamily: 'var(--ds-mono)', letterSpacing: '0.15em', textTransform: 'uppercase', color: rarityColor[t.rare], fontWeight: 700 }}>{t.rare}</span>
+              </div>
+              <div style={{ fontFamily: 'var(--ds-serif)', fontSize: 18, marginTop: 10, color: t.earned ? 'var(--ds-gold-light)' : 'rgba(255,255,255,0.7)' }}>{t.name}</div>
+              <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.5)', marginTop: 4 }}>{t.sub}</div>
+              {!t.earned && t.progress != null && (
+                <div style={{ marginTop: 12 }}>
+                  <div style={{ height: 3, background: 'rgba(255,255,255,0.08)', borderRadius: 2, overflow: 'hidden' }}>
+                    <div style={{ width: `${t.progress}%`, height: '100%', background: 'var(--ds-gold)' }} />
+                  </div>
+                  <div style={{ fontSize: 10, fontFamily: 'var(--ds-mono)', color: 'rgba(255,255,255,0.45)', marginTop: 6 }}>{t.progress}% complete</div>
+                </div>
+              )}
+              {t.earned && <div style={{ marginTop: 10, fontSize: 10, fontFamily: 'var(--ds-mono)', color: '#7adba0', letterSpacing: '0.1em', textTransform: 'uppercase' }}>✓ Inherited</div>}
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+};
+
+/* ── Parivar Feed + Leaderboard ──────────────────────────────── */
+const DashGrid = ({ familyRank }: { familyRank: FamilyRank | null }) => {
+  const navigate = useNavigate();
+  const feed = [
+    { who: 'Anjali (you)', what: 'invited 4 cousins to the tree', when: '2 hours ago', icon: '➕', delta: '+8 score' },
+    { who: 'Pita ji', what: 'recorded a 6-min Smriti about the 1947 migration', when: 'yesterday', icon: '🎙️', delta: '+12 score' },
+    { who: 'Pt. Ramesh Mishra', what: "verified dadaji's gotra (Kashyap)", when: 'yesterday', icon: '🪔', delta: '+15 score' },
+    { who: 'Chacha ji', what: 'planted 5 trees · logged with photo proof', when: '3 days ago', icon: '🌱', delta: '+5 score' },
+    { who: 'Bua ji', what: 'added 2 cousins to the Bharadwaj branch', when: '4 days ago', icon: '🌳', delta: '+4 score' },
+  ];
+  return (
+    <section style={{ padding: '24px 0 80px', background: 'var(--ds-ivory)' }}>
+      <div style={{ maxWidth: 1240, margin: '0 auto', padding: '0 24px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 18 }} className="dash-grid">
+          <div className="ds-card" style={{ padding: 0, overflow: 'hidden' }}>
+            <div style={{ padding: '18px 22px', borderBottom: '1px solid var(--ds-hairline)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div>
+                <span className="ds-eyebrow">Parivar feed · last 7 days</span>
+                <div style={{ fontFamily: 'var(--ds-serif)', fontSize: 20, marginTop: 4, color: 'var(--ds-plum)' }}>What your family has been up to</div>
+              </div>
+            </div>
+            {feed.map((e, i) => (
+              <div key={i} style={{ padding: '18px 22px', borderBottom: '1px solid var(--ds-hairline)', display: 'flex', gap: 14, alignItems: 'flex-start' }}>
+                <div style={{ fontSize: 22, width: 40, height: 40, borderRadius: 8, background: 'var(--ds-ivory-warm)', display: 'grid', placeItems: 'center', flexShrink: 0 }}>{e.icon}</div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 14 }}><strong style={{ color: 'var(--ds-plum)' }}>{e.who}</strong> {e.what}</div>
+                  <div style={{ fontSize: 12, color: 'var(--ds-ink-mute)', marginTop: 2 }}>{e.when}</div>
+                </div>
+                <span className="ds-tag ds-tag-green" style={{ flexShrink: 0 }}>{e.delta}</span>
+              </div>
+            ))}
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+            <div className="ds-card" style={{ padding: 20 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+                <span className="ds-eyebrow">Your city rank</span>
+                <span className="ds-pill"><span className="ds-pill-dot live" />Live</span>
+              </div>
+              {familyRank && (
+                <div style={{ padding: '12px 14px', borderRadius: 6, background: 'rgba(212,154,31,0.1)', border: '1px solid rgba(212,154,31,0.3)', marginBottom: 12 }}>
+                  <div style={{ fontFamily: 'var(--ds-mono)', fontSize: 11, color: 'var(--ds-gold-deep)' }}>Your position</div>
+                  <div style={{ display: 'flex', gap: 20, marginTop: 6 }}>
+                    <div><span style={{ fontFamily: 'var(--ds-serif)', fontSize: 28, fontWeight: 700, color: 'var(--ds-plum)' }}>#{familyRank.city_rank}</span><span style={{ fontSize: 12, color: 'var(--ds-ink-mute)', marginLeft: 4 }}>in {familyRank.city ?? 'city'}</span></div>
+                    <div><span style={{ fontFamily: 'var(--ds-serif)', fontSize: 28, fontWeight: 700, color: 'var(--ds-plum)' }}>#{familyRank.state_rank}</span><span style={{ fontSize: 12, color: 'var(--ds-ink-mute)', marginLeft: 4 }}>in {familyRank.state ?? 'state'}</span></div>
+                  </div>
+                </div>
+              )}
+              <button onClick={() => navigate('/leaderboard')} className="ds-btn ds-btn-sm ds-btn-ghost" style={{ width: '100%', justifyContent: 'center' }}>See full leaderboard →</button>
+            </div>
+            <div className="ds-card" style={{ padding: 20, background: 'linear-gradient(180deg,#142822,#0d1d18)', color: 'var(--ds-paper)', border: 'none' }}>
+              <span className="ds-eyebrow" style={{ color: '#7adba0' }}>Eco Panchang · today</span>
+              <div style={{ fontFamily: 'var(--ds-serif)', fontSize: 22, marginTop: 10, color: 'var(--ds-paper)' }}>Akshaya Tritiya</div>
+              <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.6)', marginTop: 4 }}>Most auspicious day to plant a tree. Counts 2× toward your Prakriti.</p>
+              <button onClick={() => navigate('/eco-panchang')} className="ds-btn ds-btn-sm" style={{ marginTop: 14, background: '#7adba0', color: '#0a1f17', fontWeight: 700 }}>Log a planting →</button>
+            </div>
+            <div className="ds-card" style={{ padding: 20 }}>
+              <span className="ds-eyebrow">Smriti queue</span>
+              <div style={{ marginTop: 14, display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {[
+                  { who: 'Dadaji Ramnath', topic: 'Partition story', sec: 258 },
+                  { who: 'Nani ji Saroj', topic: 'Family recipes', sec: 0 },
+                ].map(s => (
+                  <div key={s.who} style={{ padding: 12, borderRadius: 6, border: '1px solid var(--ds-hairline)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div>
+                      <div style={{ fontSize: 13, fontWeight: 600 }}>{s.who}</div>
+                      <div style={{ fontSize: 11, color: 'var(--ds-ink-mute)' }}>{s.topic}</div>
+                    </div>
+                    {s.sec > 0 ? <span className="ds-tag ds-tag-gold">{Math.floor(s.sec / 60)}:{String(s.sec % 60).padStart(2, '0')}</span> : <button onClick={() => navigate('/legacy-box')} className="ds-btn ds-btn-sm ds-btn-plum">Record</button>}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+};
+
+/* ── Privacy Matrix ───────────────────────────────────────────── */
+const PrivacyMatrix = () => {
+  const [members, setMembers] = useState([
+    { name: 'Dadaji Ramnath', role: 'Elder', loc: false, tree: true, smriti: true, finance: false },
+    { name: 'Pita ji', role: 'Karta', loc: true, tree: true, smriti: true, finance: true },
+    { name: 'Mata ji', role: 'Karti', loc: true, tree: true, smriti: true, finance: true },
+    { name: 'You', role: 'Self', loc: true, tree: true, smriti: true, finance: true },
+    { name: 'Bhabhi', role: 'In-law', loc: false, tree: true, smriti: false, finance: false },
+    { name: 'Aanya (16)', role: 'Minor', loc: false, tree: true, smriti: false, finance: false },
+  ]);
+  const toggle = (i: number, k: string) => setMembers(m => m.map((x, j) => j === i ? { ...x, [k]: !x[k as keyof typeof x] } : x));
+  const Sw = ({ on, onClick }: { on: boolean; onClick: () => void }) => (
+    <button onClick={onClick} style={{ width: 36, height: 20, borderRadius: 10, background: on ? 'var(--ds-plum)' : 'var(--ds-hairline-strong)', position: 'relative', border: 'none', cursor: 'pointer', transition: 'background .15s', flexShrink: 0 }}>
+      <span style={{ position: 'absolute', top: 2, left: on ? 18 : 2, width: 16, height: 16, borderRadius: '50%', background: 'var(--ds-paper)', transition: 'left .15s', boxShadow: '0 1px 3px rgba(0,0,0,0.2)' }} />
+    </button>
+  );
+  return (
+    <section style={{ padding: '24px 0 80px', background: 'var(--ds-ivory)' }}>
+      <div style={{ maxWidth: 1240, margin: '0 auto', padding: '0 24px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 18, flexWrap: 'wrap', gap: 12 }}>
+          <div>
+            <span className="ds-eyebrow">Privacy matrix</span>
+            <h2 style={{ fontFamily: 'var(--ds-serif)', fontSize: 26, marginTop: 6, color: 'var(--ds-ink)' }}>Who sees what · per member</h2>
+            <p style={{ fontSize: 13, color: 'var(--ds-ink-mute)', marginTop: 6 }}>Each member's data stays theirs. The Karta can suggest defaults; the member always has final say.</p>
+          </div>
+        </div>
+        <div className="ds-card" style={{ padding: 0, overflow: 'hidden' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr 1fr', gap: 14, padding: '12px 22px', background: 'var(--ds-ivory-warm)', borderBottom: '1px solid var(--ds-hairline)', fontFamily: 'var(--ds-mono)', fontSize: 10, letterSpacing: '0.15em', textTransform: 'uppercase', color: 'var(--ds-ink-mute)' }}>
+            <span>Member</span><span>Location</span><span>In tree</span><span>Smriti audio</span><span>Finance</span>
+          </div>
+          {members.map((m, i) => (
+            <div key={m.name} style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr 1fr', gap: 14, padding: '14px 22px', borderBottom: i < members.length - 1 ? '1px solid var(--ds-hairline)' : 'none', alignItems: 'center' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'var(--ds-ivory-warm)', border: '1px solid var(--ds-hairline-strong)', display: 'grid', placeItems: 'center', color: 'var(--ds-plum)', fontFamily: 'var(--ds-serif)', fontWeight: 700, fontSize: 13, flexShrink: 0 }}>{m.name.charAt(0)}</div>
+                <div>
+                  <div style={{ fontSize: 14, fontWeight: 600 }}>{m.name}</div>
+                  <div style={{ fontSize: 11, color: 'var(--ds-ink-mute)' }}>{m.role}</div>
+                </div>
+              </div>
+              <Sw on={m.loc} onClick={() => toggle(i, 'loc')} />
+              <Sw on={m.tree} onClick={() => toggle(i, 'tree')} />
+              <Sw on={m.smriti} onClick={() => toggle(i, 'smriti')} />
+              <Sw on={m.finance} onClick={() => toggle(i, 'finance')} />
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+};
+
+/* ── SOS Button — floating ───────────────────────────────────── */
+const SOSButton = () => {
+  const [open, setOpen] = useState(false);
+  const [held, setHeld] = useState(0);
+  const ref = useRef<ReturnType<typeof setInterval> | null>(null);
+  const startHold = () => {
+    let t = 0;
+    ref.current = setInterval(() => { t += 50; setHeld(t); if (t >= 1500) { clearInterval(ref.current!); setOpen(true); setHeld(0); } }, 50);
+  };
+  const endHold = () => { if (ref.current) clearInterval(ref.current); setHeld(0); };
+  const pct = Math.min(100, (held / 1500) * 100);
+  return (
+    <>
+      <button onMouseDown={startHold} onMouseUp={endHold} onMouseLeave={endHold} onTouchStart={startHold} onTouchEnd={endHold}
+        style={{ position: 'fixed', bottom: 24, right: 24, zIndex: 90, width: 64, height: 64, borderRadius: '50%', background: 'linear-gradient(135deg, #d12d2d, #a01010)', color: '#fff', boxShadow: '0 0 0 4px rgba(209,45,45,0.18), 0 12px 32px -8px rgba(209,45,45,0.6)', display: 'grid', placeItems: 'center', fontFamily: 'var(--ds-mono)', fontWeight: 700, fontSize: 14, letterSpacing: '0.1em', cursor: 'pointer', border: 'none' }}
+        title="Hold for 1.5s to broadcast SOS">
+        <span style={{ position: 'relative', zIndex: 2 }}>SOS</span>
+        {pct > 0 && <div style={{ position: 'absolute', inset: 0, borderRadius: '50%', background: `conic-gradient(rgba(255,255,255,0.5) ${pct}%, transparent 0)`, zIndex: 1 }} />}
+      </button>
+      {open && (
+        <div onClick={() => setOpen(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(28,13,46,0.7)', backdropFilter: 'blur(8px)', zIndex: 300, display: 'grid', placeItems: 'center', padding: 24 }}>
+          <div onClick={e => e.stopPropagation()} className="ds-card" style={{ width: 'min(520px,100%)', padding: 28, border: '2px solid #d12d2d' }}>
+            <div style={{ display: 'flex', gap: 14, alignItems: 'center' }}>
+              <div style={{ width: 44, height: 44, borderRadius: '50%', background: '#d12d2d', color: '#fff', display: 'grid', placeItems: 'center', fontWeight: 700, fontFamily: 'var(--ds-mono)', fontSize: 14 }}>SOS</div>
+              <div>
+                <div className="ds-eyebrow" style={{ color: '#d12d2d' }}>Emergency broadcast</div>
+                <h3 style={{ fontFamily: 'var(--ds-serif)', fontSize: 24, color: 'var(--ds-plum)' }}>Alert your parivar now</h3>
+              </div>
+            </div>
+            <p style={{ fontSize: 13, color: 'var(--ds-ink-soft)', marginTop: 12 }}>This will share your live location and send alerts to all emergency contacts and the 3 nearest kin on Radar.</p>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 14 }}>
+              {['🩺 Medical', '🚓 Safety', '🔥 Fire', '🚗 Stranded'].map(t => (
+                <button key={t} className="ds-btn ds-btn-sm ds-btn-ghost" style={{ justifyContent: 'center' }}>{t}</button>
+              ))}
+            </div>
+            <div style={{ display: 'flex', gap: 10, marginTop: 18, justifyContent: 'flex-end' }}>
+              <button onClick={() => setOpen(false)} className="ds-btn ds-btn-ghost ds-btn-sm">Cancel</button>
+              <button className="ds-btn ds-btn-sm" style={{ background: '#d12d2d', color: '#fff', fontWeight: 700 }}>Broadcast SOS now →</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
+};
+
+/* ── Dashboard ───────────────────────────────────────────────── */
+const Dashboard = () => {
+  const { appUser } = useAuth();
+  const { tr } = useLang();
+  const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [showJoinSE, setShowJoinSE] = useState(false);
+  const { plan } = usePlan();
+
+  const isSalesMember = appUser ? SALES_ROLES.has(appUser.role) : false;
+  const [prakritiScore, setPrakritiScore] = useState<PrakritiScore | null>(null);
+  const [familyRank, setFamilyRank] = useState<FamilyRank | null>(null);
+
+  const streak = (() => {
+    try { return parseInt(localStorage.getItem('prakriti_streak') ?? '0', 10) || 0; } catch { return 0; }
+  })();
+
+  useEffect(() => {
+    const vid = resolveVanshaIdForApi(null);
+    if (!vid) return;
+    fetchPrakritiScore(vid).then(setPrakritiScore).catch(() => {});
+    fetchFamilyRank(vid).then(setFamilyRank).catch(() => {});
+  }, [appUser?.vansha_id]);
+
+  useEffect(() => {
+    if (searchParams.get('join-team') === '1') {
+      setShowJoinSE(true);
+      setSearchParams({});
+    }
+  }, [searchParams, setSearchParams]);
+
+  return (
+    <AppShell>
+      <div style={{ background: 'var(--ds-ivory)', minHeight: '100vh' }}>
+        <StreakRibbon streak={streak} />
+        <PalStories familyName={appUser?.full_name?.split(' ').slice(-1)[0] ?? 'Parivar'} />
+        <DashHero appUser={appUser} score={prakritiScore} familyRank={familyRank} />
+        <LiveTiles />
+        <NextActions />
+        <OnThisDay />
+        <Sanskaras />
+        <DashGrid familyRank={familyRank} />
+        <PrivacyMatrix />
+        <SOSButton />
+
+        {isSalesMember && (
+          <section style={{ padding: '24px 0', background: 'var(--ds-ivory)' }}>
+            <div style={{ maxWidth: 1240, margin: '0 auto', padding: '0 24px' }}>
+              <EarningsWallet />
+            </div>
+          </section>
+        )}
+
+        {showJoinSE && <JoinSEModal onClose={() => setShowJoinSE(false)} />}
+      </div>
+
+      <style>{`
+        @media (max-width: 1000px) {
+          .dash-hero-grid     { grid-template-columns: 1fr !important; }
+          .dash-live-tiles    { grid-template-columns: 1fr !important; }
+          .dash-next-actions  { grid-template-columns: 1fr 1fr !important; }
+          .dash-otd-grid      { grid-template-columns: 1fr 1fr !important; }
+          .dash-sk-grid       { grid-template-columns: repeat(2,1fr) !important; }
+          .dash-grid          { grid-template-columns: 1fr !important; }
+        }
+        @media (max-width: 600px) {
+          .dash-next-actions  { grid-template-columns: 1fr !important; }
+          .dash-otd-grid      { grid-template-columns: 1fr !important; }
+          .dash-sk-grid       { grid-template-columns: 1fr 1fr !important; }
+        }
+      `}</style>
+    </AppShell>
+  );
+};
 
 export default Dashboard;
