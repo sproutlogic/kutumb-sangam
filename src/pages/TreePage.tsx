@@ -718,51 +718,213 @@ const TreePage = () => {
     );
   };
 
+  const selectedNode = positionedNodes.find(n => n.id === selectedNodeId);
+  const completionPct = Math.round(Math.min(100, (membersUsed / plan.maxNodes) * 100));
+  const [treeView, setTreeView] = useState<'lineage' | 'gotra' | 'timeline' | 'heatmap'>('lineage');
+
   return (
     <AppShell>
-      <div className="container py-8 space-y-6">
-        <div className="flex items-center justify-between flex-wrap gap-4">
-          <div>
-            <h1 className="font-heading text-3xl font-bold">{tr('treeTitle')}</h1>
-            <p className="text-muted-foreground font-body mt-1">
-              {isTreeInitialized ? state.treeName : tr('treeSubtitle')}
-            </p>
-          </div>
-          <TrustBadge variant="encrypted" />
-        </div>
+      {/* Full-page canvas layout: tree left + sidebar right */}
+      <div style={{ display: 'flex', height: 'calc(100vh - 64px)', overflow: 'hidden' }}>
 
-        <div className="grid sm:grid-cols-3 gap-4">
-          <div className="bg-card rounded-xl p-5 shadow-card border border-border/50">
-            <p className="text-sm text-muted-foreground font-body">{tr('memberLimit')}</p>
-            <p className="text-2xl font-bold font-heading">{membersUsed} <span className="text-base text-muted-foreground font-body">{tr('ofCap')} {plan.maxNodes}</span></p>
-            <div className="mt-2 h-2 bg-secondary rounded-full overflow-hidden">
-              <div className="h-full gradient-hero rounded-full transition-all duration-700" style={{ width: `${Math.min(100, (membersUsed / plan.maxNodes) * 100)}%` }} />
+        {/* ── Tree canvas ──────────────────────────────────────────────── */}
+        <div style={{ flex: 1, position: 'relative', background: 'linear-gradient(180deg, var(--ds-ivory, #faf8f2) 0%, #f5f0e8 100%)', overflow: 'auto' }}>
+
+          {/* Dot-grid texture */}
+          <div style={{ position: 'absolute', inset: 0, backgroundImage: 'radial-gradient(circle at 1px 1px, rgba(74,33,104,0.06) 1px, transparent 0)', backgroundSize: '28px 28px', pointerEvents: 'none', zIndex: 0 }} />
+
+          {/* Vansh watermark */}
+          {isTreeInitialized && (
+            <div aria-hidden style={{ position: 'absolute', inset: 0, pointerEvents: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 0, overflow: 'hidden' }}>
+              <div style={{ transform: 'rotate(-18deg)', textAlign: 'center', userSelect: 'none' }}>
+                <div className="font-heading" style={{ fontSize: 'clamp(60px,12vw,200px)', fontWeight: 700, lineHeight: 0.9, background: 'linear-gradient(135deg, rgba(46,19,70,0.07), rgba(212,154,31,0.09))', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>
+                  {state.treeName || 'वंश'}
+                </div>
+                <div className="font-heading" style={{ fontSize: 'clamp(18px,3vw,48px)', color: 'rgba(74,33,104,0.10)', marginTop: -8, fontStyle: 'italic' }}>{state.treeName}</div>
+              </div>
+            </div>
+          )}
+
+          {/* Toolbar overlay */}
+          <div style={{ position: 'absolute', top: 12, left: 12, right: 12, display: 'flex', justifyContent: 'space-between', gap: 10, zIndex: 5, flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', gap: 3, background: 'rgba(252,250,244,0.92)', backdropFilter: 'blur(10px)', border: '1px solid var(--ds-border, rgba(74,33,104,0.12))', borderRadius: 10, padding: '5px 6px' }}>
+              {([['lineage','Lineage'],['gotra','Gotra map'],['timeline','Timeline'],['heatmap','Eco heatmap']] as const).map(([k,l]) => (
+                <button
+                  key={k}
+                  onClick={() => setTreeView(k)}
+                  className="font-body"
+                  style={{ padding: '7px 13px', fontSize: 12, borderRadius: 7, border: 'none', cursor: 'pointer', fontWeight: 600, background: treeView === k ? 'var(--ds-plum, #2e1346)' : 'transparent', color: treeView === k ? '#fff' : 'rgba(74,33,104,0.65)', transition: 'all 0.15s' }}
+                >{l}</button>
+              ))}
+            </div>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              {isTreeInitialized && (
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center', background: 'rgba(252,250,244,0.92)', backdropFilter: 'blur(10px)', border: '1px solid var(--ds-border, rgba(74,33,104,0.12))', borderRadius: 10, padding: '8px 14px', fontSize: 12 }}>
+                  <span className="ds-pill-dot live" />
+                  <span style={{ color: 'rgba(46,19,70,0.7)' }}><strong>{membersUsed}</strong> members</span>
+                </div>
+              )}
+              <button
+                style={{ padding: '8px 14px', fontSize: 12, borderRadius: 10, border: '1px solid rgba(212,154,31,0.4)', background: 'rgba(252,250,244,0.92)', backdropFilter: 'blur(10px)', cursor: 'pointer', color: 'rgba(46,19,70,0.7)', fontWeight: 600 }}
+                onClick={() => navigate('/upgrade')}
+              >📜 Export PDF · ₹149</button>
+              <button
+                style={{ padding: '8px 16px', fontSize: 12, borderRadius: 10, border: 'none', background: 'var(--ds-plum, #2e1346)', color: '#fff', cursor: 'pointer', fontWeight: 700 }}
+                onClick={() => {
+                  const vid = vanshaId || defaultVanshaFromEnv;
+                  if (vid && selectedNodeId) navigate(`/node?vansha_id=${encodeURIComponent(vid)}&anchor_node_id=${encodeURIComponent(selectedNodeId)}`);
+                  else if (vid) navigate(`/node?vansha_id=${encodeURIComponent(vid)}`);
+                  else navigate('/node');
+                }}
+              >+ Add member</button>
             </div>
           </div>
-          <div className="bg-card rounded-xl p-5 shadow-card border border-border/50">
-            <p className="text-sm text-muted-foreground font-body">{tr('generationLimit')}</p>
-            <p className="text-2xl font-bold font-heading">{generationsUsed} <span className="text-base text-muted-foreground font-body">{tr('ofCap')} {plan.generationCap}</span></p>
-            <div className="mt-2 h-2 bg-secondary rounded-full overflow-hidden">
-              <div className="h-full gradient-hero rounded-full transition-all duration-700" style={{ width: `${Math.min(100, (generationsUsed / plan.generationCap) * 100)}%` }} />
+
+          {/* Vansh badge corner */}
+          {isTreeInitialized && (
+            <div style={{ position: 'absolute', top: 68, right: 12, zIndex: 6, padding: '10px 14px', borderRadius: 10, background: 'rgba(252,250,244,0.90)', backdropFilter: 'blur(10px)', border: '1px solid rgba(74,33,104,0.12)', boxShadow: '0 4px 16px rgba(28,13,46,0.08)', display: 'flex', alignItems: 'center', gap: 10 }}>
+              <div style={{ width: 34, height: 34, borderRadius: '50%', background: 'linear-gradient(135deg,#d49a1f,#a07010)', display: 'grid', placeItems: 'center', color: '#2e1346', fontSize: 18, fontWeight: 700 }}>
+                {(state.treeName || 'V').charAt(0)}
+              </div>
+              <div>
+                <div className="ds-eyebrow" style={{ color: 'rgba(74,33,104,0.55)', fontSize: 9 }}>Vansh</div>
+                <div className="font-heading" style={{ fontSize: 14, color: 'var(--ds-plum, #2e1346)', fontWeight: 600 }}>{state.treeName || 'Family tree'}</div>
+                <div style={{ fontSize: 10, fontFamily: 'var(--font-mono, monospace)', color: '#a07010', letterSpacing: '0.12em', marginTop: 1 }}>{vanshaId?.slice(0, 14) || 'local'}</div>
+              </div>
             </div>
+          )}
+
+          {/* Tree canvas body */}
+          <div style={{ paddingTop: 68, paddingBottom: 80, minHeight: '100%', position: 'relative', zIndex: 1 }}>
+            {treeCanvasBody()}
           </div>
-          <div className="bg-card rounded-xl p-5 shadow-card border border-border/50 flex items-center">
-            <TreeCompletionScore membersUsed={membersUsed} maxNodes={plan.maxNodes} generationsUsed={generationsUsed} generationCap={plan.generationCap} size="sm" />
-          </div>
+
+          {/* Bottom completion strip */}
+          {isTreeInitialized && (
+            <div style={{ position: 'sticky', bottom: 12, margin: '0 12px', display: 'flex', gap: 12, zIndex: 5, flexWrap: 'wrap' }}>
+              <div style={{ flex: 1, minWidth: 240, padding: '12px 16px', borderRadius: 10, background: 'rgba(252,250,244,0.92)', backdropFilter: 'blur(10px)', border: '1px solid rgba(74,33,104,0.12)', display: 'flex', gap: 14, alignItems: 'center' }}>
+                <div>
+                  <div className="ds-eyebrow" style={{ color: 'rgba(74,33,104,0.55)', fontSize: 9 }}>Tree completion</div>
+                  <div className="font-heading" style={{ fontSize: 16, marginTop: 2, color: 'var(--ds-plum, #2e1346)' }}>{completionPct}% · {generationsUsed} of {plan.generationCap} generations</div>
+                </div>
+                <div style={{ flex: 1, height: 5, borderRadius: 3, background: 'rgba(74,33,104,0.1)', overflow: 'hidden', minWidth: 100 }}>
+                  <div style={{ width: `${completionPct}%`, height: '100%', background: 'linear-gradient(90deg,#e87422,#d49a1f)', borderRadius: 3 }} />
+                </div>
+              </div>
+              <div style={{ padding: '12px 16px', borderRadius: 10, background: 'rgba(252,250,244,0.92)', backdropFilter: 'blur(10px)', border: '1px solid rgba(74,33,104,0.12)', display: 'flex', gap: 12, alignItems: 'center', fontSize: 13 }}>
+                <span className="ds-eyebrow" style={{ color: 'rgba(74,33,104,0.55)', fontSize: 9 }}>Members</span>
+                <span style={{ color: 'var(--ds-plum, #2e1346)' }}>{membersUsed} / {plan.maxNodes}</span>
+                <button
+                  style={{ padding: '5px 12px', borderRadius: 7, border: 'none', background: 'var(--ds-plum,#2e1346)', color: '#fff', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}
+                  onClick={() => navigate('/upgrade')}
+                >Upgrade →</button>
+              </div>
+            </div>
+          )}
         </div>
 
-        <div className="bg-card rounded-xl shadow-card border border-border/50 overflow-hidden">
-          {treeCanvasBody()}
-        </div>
+        {/* ── Right sidebar ──────────────────────────────────────────────── */}
+        <aside className="tree-side" style={{ width: 320, background: 'var(--ds-surface, #fff)', borderLeft: '1px solid var(--ds-border, rgba(74,33,104,0.1))', overflowY: 'auto', flexShrink: 0 }}>
+          {selectedNode ? (
+            <div style={{ padding: 20 }}>
+              {/* Member header */}
+              <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginBottom: 16 }}>
+                <div style={{ width: 52, height: 52, borderRadius: '50%', background: 'linear-gradient(135deg,var(--ds-plum,#2e1346),#1a0a2e)', display: 'grid', placeItems: 'center', color: '#fff', fontSize: 22, fontFamily: 'var(--font-heading, serif)', fontWeight: 700, flexShrink: 0 }}>
+                  {(selectedNode.name || '?').charAt(0)}
+                </div>
+                <div>
+                  <div className="font-heading" style={{ fontSize: 18, color: 'var(--ds-plum,#2e1346)', fontWeight: 700 }}>{selectedNode.name}</div>
+                  <div style={{ fontSize: 12, color: 'var(--ds-muted,#6b6b8a)', marginTop: 2 }}>{selectedNode.relation}</div>
+                  {selectedNode.verificationTier && selectedNode.verificationTier !== 'none' && (
+                    <span className="ds-tag-gold" style={{ marginTop: 6, display: 'inline-block' }}>✓ {selectedNode.verificationTier}-verified</span>
+                  )}
+                </div>
+              </div>
 
-        {/* Invite panel — replaces the old /invite sidebar link */}
-        {isTreeInitialized && (
-          <InvitePanel
-            selectedNodeId={selectedNodeId}
-            nodeName={state.nodes.find(n => n.id === selectedNodeId)?.name}
-            treeName={state.treeName}
-          />
-        )}
+              {/* Vital details */}
+              <div style={{ padding: '14px 0', borderTop: '1px solid var(--ds-border,rgba(74,33,104,0.1))', borderBottom: '1px solid var(--ds-border,rgba(74,33,104,0.1))', marginBottom: 14 }}>
+                <div className="ds-eyebrow" style={{ color: 'var(--ds-muted)', marginBottom: 8, fontSize: 9 }}>Vital details</div>
+                {[
+                  ['Name', selectedNode.name],
+                  ['Relation', selectedNode.relation],
+                  selectedNode.dateOfBirth ? ['Date of birth', selectedNode.dateOfBirth] : null,
+                  selectedNode.ancestralPlace ? ['Ancestral place', selectedNode.ancestralPlace] : null,
+                  selectedNode.currentResidence ? ['Residence', selectedNode.currentResidence] : null,
+                ].filter(Boolean).map(([k, v]) => (
+                  <div key={k as string} style={{ display: 'grid', gridTemplateColumns: '100px 1fr', gap: 6, padding: '5px 0', fontSize: 13 }}>
+                    <span style={{ color: 'var(--ds-muted,#6b6b8a)' }}>{k}</span>
+                    <span style={{ color: 'var(--ds-text,#1c0d2e)', fontWeight: 500 }}>{v}</span>
+                  </div>
+                ))}
+              </div>
+
+              {/* Privacy */}
+              <div style={{ padding: '12px 0', borderBottom: '1px solid var(--ds-border,rgba(74,33,104,0.1))', marginBottom: 14 }}>
+                <div className="ds-eyebrow" style={{ color: 'var(--ds-muted)', marginBottom: 8, fontSize: 9 }}>Privacy</div>
+                <select className="ds-input w-full" defaultValue="Tree (all generations)">
+                  <option>Private (only you)</option>
+                  <option>Parents only</option>
+                  <option>Grandparents and above</option>
+                  <option>Tree (all generations)</option>
+                  <option>Public</option>
+                </select>
+              </div>
+
+              {/* Sachet actions */}
+              <div style={{ marginBottom: 14 }}>
+                <div className="ds-eyebrow" style={{ color: 'var(--ds-muted)', marginBottom: 10, fontSize: 9 }}>Node actions</div>
+                <div style={{ display: 'grid', gap: 8 }}>
+                  {[
+                    { icon: '🪔', label: 'Re-verify gotra', price: '₹49', path: '/verification' },
+                    { icon: '📜', label: 'Generate vanshavali', price: '₹149', path: '/upgrade' },
+                    { icon: '🪷', label: 'Log a ceremony', price: '₹19', path: '/margdarshak-kyc' },
+                    { icon: '✏️', label: 'Edit member', price: 'free', path: `/node/${selectedNode.id}` },
+                  ].map(({ icon, label, price, path }) => (
+                    <button
+                      key={label}
+                      onClick={() => navigate(path)}
+                      style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px', borderRadius: 8, border: '1px solid var(--ds-border,rgba(74,33,104,0.12))', background: 'var(--ds-ivory,#faf8f2)', cursor: 'pointer', fontSize: 13 }}
+                    >
+                      <span>{icon} {label}</span>
+                      <span className="font-heading" style={{ fontWeight: 700, color: 'var(--ds-gold,#d49a1f)' }}>{price}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div style={{ padding: 20 }}>
+              <div className="ds-eyebrow" style={{ color: 'var(--ds-muted)', marginBottom: 12, fontSize: 9 }}>Tree overview</div>
+              <div style={{ display: 'grid', gap: 10, marginBottom: 20 }}>
+                <div className="ds-card" style={{ padding: '14px' }}>
+                  <div className="ds-eyebrow" style={{ color: 'var(--ds-muted)', fontSize: 9 }}>Members</div>
+                  <div className="font-heading" style={{ fontSize: 22, fontWeight: 700, color: 'var(--ds-text)' }}>{membersUsed} <span style={{ fontSize: 13, fontWeight: 400, color: 'var(--ds-muted)' }}>/ {plan.maxNodes}</span></div>
+                  <div style={{ marginTop: 6, height: 4, borderRadius: 2, background: 'var(--ds-border)', overflow: 'hidden' }}>
+                    <div style={{ width: `${Math.min(100, membersUsed / plan.maxNodes * 100)}%`, height: '100%', background: 'linear-gradient(90deg,var(--ds-plum),var(--ds-gold))' }} />
+                  </div>
+                </div>
+                <div className="ds-card" style={{ padding: '14px' }}>
+                  <div className="ds-eyebrow" style={{ color: 'var(--ds-muted)', fontSize: 9 }}>Generations</div>
+                  <div className="font-heading" style={{ fontSize: 22, fontWeight: 700, color: 'var(--ds-text)' }}>{generationsUsed} <span style={{ fontSize: 13, fontWeight: 400, color: 'var(--ds-muted)' }}>/ {plan.generationCap}</span></div>
+                </div>
+              </div>
+
+              <div style={{ fontSize: 12, color: 'var(--ds-muted)', textAlign: 'center', padding: '20px 0' }}>
+                Tap any member in the tree to see their details and actions here.
+              </div>
+
+              {isTreeInitialized && (
+                <div style={{ marginTop: 8 }}>
+                  <InvitePanel
+                    selectedNodeId={selectedNodeId}
+                    nodeName={state.nodes.find(n => n.id === selectedNodeId)?.name}
+                    treeName={state.treeName}
+                  />
+                </div>
+              )}
+            </div>
+          )}
+        </aside>
       </div>
     </AppShell>
   );

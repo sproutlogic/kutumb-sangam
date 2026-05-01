@@ -298,7 +298,7 @@ const Landing = () => {
             {[
               { icon: '🪔', title: 'Pandit verification', desc: '1,200+ verified Pandits across India stamp your gotra, ceremonies, and lineage. Every node traceable to a human expert.', tag: 'Human layer' },
               { icon: '🔐', title: 'Cryptographic roots', desc: 'Every family tree stored with SHA-256 node hashes. Tampering is mathematically impossible. Your lineage is immutable.', tag: 'Cryptographic layer' },
-              { icon: '🏛️', title: 'Community governance', desc: 'No AI hallucination. No central control. Your family's karta and elders own the write access. Your data, your rules.', tag: 'Community layer' },
+              { icon: '🏛️', title: 'Community governance', desc: "No AI hallucination. No central control. Your family's karta and elders own the write access. Your data, your rules.", tag: 'Community layer' },
             ].map(t => (
               <div key={t.title} style={{ padding: 28, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(212,154,31,0.2)', borderRadius: 8 }}>
                 <div style={{ fontSize: 36, marginBottom: 16 }}>{t.icon}</div>
