@@ -55,6 +55,7 @@ import GreenLegacyPage from "@/pages/GreenLegacyPage";
 import LeaderboardPage from "@/pages/LeaderboardPage";
 import VendorPortalPage from "@/pages/VendorPortalPage";
 import ContentQueuePage from "@/pages/ContentQueuePage";
+import SettingsPage from "@/pages/SettingsPage";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -141,6 +142,9 @@ const App = () => (
 
                     {/* ── Admin content queue (admin / superadmin) ── */}
                     <Route path="/admin/content" element={<ProtectedRoute><ContentQueuePage /></ProtectedRoute>} />
+
+                    {/* ── Settings ── */}
+                    <Route path="/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
 
                     <Route path="*" element={<NotFound />} />
                   </Routes>

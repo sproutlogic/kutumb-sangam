@@ -4,7 +4,7 @@ import { useLang } from '@/i18n/LanguageContext';
 import {
   Hourglass, Home, TreePine, ShieldCheck, Search,
   HelpCircle, LogOut, CalendarDays, Radar, Archive, Receipt, Building2, Leaf, IndianRupee,
-  ShoppingBag, HandHeart,
+  ShoppingBag, HandHeart, Settings,
 } from 'lucide-react';
 import { useTree } from '@/contexts/TreeContext';
 import { useAuth } from '@/contexts/AuthContext';
@@ -32,6 +32,7 @@ const navItems = [
   // ── Eco Services ──
   { icon: ShoppingBag,  labelKey: 'ecoServices'      as const, path: '/services' },
   { icon: HelpCircle,   labelKey: 'support'          as const, path: '/support' },
+  { icon: Settings,     label: 'Settings',                    path: '/settings' },
 ];
 
 interface AppShellProps {
