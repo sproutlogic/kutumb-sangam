@@ -461,6 +461,17 @@ const TreePage = () => {
         <div className="relative w-full" style={{ height: Math.max(320, viewHeight) }}>
           <div className="absolute inset-0 gradient-warm opacity-50" />
           <svg className="absolute inset-0 w-full h-full" viewBox={`0 0 ${viewWidth} ${viewHeight}`} preserveAspectRatio="xMidYMid meet">
+            {/* Generation guide lines */}
+            {Array.from(new Set(positionedNodes.map(n => n.y))).sort((a, b) => a - b).map((gy, i) => (
+              <line key={`gen-${i}`} x1={20} y1={gy} x2={viewWidth - 20} y2={gy} stroke="rgba(74,33,104,0.08)" strokeDasharray="2 8" />
+            ))}
+            {/* Canopy bloom at top */}
+            {positionedNodes.length > 0 && (
+              <ellipse cx={viewWidth / 2} cy={Math.min(...positionedNodes.map(n => n.y)) - 10} rx={viewWidth * 0.38} ry={60} fill="var(--ds-gold,#d49a1f)" opacity={0.05} />
+            )}
+            {/* Earth line at bottom */}
+            <line x1={0} y1={viewHeight - 15} x2={viewWidth} y2={viewHeight - 15} stroke="#6b4a2a" strokeWidth={1} opacity={0.3} />
+            <text x={viewWidth - 30} y={viewHeight - 22} fontSize={9} fill="rgba(74,33,104,0.3)" fontFamily="monospace" letterSpacing="0.18em" textAnchor="end">— BHUMI · EARTH —</text>
             {/* Marital unit: rounded frame (behind nodes) */}
             {spouseEdges.map((e) => {
               const a = nodeMap[e.from];
@@ -764,6 +775,10 @@ const TreePage = () => {
                   <span style={{ color: 'rgba(46,19,70,0.7)' }}><strong>{membersUsed}</strong> members</span>
                 </div>
               )}
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center', background: 'rgba(252,250,244,0.92)', backdropFilter: 'blur(10px)', border: '1px solid rgba(74,33,104,0.12)', borderRadius: 10, padding: '8px 14px', fontSize: 12 }}>
+                <span className="ds-pill-dot live" />
+                <span style={{ color: 'rgba(46,19,70,0.7)' }}>3 kin editing now</span>
+              </div>
               <button
                 style={{ padding: '8px 14px', fontSize: 12, borderRadius: 10, border: '1px solid rgba(212,154,31,0.4)', background: 'rgba(252,250,244,0.92)', backdropFilter: 'blur(10px)', cursor: 'pointer', color: 'rgba(46,19,70,0.7)', fontWeight: 600 }}
                 onClick={() => navigate('/upgrade')}
@@ -839,6 +854,36 @@ const TreePage = () => {
                     <span className="ds-tag-gold" style={{ marginTop: 6, display: 'inline-block' }}>✓ {selectedNode.verificationTier}-verified</span>
                   )}
                 </div>
+              </div>
+
+              {/* Smriti upsell */}
+              <div style={{ padding: 14, borderRadius: 8, background: 'linear-gradient(135deg, rgba(232,116,34,0.08), rgba(212,154,31,0.06))', border: '1px solid rgba(232,116,34,0.25)', marginBottom: 16 }}>
+                <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+                  <div style={{ fontSize: 22 }}>🎙️</div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontFamily: 'var(--ds-serif)', fontSize: 15, color: 'var(--ds-plum,#2e1346)', fontWeight: 600 }}>{selectedNode.name} · No Smriti yet.</div>
+                    <div style={{ fontSize: 12, color: 'var(--ds-ink-soft)', marginTop: 4, lineHeight: 1.5 }}>Record their voice — recipes, blessings, stories — for grandkids not yet born.</div>
+                    <button onClick={() => navigate('/legacy-box')} className="ds-btn ds-btn-sm" style={{ marginTop: 10, background: 'var(--ds-saffron,#e87422)', color: '#fff', fontWeight: 600 }}>Start recording · ₹9/min →</button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Smriti library */}
+              <div style={{ padding: '14px 0', borderBottom: '1px solid var(--ds-border,rgba(74,33,104,0.1))', marginBottom: 14 }}>
+                <div className="ds-eyebrow" style={{ color: 'var(--ds-muted)', marginBottom: 10, fontSize: 9 }}>Smriti library · 3 recordings</div>
+                {[
+                  { t: 'Bachpan ki kahaniyan', d: 'Aug 2024 · 8m' },
+                  { t: 'Family recipes', d: 'Jul 2024 · 12m' },
+                  { t: 'Aashirvaad', d: 'Jun 2024 · 3m' },
+                ].map((s, i) => (
+                  <div key={i} style={{ display: 'flex', gap: 10, padding: '10px 0', alignItems: 'center', borderBottom: i < 2 ? '1px solid var(--ds-hairline)' : 'none' }}>
+                    <div style={{ width: 28, height: 28, borderRadius: 6, background: 'var(--ds-ivory-warm,#f5ede0)', display: 'grid', placeItems: 'center', fontSize: 13, cursor: 'pointer', border: '1px solid var(--ds-hairline)' }}>▶</div>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--ds-ink)' }}>{s.t}</div>
+                      <div style={{ fontSize: 11, color: 'var(--ds-ink-mute)' }}>{s.d}</div>
+                    </div>
+                  </div>
+                ))}
               </div>
 
               {/* Vital details */}

@@ -60,6 +60,8 @@ const TimeBankPage = () => {
   const earned = 28;
   const spent = 14;
   const pending = 3;
+  const moneyBalance = 247;
+  const itemsCount = 3;
 
   const filtered = LEDGER.filter(r => filter === 'all' || r.kind === filter);
 
@@ -80,30 +82,71 @@ const TimeBankPage = () => {
             <span className="ds-sanskrit" style={{ color: 'var(--ds-gold-light)' }}>परस्परं भावयन्तः</span> — uplift one another.
           </p>
 
-          {/* Balance row */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr 1fr 1fr', gap: 14, marginTop: 32 }} className="tb-summary">
-            <div style={{ padding: '18px 22px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(212,154,31,0.3)', borderRadius: 10 }}>
-              <span className="ds-eyebrow" style={{ color: 'var(--ds-gold-light)' }}>Your balance</span>
-              <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginTop: 8 }}>
-                <span className="ds-score-num" style={{ fontSize: 64, color: 'var(--ds-gold-light)', lineHeight: 1 }}>+{balance}</span>
+          {/* Balance row — TIME / MONEY / ITEMS */}
+          <div style={{ display: 'flex', gap: 10, marginTop: 28, flexWrap: 'wrap' }}>
+            {/* TIME */}
+            <div style={{ flex: '2 1 280px', padding: '18px 22px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(212,154,31,0.3)', borderRadius: 10 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                <span style={{ fontSize: 16 }}>⏱</span>
+                <span className="ds-eyebrow" style={{ color: 'var(--ds-gold-light)' }}>TIME · Your balance</span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginTop: 6 }}>
+                <span className="ds-score-num" style={{ fontSize: 56, color: 'var(--ds-gold-light)', lineHeight: 1 }}>+{balance}</span>
                 <span style={{ fontSize: 14, color: 'rgba(255,255,255,0.55)' }}>hours owed to you</span>
               </div>
-              <div style={{ marginTop: 14, height: 6, borderRadius: 3, background: 'rgba(255,255,255,0.1)', overflow: 'hidden' }}>
+              <div style={{ marginTop: 12, height: 5, borderRadius: 3, background: 'rgba(255,255,255,0.1)', overflow: 'hidden' }}>
                 <div style={{ width: '56%', height: '100%', background: 'linear-gradient(90deg,var(--ds-saffron),var(--ds-gold))' }} />
               </div>
-              <div style={{ marginTop: 6, fontSize: 11, fontFamily: 'var(--ds-mono)', color: 'rgba(255,255,255,0.5)' }}>56% toward Vriksh-tier (25 hr)</div>
-            </div>
-            {[
-              { label: 'Earned', value: earned, color: '#7adba0', sub: 'lifetime' },
-              { label: 'Spent', value: spent, color: '#e9c267', sub: 'lifetime' },
-              { label: 'Open requests', value: pending, color: 'var(--ds-saffron)', sub: 'this month' },
-            ].map(s => (
-              <div key={s.label} style={{ padding: '18px 22px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 10 }}>
-                <span className="ds-eyebrow" style={{ color: 'rgba(255,255,255,0.55)' }}>{s.label}</span>
-                <div className="ds-score-num" style={{ fontSize: 38, color: s.color, lineHeight: 1, marginTop: 10 }}>{s.value}<span style={{ fontSize: 14, color: 'rgba(255,255,255,0.45)', marginLeft: 6 }}>hr</span></div>
-                <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.45)', marginTop: 6, fontFamily: 'var(--ds-mono)' }}>{s.sub}</div>
+              <div style={{ marginTop: 5, fontSize: 11, fontFamily: 'var(--ds-mono)', color: 'rgba(255,255,255,0.5)' }}>56% toward Vriksh-tier (25 hr)</div>
+              <div style={{ display: 'flex', gap: 10, marginTop: 12 }}>
+                {[
+                  { label: 'Earned', value: earned, color: '#7adba0', unit: 'hr' },
+                  { label: 'Spent', value: spent, color: '#e9c267', unit: 'hr' },
+                  { label: 'Open', value: pending, color: 'var(--ds-saffron)', unit: 'req' },
+                ].map(s => (
+                  <div key={s.label} style={{ flex: 1, padding: '8px 10px', background: 'rgba(255,255,255,0.04)', borderRadius: 7, border: '1px solid rgba(255,255,255,0.07)' }}>
+                    <div style={{ fontSize: 9, fontFamily: 'var(--ds-mono)', color: 'rgba(255,255,255,0.45)', letterSpacing: '0.1em', textTransform: 'uppercase' }}>{s.label}</div>
+                    <div style={{ fontSize: 22, fontWeight: 700, color: s.color, marginTop: 3, fontFamily: 'var(--ds-serif)' }}>{s.value}<span style={{ fontSize: 11, marginLeft: 3, opacity: 0.6 }}>{s.unit}</span></div>
+                  </div>
+                ))}
               </div>
-            ))}
+            </div>
+
+            {/* MONEY */}
+            <div style={{ flex: '1 1 200px', padding: '18px 22px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(122,219,160,0.25)', borderRadius: 10 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                <span style={{ fontSize: 16 }}>💵</span>
+                <span className="ds-eyebrow" style={{ color: '#7adba0' }}>MONEY</span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, marginTop: 8 }}>
+                <span className="ds-score-num" style={{ fontSize: 48, color: '#7adba0', lineHeight: 1 }}>₹{moneyBalance}</span>
+              </div>
+              <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.5)', marginTop: 6 }}>wallet balance</div>
+              <div style={{ display: 'flex', gap: 6, marginTop: 14 }}>
+                <button className="ds-btn ds-btn-sm" style={{ flex: 1, background: 'rgba(122,219,160,0.15)', color: '#7adba0', border: '1px solid rgba(122,219,160,0.3)', justifyContent: 'center', fontSize: 11 }}>Add money</button>
+                <button className="ds-btn ds-btn-sm" style={{ flex: 1, background: 'rgba(255,255,255,0.05)', color: 'rgba(255,255,255,0.6)', border: '1px solid rgba(255,255,255,0.1)', justifyContent: 'center', fontSize: 11 }}>Withdraw</button>
+              </div>
+              <div style={{ marginTop: 10, fontSize: 10, fontFamily: 'var(--ds-mono)', color: 'rgba(255,255,255,0.35)', letterSpacing: '0.08em' }}>Backend coming soon · preview only</div>
+            </div>
+
+            {/* ITEMS */}
+            <div style={{ flex: '1 1 200px', padding: '18px 22px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(232,116,34,0.25)', borderRadius: 10 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                <span style={{ fontSize: 16 }}>📦</span>
+                <span className="ds-eyebrow" style={{ color: 'var(--ds-saffron)' }}>ITEMS</span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, marginTop: 8 }}>
+                <span className="ds-score-num" style={{ fontSize: 48, color: 'var(--ds-saffron)', lineHeight: 1 }}>{itemsCount}</span>
+                <span style={{ fontSize: 14, color: 'rgba(255,255,255,0.5)' }}>items offered</span>
+              </div>
+              <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 5 }}>
+                {['Unused sewing machine', 'Pressure cooker · 5L', 'Sanskrit textbooks (set)'].map((item, i) => (
+                  <div key={i} style={{ fontSize: 11, color: 'rgba(255,255,255,0.6)', padding: '5px 8px', background: 'rgba(255,255,255,0.04)', borderRadius: 5, border: '1px solid rgba(255,255,255,0.07)' }}>📦 {item}</div>
+                ))}
+              </div>
+              <button className="ds-btn ds-btn-sm" style={{ marginTop: 12, width: '100%', justifyContent: 'center', background: 'rgba(232,116,34,0.15)', color: 'var(--ds-saffron)', border: '1px solid rgba(232,116,34,0.3)', fontSize: 11 }}>+ Offer an item</button>
+              <div style={{ marginTop: 8, fontSize: 10, fontFamily: 'var(--ds-mono)', color: 'rgba(255,255,255,0.35)', letterSpacing: '0.08em' }}>Backend coming soon · preview only</div>
+            </div>
           </div>
         </div>
 

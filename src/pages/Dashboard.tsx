@@ -601,6 +601,177 @@ const SOSButton = () => {
   );
 };
 
+/* ── Pride Wall ──────────────────────────────────────────────── */
+const PrideWall = () => {
+  const [dismissed, setDismissed] = useState<number[]>([]);
+  const cards = [
+    { who: 'Pita ji', kind: 'Achievement', title: 'Retired after 38 years at IIT Kanpur', img: '🎓', when: 'Last month', tributes: 14, tone: 'var(--ds-gold-deep)', highlight: false },
+    { who: 'Aanya (16)', kind: 'Result', title: 'AIR 412 in JEE Main · first in family in 3 gen', img: '🏆', when: '2 weeks ago', tributes: 23, tone: 'var(--ds-saffron)', highlight: true },
+    { who: 'Dadaji', kind: 'Wisdom', title: '47 years of unbroken tulsi puja documented', img: '🪔', when: 'Ongoing', tributes: 9, tone: 'var(--ds-plum-rose)', highlight: false },
+    { who: 'Chacha ji', kind: 'Service', title: 'Built primary school in Etawah village', img: '🏫', when: '2024', tributes: 18, tone: '#a64a8e', highlight: false },
+    { who: 'Bhabhi', kind: 'Craft', title: 'Rangoli book published · Rajpal & Sons', img: '📕', when: '3 months ago', tributes: 7, tone: '#a64a8e', highlight: false },
+    { who: 'Bhaiya', kind: 'Milestone', title: 'First cricket century at 41 — corporate league', img: '🏏', when: 'Last weekend', tributes: 11, tone: 'var(--ds-saffron)', highlight: false },
+  ];
+  const visible = cards.filter((_, i) => !dismissed.includes(i));
+  return (
+    <section style={{ padding: '72px 0', background: 'var(--ds-ivory)' }}>
+      <div style={{ maxWidth: 1240, margin: '0 auto', padding: '0 24px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 24, flexWrap: 'wrap', gap: 12 }}>
+          <div>
+            <span className="ds-eyebrow">Garv · Pride Wall</span>
+            <h2 style={{ fontFamily: 'var(--ds-serif)', fontSize: 32, marginTop: 6, color: 'var(--ds-ink)' }}>The parivar's <span style={{ fontStyle: 'italic', color: 'var(--ds-gold-deep)' }}>gauravgaatha</span></h2>
+            <p style={{ fontSize: 14, color: 'var(--ds-ink-soft)', marginTop: 6, maxWidth: 580 }}>Achievements, milestones, and quiet excellence — visible only within your kutumb. Tribute, don't 'like'.</p>
+          </div>
+          <button className="ds-btn ds-btn-sm ds-btn-plum">+ Add yours</button>
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }} className="dash-pw-grid">
+          {visible.map((c, i) => (
+            <div key={i} className="ds-card" style={{ padding: 0, overflow: 'hidden', position: 'relative', border: c.highlight ? '1.5px solid var(--ds-gold)' : '1px solid var(--ds-hairline)' }}>
+              {c.highlight && <div style={{ position: 'absolute', top: 14, right: 14, padding: '4px 10px', borderRadius: 999, background: 'linear-gradient(135deg, var(--ds-gold-light), var(--ds-gold))', color: 'var(--ds-plum-deep)', fontSize: 9, fontFamily: 'var(--ds-mono)', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', zIndex: 2 }}>★ Featured</div>}
+              <button onClick={() => setDismissed(d => [...d, cards.indexOf(c)])} style={{ position: 'absolute', top: 10, left: 10, background: 'rgba(0,0,0,0.25)', border: 'none', color: '#fff', borderRadius: '50%', width: 22, height: 22, cursor: 'pointer', fontSize: 13, display: 'grid', placeItems: 'center', zIndex: 3 }}>×</button>
+              <div style={{ height: 140, background: `linear-gradient(135deg, ${c.tone}, var(--ds-plum-deep))`, display: 'grid', placeItems: 'center', fontSize: 64 }}>{c.img}</div>
+              <div style={{ padding: 20 }}>
+                <div className="ds-eyebrow" style={{ color: c.tone }}>{c.kind} · {c.when}</div>
+                <h3 style={{ fontFamily: 'var(--ds-serif)', fontSize: 18, marginTop: 8, lineHeight: 1.3, color: 'var(--ds-ink)' }}>{c.title}</h3>
+                <p style={{ fontSize: 12, color: 'var(--ds-ink-mute)', marginTop: 6 }}>by <span style={{ fontWeight: 600, color: 'var(--ds-ink)' }}>{c.who}</span></p>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 14, paddingTop: 14, borderTop: '1px solid var(--ds-hairline)' }}>
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    <button className="ds-btn ds-btn-sm ds-btn-ghost" style={{ padding: '6px 10px', fontSize: 11 }}>🙏 Pranam</button>
+                    <button className="ds-btn ds-btn-sm ds-btn-ghost" style={{ padding: '6px 10px', fontSize: 11 }}>🌸 Tribute</button>
+                  </div>
+                  <span style={{ fontSize: 11, color: 'var(--ds-ink-mute)', fontFamily: 'var(--ds-mono)' }}>{c.tributes} tributes</span>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+};
+
+/* ── Kids Quest ───────────────────────────────────────────────── */
+const KidsQuest = () => {
+  const [active, setActive] = useState(0);
+  const [dismissed, setDismissed] = useState(false);
+  const quests = [
+    { title: 'Gotra Riddle', sub: 'Match 8 ancestor names to their stories', icon: '🧩', xp: 50, time: '5 min', age: '8+', glow: 'var(--ds-saffron)' },
+    { title: 'Antakshari · Family Edition', sub: 'Songs your dadaji used to sing', icon: '🎵', xp: 80, time: '10 min', age: '10+', glow: 'var(--ds-plum-rose)' },
+    { title: 'Where We Came From', sub: 'Tap the map · trace your roots from 1898', icon: '🗺️', xp: 120, time: '8 min', age: '12+', glow: '#2a8068' },
+    { title: 'Cook with Naniji', sub: 'Learn 1 family recipe · video', icon: '🍲', xp: 70, time: '15 min', age: '10+', glow: 'var(--ds-gold-deep)' },
+    { title: 'Sanskrit Streak', sub: '1 shloka a day · earn the parrot', icon: '🦜', xp: 30, time: '3 min', age: '7+', glow: 'var(--ds-saffron)' },
+    { title: 'Build Your Vansh', sub: 'Drag & drop family tree puzzle', icon: '🌳', xp: 100, time: '12 min', age: '9+', glow: '#2a8068' },
+  ];
+  if (dismissed) return null;
+  return (
+    <section style={{ padding: '72px 0', background: 'linear-gradient(180deg, #fff7e6, #f9eed3)', position: 'relative', overflow: 'hidden' }}>
+      <div style={{ position: 'absolute', top: 20, right: 30, fontSize: 140, opacity: 0.04 }}>🪁</div>
+      <div style={{ position: 'absolute', bottom: 20, left: 30, fontSize: 120, opacity: 0.04 }}>🎨</div>
+      <div style={{ maxWidth: 1240, margin: '0 auto', padding: '0 24px', position: 'relative' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 24, flexWrap: 'wrap', gap: 12 }}>
+          <div>
+            <span className="ds-eyebrow" style={{ color: 'var(--ds-saffron)' }}>Bachpan · Kids' Quests</span>
+            <h2 style={{ fontFamily: 'var(--ds-serif)', fontSize: 32, marginTop: 6, color: 'var(--ds-ink)' }}>For the <span style={{ fontStyle: 'italic', color: 'var(--ds-saffron)' }}>chhote shers</span> in your parivar</h2>
+            <p style={{ fontSize: 14, color: 'var(--ds-ink-soft)', marginTop: 6, maxWidth: 600 }}>Daily 5-min adventures that teach kids who they are, where they came from, and why their family is worth knowing.</p>
+          </div>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <div style={{ padding: '8px 14px', borderRadius: 10, background: 'var(--ds-paper)', border: '1px solid var(--ds-hairline)', display: 'flex', gap: 8, alignItems: 'center' }}>
+              <span style={{ fontSize: 11, fontFamily: 'var(--ds-mono)', color: 'var(--ds-ink-mute)', letterSpacing: '0.1em', textTransform: 'uppercase' }}>Aanya's XP</span>
+              <span style={{ fontFamily: 'var(--ds-serif)', fontSize: 24, color: 'var(--ds-saffron)', fontWeight: 700 }}>1,240</span>
+            </div>
+            <button onClick={() => setDismissed(true)} className="ds-btn ds-btn-sm ds-btn-ghost" style={{ fontSize: 11 }}>Dismiss</button>
+          </div>
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14 }} className="dash-kq-grid">
+          {quests.map((q, i) => (
+            <button key={i} onClick={() => setActive(i)} style={{ textAlign: 'left', background: 'var(--ds-paper)', border: i === active ? `2px solid ${q.glow}` : '1px solid var(--ds-hairline)', borderRadius: 12, padding: 22, cursor: 'pointer', position: 'relative', overflow: 'hidden', boxShadow: i === active ? `0 12px 30px -10px ${q.glow}` : undefined }}>
+              <div style={{ position: 'absolute', top: -20, right: -20, fontSize: 90, opacity: 0.08 }}>{q.icon}</div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                <div style={{ fontSize: 38 }}>{q.icon}</div>
+                <span style={{ padding: '3px 8px', borderRadius: 999, background: `${q.glow}20`, color: q.glow, fontSize: 10, fontFamily: 'var(--ds-mono)', fontWeight: 700, letterSpacing: '0.1em' }}>+{q.xp} XP</span>
+              </div>
+              <h3 style={{ fontFamily: 'var(--ds-serif)', fontSize: 19, marginTop: 14, color: 'var(--ds-ink)' }}>{q.title}</h3>
+              <p style={{ fontSize: 12, color: 'var(--ds-ink-mute)', marginTop: 4, lineHeight: 1.4 }}>{q.sub}</p>
+              <div style={{ display: 'flex', gap: 10, marginTop: 14, fontSize: 10, fontFamily: 'var(--ds-mono)', color: 'var(--ds-ink-mute)', letterSpacing: '0.05em', textTransform: 'uppercase' }}>
+                <span>⏱ {q.time}</span><span>·</span><span>Age {q.age}</span>
+              </div>
+            </button>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+};
+
+/* ── Blessings Marketplace ────────────────────────────────────── */
+const Blessings = () => {
+  const navigate = useNavigate();
+  const items = [
+    { name: 'Light a diya at Kashi Vishwanath', price: 51, sub: "In your gotra's name · live photo back", icon: '🪔', tag: 'Most loved' },
+    { name: '1-min voice from Pt. Ramesh', price: 99, sub: "Custom shloka for tomorrow's muhurat", icon: '🎙️', tag: null },
+    { name: 'Tulsi mala from Vrindavan', price: 149, sub: 'Blessed · ships in 3 days', icon: '📿', tag: null },
+    { name: 'Ganga jal · 100 ml', price: 199, sub: 'From Haridwar · sealed', icon: '💧', tag: 'Bestseller' },
+    { name: 'Family puja — Akshaya Tritiya', price: 499, sub: 'Ramesh ji conducts · 30-min livestream', icon: '🔥', tag: 'Today only' },
+    { name: 'Custom kundali by Pt. Sharma', price: 299, sub: '2-page PDF · within 24h', icon: '📜', tag: null },
+    { name: 'Sponsor 1 month of Smriti backup', price: 9, sub: 'Cheaper than chai · keeps audio safe', icon: '☁️', tag: 'Min spend' },
+    { name: 'Vanshavali stamped & framed', price: 1499, sub: 'A2 print · pandit-stamped · ships', icon: '🖼️', tag: 'Gift' },
+  ];
+  return (
+    <section style={{ padding: '72px 0', background: 'var(--ds-ivory-warm)' }}>
+      <div style={{ maxWidth: 1240, margin: '0 auto', padding: '0 24px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 24, flexWrap: 'wrap', gap: 12 }}>
+          <div>
+            <span className="ds-eyebrow" style={{ color: 'var(--ds-saffron)' }}>Aashirvaad bazaar</span>
+            <h2 style={{ fontFamily: 'var(--ds-serif)', fontSize: 32, marginTop: 6, color: 'var(--ds-ink)' }}>Small acts. <span style={{ fontStyle: 'italic', color: 'var(--ds-saffron)' }}>Big punya.</span></h2>
+            <p style={{ fontSize: 14, color: 'var(--ds-ink-soft)', marginTop: 6, maxWidth: 560 }}>Every offering goes to verified pandits, real temples, and your family's story — not a holding company.</p>
+          </div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <div style={{ padding: '8px 14px', borderRadius: 8, background: 'var(--ds-paper)', border: '1px solid var(--ds-hairline)', fontSize: 11, fontFamily: 'var(--ds-mono)', color: 'var(--ds-ink-mute)', letterSpacing: '0.1em', textTransform: 'uppercase', display: 'flex', alignItems: 'center' }}>Wallet · ₹247</div>
+            <button onClick={() => navigate('/upgrade')} className="ds-btn ds-btn-sm ds-btn-gold">Top up</button>
+          </div>
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }} className="dash-bm-grid">
+          {items.map(it => (
+            <div key={it.name} className="ds-card" style={{ padding: 18, position: 'relative' }}>
+              {it.tag && <div style={{ position: 'absolute', top: -8, left: 14, padding: '3px 8px', borderRadius: 4, background: 'var(--ds-saffron)', color: 'var(--ds-paper)', fontSize: 9, fontFamily: 'var(--ds-mono)', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase' }}>{it.tag}</div>}
+              <div style={{ fontSize: 32, marginBottom: 10 }}>{it.icon}</div>
+              <h3 style={{ fontSize: 14, fontWeight: 700, lineHeight: 1.3, color: 'var(--ds-ink)' }}>{it.name}</h3>
+              <p style={{ fontSize: 11, color: 'var(--ds-ink-mute)', marginTop: 4, lineHeight: 1.4 }}>{it.sub}</p>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 14 }}>
+                <span style={{ fontFamily: 'var(--ds-serif)', fontSize: 20, fontWeight: 700, color: 'var(--ds-plum)' }}>₹{it.price}</span>
+                <button className="ds-btn ds-btn-sm ds-btn-plum" style={{ padding: '6px 12px', fontSize: 11 }}>Add →</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+};
+
+/* ── Notif Stack — bottom-left dismissible ────────────────────── */
+const NotifStack = () => {
+  const [items, setItems] = useState([
+    { id: 1, who: 'Bhabhi', avatar: 'B', text: 'shared a pal · Aanya helped with rangoli', time: '2m', tint: 'var(--ds-plum-rose)' },
+    { id: 2, who: 'Pt. Ramesh', avatar: 'पं', text: 'replied to your gotra verification', time: '18m', tint: 'var(--ds-gold-deep)' },
+    { id: 3, who: 'On this day', avatar: '📅', text: 'Pita ji turns 63 in 4 months · plan something?', time: '1h', tint: 'var(--ds-saffron)' },
+  ]);
+  return (
+    <div style={{ position: 'fixed', bottom: 24, left: 24, zIndex: 80, display: 'flex', flexDirection: 'column', gap: 8, maxWidth: 340 }}>
+      {items.map(n => (
+        <div key={n.id} className="ds-card" style={{ padding: '12px 14px', display: 'flex', gap: 12, alignItems: 'flex-start', borderLeft: `3px solid ${n.tint}`, animation: 'ks-slide-up 0.4s ease' }}>
+          <div style={{ width: 32, height: 32, borderRadius: '50%', background: n.tint, color: 'var(--ds-paper)', display: 'grid', placeItems: 'center', fontFamily: 'var(--ds-serif)', fontWeight: 700, fontSize: 13, flexShrink: 0 }}>{n.avatar}</div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 12 }}><span style={{ fontWeight: 700, color: 'var(--ds-ink)' }}>{n.who}</span> <span style={{ color: 'var(--ds-ink-soft)' }}>{n.text}</span></div>
+            <div style={{ fontSize: 10, color: 'var(--ds-ink-mute)', marginTop: 2, fontFamily: 'var(--ds-mono)' }}>{n.time} ago</div>
+          </div>
+          <button onClick={() => setItems(i => i.filter(x => x.id !== n.id))} style={{ background: 'transparent', border: 'none', color: 'var(--ds-ink-mute)', cursor: 'pointer', fontSize: 16, padding: 0, lineHeight: 1 }}>×</button>
+        </div>
+      ))}
+    </div>
+  );
+};
+
 /* ── Dashboard ───────────────────────────────────────────────── */
 const Dashboard = () => {
   const { appUser } = useAuth();
@@ -642,9 +813,13 @@ const Dashboard = () => {
         <NextActions />
         <OnThisDay />
         <Sanskaras />
+        <PrideWall />
+        <Blessings />
+        <KidsQuest />
         <DashGrid familyRank={familyRank} />
         <PrivacyMatrix />
         <SOSButton />
+        <NotifStack />
 
         {isSalesMember && (
           <section style={{ padding: '24px 0', background: 'var(--ds-ivory)' }}>
@@ -670,7 +845,16 @@ const Dashboard = () => {
           .dash-next-actions  { grid-template-columns: 1fr !important; }
           .dash-otd-grid      { grid-template-columns: 1fr !important; }
           .dash-sk-grid       { grid-template-columns: 1fr 1fr !important; }
+          .dash-pw-grid       { grid-template-columns: 1fr !important; }
+          .dash-kq-grid       { grid-template-columns: 1fr !important; }
+          .dash-bm-grid       { grid-template-columns: 1fr 1fr !important; }
         }
+        @media (max-width: 1000px) {
+          .dash-pw-grid       { grid-template-columns: 1fr 1fr !important; }
+          .dash-kq-grid       { grid-template-columns: 1fr 1fr !important; }
+          .dash-bm-grid       { grid-template-columns: 1fr 1fr !important; }
+        }
+        @keyframes ks-slide-up { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
       `}</style>
     </AppShell>
   );
