@@ -4,13 +4,46 @@ import { Leaf, Heart, TreePine, ChevronDown } from 'lucide-react';
 import { fetchLeaderboard, type LeaderboardEntry } from '@/services/api';
 import { MovementBelief } from '@/components/prakriti/MovementBelief';
 
+function shortRegionLabel(region: string): string {
+  const parts = region.trim().split(/\s+/);
+  if (parts.length >= 2) return parts.map((p) => p[0]).join('').toUpperCase();
+  if (region.length <= 4) return region.toUpperCase();
+  return region.slice(0, 3).toUpperCase();
+}
+
 const Landing = () => {
   const navigate = useNavigate();
   const [surname, setSurname] = useState('');
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
+  const [scoreCardCity, setScoreCardCity] = useState('Kanpur');
+  const [scoreCardRegion, setScoreCardRegion] = useState('Uttar Pradesh');
+  const [scoreCardRankCity, setScoreCardRankCity] = useState(
+    () => Math.floor(Math.random() * 141) + 5,
+  );
+  const [scoreCardRankState, setScoreCardRankState] = useState(
+    () => Math.floor(Math.random() * 651) + 28,
+  );
 
   useEffect(() => {
     fetchLeaderboard(undefined, 5).then(setLeaderboard);
+  }, []);
+
+  useEffect(() => {
+    const ac = new AbortController();
+    fetch('https://get.geojs.io/v1/ip/geo.json', { signal: ac.signal })
+      .then((r) => r.json())
+      .then((data: { city?: string; region?: string }) => {
+        if (typeof data.city === 'string' && data.city.trim()) {
+          setScoreCardCity(data.city.trim());
+        }
+        if (typeof data.region === 'string' && data.region.trim()) {
+          setScoreCardRegion(data.region.trim());
+        }
+        setScoreCardRankCity(Math.floor(Math.random() * 141) + 5);
+        setScoreCardRankState(Math.floor(Math.random() * 651) + 28);
+      })
+      .catch(() => {});
+    return () => ac.abort();
   }, []);
 
   const handleClaim = () => {
@@ -28,7 +61,7 @@ const Landing = () => {
           <span className="text-xs tracking-[0.15em] uppercase text-muted-foreground font-body">by Aarush</span>
         </a>
         <div className="hidden sm:flex items-center text-xs font-body text-muted-foreground">
-          🌳 <span className="ml-1"><strong>100+</strong> families have claimed their Prakriti</span>
+          <span>Welcome to fastest growing family network</span>
         </div>
         <div className="flex items-center gap-3">
           <button
@@ -75,7 +108,9 @@ const Landing = () => {
           </h1>
 
           <p className="text-lg md:text-xl opacity-80 max-w-xl mx-auto mb-10 font-body leading-relaxed animate-fade-in" style={{ animationDelay: '200ms' }}>
-            Every Indian family has a nature. Most families will never know theirs.
+            Har parivar ek vriksh hai
+            <br />
+            Kya aapka vriksh dikhta hai?
           </p>
 
           {/* Surname + Gotra input */}
@@ -119,12 +154,6 @@ const Landing = () => {
 
       <div className="gold-line" />
 
-      {/* ── Loss Narrative — The Wound ──────────────────────────────── */}
-      <MovementBelief
-        variant="dark"
-        cta={{ label: "Claim your family's Prakriti — free", onClick: () => navigate('/onboarding') }}
-      />
-
       {/* ── Recognised & Supported By ───────────────────────────────── */}
       <section className="bg-white border-b border-border/40 py-6">
         <div className="w-full px-6">
@@ -165,8 +194,13 @@ const Landing = () => {
             <div className="gradient-hero text-primary-foreground p-6 text-center">
               <p className="text-xs font-body tracking-[0.2em] uppercase opacity-70 mb-1">Prakriti Score</p>
               <p className="font-heading text-6xl font-bold mb-1">78</p>
-              <p className="text-sm font-body opacity-80">Higher than 71% of families in UP</p>
-              <p className="text-xs font-body opacity-60 mt-1">#12 in Kanpur · #342 in UP</p>
+              <p className="text-sm font-body opacity-80">
+                Higher than 71% of families in {scoreCardRegion}
+              </p>
+              <p className="text-xs font-body opacity-60 mt-1">
+                #{scoreCardRankCity} in {scoreCardCity} · #{scoreCardRankState} in{' '}
+                {shortRegionLabel(scoreCardRegion)}
+              </p>
             </div>
             <div className="p-4 grid grid-cols-4 gap-2 text-center text-xs font-body">
               {[
@@ -288,14 +322,15 @@ const Landing = () => {
       <section className="bg-stone-950 text-stone-100 py-16 px-6 text-center">
         <p className="text-xs font-body tracking-[0.3em] uppercase text-stone-500 mb-4">Prakriti Smriti</p>
         <h2 className="font-heading text-2xl md:text-4xl font-bold mb-4 max-w-2xl mx-auto leading-snug">
-          "Capture your elder<br />
-          <span className="text-amber-400">before it's too late."</span>
+          Ghar ke buzurg, parivar ki jad hote hain
         </h2>
         <p className="text-stone-300 font-body text-base md:text-lg max-w-xl mx-auto mb-3">
-          Voice. Stories. Blessing. In their language. For your grandchildren.
+          Unki yaadein aur baatein
+          <br />
+          agli peedhi ke liye amulya hoti hain
         </p>
         <p className="text-stone-500 font-body text-sm italic max-w-md mx-auto mb-8">
-          ₹400/month. One recording of your grandfather is worth more.
+          Voice. Stories. Blessing. In their language. their voice For your grandchildren and the coming generations
         </p>
         <button
           onClick={() => navigate('/onboarding')}
@@ -338,7 +373,7 @@ const Landing = () => {
           <p className="text-primary-foreground/60 font-body tracking-[0.3em] uppercase text-xs mb-4">Before the forest falls</p>
           <h2 className="font-heading text-3xl md:text-5xl font-bold mb-6 max-w-2xl mx-auto leading-snug">
             The last elder from your family<br />
-            left this earth today.<br />
+            has already left us.<br />
             <span className="text-gold">Don't let the next one go unrecorded.</span>
           </h2>
           <p className="text-primary-foreground/70 font-body text-lg mb-10 max-w-xl mx-auto">
