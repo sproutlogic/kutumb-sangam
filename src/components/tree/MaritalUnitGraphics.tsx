@@ -1,10 +1,12 @@
 import type { PositionedTreeNode } from "@/engine/treeLayout";
 
-/** Person glyph baseline radius from center. */
-const NODE_R = 18;
-/** Tight padding so pair frame only wraps the two people. */
-const FRAME_MARGIN_X = 3;
-const FRAME_MARGIN_Y = 3;
+/** Must match PersonNode R constant. */
+const NODE_R = 26;
+/** Snug horizontal padding around the pair. */
+const FRAME_MARGIN_X = 8;
+/** Vertical padding — top above shape, bottom below nameplate (shape + 8 gap + 30 nameplate). */
+const FRAME_MARGIN_Y_TOP = 8;
+const FRAME_MARGIN_Y_BOTTOM = 46;
 
 /** Vertical offset from node center to “+” (must match trunk origin in TreePage). */
 export const SPOUSE_PLUS_Y_OFFSET = 2;
@@ -30,29 +32,31 @@ function nodeHalfHeight(): number {
   return NODE_R;
 }
 
-/** Rectangle around mother/wife (left) and father/husband (right); drawn behind nodes. */
+/** Dotted rectangle snugly encasing the married pair (shapes + nameplates). */
 export function SpouseCoupleFrame({ left, right }: { left: PositionedTreeNode; right: PositionedTreeNode }) {
   const { a, b } = orderedPair(left, right);
   const y = a.y;
   const x1 = Math.min(a.x - nodeHalfWidth(a), b.x - nodeHalfWidth(b)) - FRAME_MARGIN_X;
   const x2 = Math.max(a.x + nodeHalfWidth(a), b.x + nodeHalfWidth(b)) + FRAME_MARGIN_X;
-  const yHalf = nodeHalfHeight() + FRAME_MARGIN_Y;
-  const y1 = y - yHalf;
-  const y2 = y + yHalf;
+  const y1 = y - nodeHalfHeight() - FRAME_MARGIN_Y_TOP;
+  const y2 = y + nodeHalfHeight() + FRAME_MARGIN_Y_BOTTOM;
   const w = x2 - x1;
   const h = y2 - y1;
   return (
     <g className="pointer-events-none" aria-hidden>
+      {/* Subtle warm fill */}
       <rect
-        x={x1}
-        y={y1}
-        width={w}
-        height={h}
-        rx={4}
-        ry={4}
-        fill="hsl(var(--primary) / 0.06)"
-        stroke="hsl(var(--primary) / 0.5)"
-        strokeWidth={2}
+        x={x1} y={y1} width={w} height={h} rx={10} ry={10}
+        fill="rgba(212,154,31,0.04)"
+      />
+      {/* Dotted brass border */}
+      <rect
+        x={x1} y={y1} width={w} height={h} rx={10} ry={10}
+        fill="none"
+        stroke="#b8860b"
+        strokeWidth={1.5}
+        strokeDasharray="5 4"
+        strokeOpacity={0.55}
       />
     </g>
   );

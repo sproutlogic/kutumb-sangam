@@ -1,4 +1,5 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState, useRef } from 'react';
+import { useIsMobile } from '@/hooks/use-mobile';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useLang } from '@/i18n/LanguageContext';
 import { useAuth } from '@/contexts/AuthContext';
@@ -536,8 +537,33 @@ const TreePage = () => {
         )}
         <div className="relative w-full" style={{ height: Math.max(320, viewHeight) }}>
           <div className="absolute inset-0 gradient-warm opacity-50" />
-          <svg className="absolute inset-0 w-full h-full" viewBox={`0 0 ${viewWidth} ${viewHeight}`} preserveAspectRatio="xMidYMid meet">
+          <svg
+            className="absolute inset-0 w-full h-full"
+            viewBox={`0 0 ${viewWidth} ${viewHeight}`}
+            preserveAspectRatio="xMidYMid meet"
+            draggable={false}
+            onContextMenu={(e) => e.preventDefault()}
+            style={{ WebkitUserSelect: 'none', userSelect: 'none' } as React.CSSProperties}
+          >
             <defs>
+              {/* Corner rosette symbol — reused at all 4 corners */}
+              <symbol id="corner-rosette" viewBox="0 0 48 48">
+                {/* Bracket arms */}
+                <line x1="0" y1="2" x2="32" y2="2" stroke="#c8a44a" strokeWidth="2" strokeLinecap="round"/>
+                <line x1="2" y1="0" x2="2" y2="32" stroke="#c8a44a" strokeWidth="2" strokeLinecap="round"/>
+                {/* Curved flourish */}
+                <path d="M 6 32 Q 12 12 32 6" stroke="#c8a44a" strokeWidth="1.2" fill="none" opacity="0.55" strokeLinecap="round"/>
+                {/* Outer ring */}
+                <circle cx="2" cy="2" r="9" fill="none" stroke="#c8a44a" strokeWidth="1.5" opacity="0.7"/>
+                {/* Wood fill */}
+                <circle cx="2" cy="2" r="7" fill="#2c1a08"/>
+                {/* Brass fill */}
+                <circle cx="2" cy="2" r="5" fill="#c8a44a"/>
+                {/* Dark center */}
+                <circle cx="2" cy="2" r="2.5" fill="#1a0a04"/>
+                {/* Bright highlight */}
+                <circle cx="1" cy="1" r="1" fill="#f0d060" opacity="0.85"/>
+              </symbol>
               <linearGradient id="branch-grad" x1="0" y1="1" x2="0" y2="0">
                 <stop offset="0%" stopColor="#6b4a2a" stopOpacity="0.7"/>
                 <stop offset="60%" stopColor="#9a7a4a" stopOpacity="0.6"/>
@@ -787,6 +813,45 @@ const TreePage = () => {
               const right = a.x <= b.x ? b : a;
               return <SpousePlusMark key={`plus-${e.from}-${e.to}`} left={left} right={right} />;
             })}
+
+            {/* Corner rosettes — sit just inside the inset frame border (35px) */}
+            {!isMobile && (<>
+              {/* Top-left: normal */}
+              <g transform={`translate(35,35)`}>
+                <use href="#corner-rosette" width={48} height={48} />
+              </g>
+              {/* Top-right: flip horizontally around the corner point */}
+              <g transform={`translate(${viewWidth - 35},35) scale(-1,1)`}>
+                <use href="#corner-rosette" width={48} height={48} />
+              </g>
+              {/* Bottom-left: flip vertically */}
+              <g transform={`translate(35,${viewHeight - 35}) scale(1,-1)`}>
+                <use href="#corner-rosette" width={48} height={48} />
+              </g>
+              {/* Bottom-right: flip both axes */}
+              <g transform={`translate(${viewWidth - 35},${viewHeight - 35}) scale(-1,-1)`}>
+                <use href="#corner-rosette" width={48} height={48} />
+              </g>
+            </>)}
+
+            {/* Tiled watermark — screenshot deterrence */}
+            {Array.from({ length: Math.ceil(viewHeight / 120) }).map((_, row) =>
+              Array.from({ length: Math.ceil(viewWidth / 200) }).map((_, col) => (
+                <text
+                  key={`wm-${row}-${col}`}
+                  x={col * 200 + 20}
+                  y={row * 120 + 60}
+                  fontSize={10}
+                  fontFamily="var(--font-mono, monospace)"
+                  fill="rgba(74,33,104,0.07)"
+                  transform={`rotate(-22, ${col * 200 + 20}, ${row * 120 + 60})`}
+                  pointerEvents="none"
+                  style={{ userSelect: 'none' } as React.CSSProperties}
+                >
+                  {state.treeName || 'Prakriti'} · prakriti.ecotech.co.in
+                </text>
+              ))
+            )}
           </svg>
 
           <div className="absolute bottom-4 left-4 px-3 py-1.5 rounded-lg glass-card text-xs font-body text-muted-foreground max-w-[min(100%,20rem)]">
@@ -835,16 +900,50 @@ const TreePage = () => {
     );
   };
 
+  const isMobile = useIsMobile();
+  const isTablet = !isMobile && typeof window !== 'undefined' && window.innerWidth < 1024;
   const selectedNode = positionedNodes.find(n => n.id === selectedNodeId);
   const completionPct = Math.round(Math.min(100, (membersUsed / plan.maxNodes) * 100));
 
+  const nodeOwnerId   = (selectedNode as Record<string, unknown> | undefined)?.ownerId   as string | undefined;
+  const nodeCreatedBy = (selectedNode as Record<string, unknown> | undefined)?.createdBy as string | undefined;
+  const isSovereign   = !!appUser?.id && !!nodeOwnerId   && nodeOwnerId   === appUser.id;
+  const isCreator     = !!appUser?.id && !!nodeCreatedBy && nodeCreatedBy === appUser.id;
+  const canControl    = isSovereign || isCreator;
+  const isUnclaimed   = !nodeOwnerId || nodeOwnerId === nodeCreatedBy;
+
+  const PUNYA_SEVAS = [
+    { icon: '🌳', title: 'Plant a tree for every soul', sub: 'One tree = 100 kg O₂/yr · 200+ species sheltered', cta: 'Plant now · ₹199', color: '#1a6b32' },
+    { icon: '\u{1F4A7}', title: 'Organise water distribution', sub: 'Earn punya by quenching thirst this summer', cta: 'Organise · ₹499', color: '#1a4a8a' },
+    { icon: '\u{1F35B}', title: 'Organise anna-daan', sub: 'Feed 50 people — punya for every morsel', cta: 'Log seva · ₹299', color: '#8a3a00' },
+    { icon: '\u{1F9F9}', title: 'Lead a swachchhata drive', sub: 'Clean your gali, earn your Prakriti score', cta: 'Register · free', color: '#5a2a8a' },
+  ];
+  const punySeva = PUNYA_SEVAS[membersUsed % PUNYA_SEVAS.length];
+
+  const sidebarW = isMobile ? 0 : isTablet ? 260 : 320;
+
   return (
     <AppShell>
-      {/* Full-page canvas layout: tree left + sidebar right */}
+      {/* Full-page canvas layout: tree left + sidebar right (bottom sheet on mobile) */}
       <div style={{ display: 'flex', height: 'calc(100vh - 64px)', overflow: 'hidden' }}>
 
         {/* ── Tree canvas ──────────────────────────────────────────────── */}
-        <div style={{ flex: 1, position: 'relative', background: 'linear-gradient(180deg, var(--ds-ivory, #faf8f2) 0%, #f5f0e8 100%)', overflow: 'auto' }}>
+        <div style={{
+          flex: 1, position: 'relative',
+          background: 'linear-gradient(180deg, var(--ds-ivory, #faf8f2) 0%, #f5f0e8 100%)',
+          overflow: 'auto',
+          /* Royal frame: gold line → dark mahogany → brass molding → dark mahogany → gold line */
+          boxShadow: isMobile ? 'none' : [
+            'inset 0 0 0 2px #c8a44a',
+            'inset 0 0 0 14px #2c1a08',
+            'inset 0 0 0 17px #9a7b2a',
+            'inset 0 0 0 21px #f0d060',
+            'inset 0 0 0 24px #9a7b2a',
+            'inset 0 0 0 33px #2c1a08',
+            'inset 0 0 0 35px #c8a44a',
+            'inset 0 3px 24px rgba(0,0,0,0.10)',
+          ].join(', '),
+        }}>
 
           {/* Dot-grid texture */}
           <div style={{ position: 'absolute', inset: 0, backgroundImage: 'radial-gradient(circle at 1px 1px, rgba(74,33,104,0.06) 1px, transparent 0)', backgroundSize: '28px 28px', pointerEvents: 'none', zIndex: 0 }} />
@@ -862,66 +961,156 @@ const TreePage = () => {
           )}
 
 
-          {/* Vansh badge corner */}
-          {isTreeInitialized && (
-            <div style={{ position: 'absolute', top: 68, right: 12, zIndex: 6, padding: '10px 14px', borderRadius: 10, background: 'rgba(252,250,244,0.90)', backdropFilter: 'blur(10px)', border: '1px solid rgba(74,33,104,0.12)', boxShadow: '0 4px 16px rgba(28,13,46,0.08)', display: 'flex', alignItems: 'center', gap: 10 }}>
-              <div style={{ width: 34, height: 34, borderRadius: '50%', background: 'linear-gradient(135deg,#d49a1f,#a07010)', display: 'grid', placeItems: 'center', color: '#2e1346', fontSize: 18, fontWeight: 700 }}>
-                {(state.treeName || 'V').charAt(0)}
+          {/* Royal Vansh nameplate badge */}
+          {isTreeInitialized && (() => {
+            const selfNode = state.nodes.find(n => n.id === state.currentUserId);
+            const gotra = (selfNode as Record<string, unknown>)?.gotra as string | undefined;
+            const moolNiwas = (selfNode as Record<string, unknown>)?.moolNiwas as string | undefined;
+            const ancestral = (selfNode as Record<string, unknown>)?.ancestralPlace as string | undefined;
+            const row2 = gotra ? `${gotra} Gotra` : (moolNiwas || null);
+            const row3 = ancestral || moolNiwas || null;
+            return (
+              <div style={{
+                position: 'absolute', top: 16, left: '50%', transform: 'translateX(-50%)',
+                zIndex: 6, minWidth: 200, maxWidth: 280,
+                background: 'linear-gradient(160deg, #6b1a1a 0%, #3d0a0a 60%, #2a0606 100%)',
+                border: '2px solid #b8860b',
+                borderRadius: 4,
+                boxShadow: '0 0 0 1px rgba(184,134,11,0.25), 0 6px 28px rgba(0,0,0,0.45), inset 0 1px 0 rgba(212,166,60,0.18)',
+                padding: '12px 22px 14px',
+                textAlign: 'center',
+                userSelect: 'none',
+              }}>
+                {/* Top ornamental line */}
+                <div style={{ position: 'absolute', top: 5, left: 10, right: 10, height: 1, background: 'linear-gradient(90deg, transparent, #b8860b 30%, #d4a628 50%, #b8860b 70%, transparent)' }} />
+                {/* Row 1: Vansh name */}
+                <div className="font-heading" style={{ fontSize: 15, fontWeight: 800, color: '#e8c060', letterSpacing: '0.08em', textTransform: 'uppercase', lineHeight: 1.2, textShadow: '0 1px 4px rgba(0,0,0,0.6)' }}>
+                  {state.treeName || 'वंश'}
+                </div>
+                {/* Row 2: Gotra or Mool Niwas */}
+                {row2 && (
+                  <div style={{ fontSize: 10, color: '#c9a84c', letterSpacing: '0.14em', marginTop: 5, fontFamily: 'var(--font-mono, monospace)', textTransform: 'uppercase', opacity: 0.9 }}>
+                    {row2}
+                  </div>
+                )}
+                {/* Row 3: Ancestral place */}
+                {row3 && row3 !== row2 && (
+                  <div style={{ fontSize: 10, color: '#c9a84c', letterSpacing: '0.1em', marginTop: 3, fontFamily: 'var(--font-body, sans-serif)', opacity: 0.75 }}>
+                    {row3}
+                  </div>
+                )}
+                {/* Bottom ornamental line */}
+                <div style={{ position: 'absolute', bottom: 5, left: 10, right: 10, height: 1, background: 'linear-gradient(90deg, transparent, #b8860b 30%, #d4a628 50%, #b8860b 70%, transparent)' }} />
               </div>
-              <div>
-                <div className="ds-eyebrow" style={{ color: 'rgba(74,33,104,0.55)', fontSize: 9 }}>Vansh</div>
-                <div className="font-heading" style={{ fontSize: 14, color: 'var(--ds-plum, #2e1346)', fontWeight: 600 }}>{state.treeName || 'Family tree'}</div>
-                <div style={{ fontSize: 10, fontFamily: 'var(--font-mono, monospace)', color: '#a07010', letterSpacing: '0.12em', marginTop: 1 }}>{vanshaId?.slice(0, 14) || 'local'}</div>
-              </div>
-            </div>
-          )}
+            );
+          })()}
 
           {/* Tree canvas body */}
-          <div style={{ paddingTop: 16, paddingBottom: 80, minHeight: '100%', position: 'relative', zIndex: 1 }}>
+          <div style={{ paddingTop: isMobile ? 70 : 16, paddingBottom: isMobile ? 120 : 80, minHeight: '100%', position: 'relative', zIndex: 1 }}>
             {treeCanvasBody()}
           </div>
 
-          {/* Bottom completion strip */}
+          {/* Punya-arjan seva strip */}
           {isTreeInitialized && (
-            <div style={{ position: 'sticky', bottom: 12, margin: '0 12px', display: 'flex', gap: 12, zIndex: 5, flexWrap: 'wrap' }}>
-              <div style={{ flex: 1, minWidth: 240, padding: '12px 16px', borderRadius: 10, background: 'rgba(252,250,244,0.92)', backdropFilter: 'blur(10px)', border: '1px solid rgba(74,33,104,0.12)', display: 'flex', gap: 14, alignItems: 'center' }}>
-                <div>
-                  <div className="ds-eyebrow" style={{ color: 'rgba(74,33,104,0.55)', fontSize: 9 }}>Tree completion</div>
-                  <div className="font-heading" style={{ fontSize: 16, marginTop: 2, color: 'var(--ds-plum, #2e1346)' }}>{completionPct}% · {generationsUsed} of {plan.generationCap} generations</div>
+            <div style={{ position: 'sticky', bottom: 12, margin: '0 12px', zIndex: 5 }}>
+              <div style={{ padding: '13px 16px', borderRadius: 10, background: 'rgba(252,250,244,0.95)', backdropFilter: 'blur(12px)', border: `1px solid ${punySeva.color}30`, boxShadow: `0 2px 16px ${punySeva.color}18`, display: 'flex', gap: 12, alignItems: 'center' }}>
+                <div style={{ fontSize: 28, lineHeight: 1, flexShrink: 0 }}>{punySeva.icon}</div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 9, letterSpacing: '0.14em', color: punySeva.color, fontFamily: 'var(--font-mono,monospace)', textTransform: 'uppercase', opacity: 0.7, marginBottom: 2 }}>पुण्य अर्जन · Seva opportunity</div>
+                  <div className="font-heading" style={{ fontSize: 13, fontWeight: 700, color: 'var(--ds-plum,#2e1346)', lineHeight: 1.2 }}>{punySeva.title}</div>
+                  <div style={{ fontSize: 11, color: 'rgba(74,33,104,0.55)', marginTop: 2 }}>{punySeva.sub}</div>
                 </div>
-                <div style={{ flex: 1, height: 5, borderRadius: 3, background: 'rgba(74,33,104,0.1)', overflow: 'hidden', minWidth: 100 }}>
-                  <div style={{ width: `${completionPct}%`, height: '100%', background: 'linear-gradient(90deg,#e87422,#d49a1f)', borderRadius: 3 }} />
-                </div>
-              </div>
-              <div style={{ padding: '12px 16px', borderRadius: 10, background: 'rgba(252,250,244,0.92)', backdropFilter: 'blur(10px)', border: '1px solid rgba(74,33,104,0.12)', display: 'flex', gap: 12, alignItems: 'center', fontSize: 13 }}>
-                <span className="ds-eyebrow" style={{ color: 'rgba(74,33,104,0.55)', fontSize: 9 }}>Members</span>
-                <span style={{ color: 'var(--ds-plum, #2e1346)' }}>{membersUsed} / {plan.maxNodes}</span>
                 <button
-                  style={{ padding: '5px 12px', borderRadius: 7, border: 'none', background: 'var(--ds-plum,#2e1346)', color: '#fff', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}
-                  onClick={() => navigate('/upgrade')}
-                >Upgrade →</button>
+                  onClick={() => navigate('/eco-sewa')}
+                  style={{ flexShrink: 0, padding: '7px 13px', borderRadius: 8, border: 'none', background: punySeva.color, color: '#fff', fontSize: 11, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}
+                >{punySeva.cta}</button>
               </div>
             </div>
           )}
         </div>
 
-        {/* ── Right sidebar ──────────────────────────────────────────────── */}
-        <aside className="tree-side" style={{ width: 320, background: 'var(--ds-surface, #fff)', borderLeft: '1px solid var(--ds-border, rgba(74,33,104,0.1))', overflowY: 'auto', flexShrink: 0 }}>
+        {/* ── Right sidebar / mobile bottom sheet ───────────────────────── */}
+        <aside
+          className="tree-side"
+          style={isMobile ? {
+            position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 50,
+            background: 'var(--ds-surface, #fff)',
+            borderRadius: '16px 16px 0 0',
+            boxShadow: '0 -4px 32px rgba(28,13,46,0.18)',
+            maxHeight: selectedNode ? '80vh' : '56px',
+            overflow: 'hidden',
+            transition: 'max-height 0.32s cubic-bezier(0.4,0,0.2,1)',
+            overflowY: selectedNode ? 'auto' : 'hidden',
+          } : {
+            width: sidebarW, background: 'var(--ds-surface, #fff)',
+            borderLeft: '1px solid var(--ds-border, rgba(74,33,104,0.1))',
+            overflowY: 'auto', flexShrink: 0,
+          }}
+        >
+          {/* Mobile drag handle / collapsed strip */}
+          {isMobile && (
+            <div
+              onClick={() => !selectedNode && setSelectedNodeId(null)}
+              style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '10px 0 6px', cursor: 'pointer', flexShrink: 0 }}
+            >
+              <div style={{ width: 36, height: 4, borderRadius: 2, background: 'rgba(74,33,104,0.2)' }} />
+            </div>
+          )}
+          {isMobile && !selectedNode && (
+            <div style={{ padding: '4px 16px 12px', textAlign: 'center', fontSize: 12, color: 'rgba(74,33,104,0.5)' }}>
+              Tap a member to see details
+            </div>
+          )}
           {selectedNode ? (
-            <div style={{ padding: 20 }}>
+            <div style={{ padding: isMobile ? '4px 16px 20px' : 20 }}>
               {/* Member header */}
-              <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginBottom: 16 }}>
+              <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginBottom: 12 }}>
                 <div style={{ width: 52, height: 52, borderRadius: '50%', background: 'linear-gradient(135deg,var(--ds-plum,#2e1346),#1a0a2e)', display: 'grid', placeItems: 'center', color: '#fff', fontSize: 22, fontFamily: 'var(--font-heading, serif)', fontWeight: 700, flexShrink: 0 }}>
                   {(selectedNode.name || '?').charAt(0)}
                 </div>
-                <div>
+                <div style={{ flex: 1 }}>
                   <div className="font-heading" style={{ fontSize: 18, color: 'var(--ds-plum,#2e1346)', fontWeight: 700 }}>{selectedNode.name}</div>
                   <div style={{ fontSize: 12, color: 'var(--ds-muted,#6b6b8a)', marginTop: 2 }}>{selectedNode.relation}</div>
                   {selectedNode.verificationTier && selectedNode.verificationTier !== 'none' && (
                     <span className="ds-tag-gold" style={{ marginTop: 6, display: 'inline-block' }}>✓ {selectedNode.verificationTier}-verified</span>
                   )}
                 </div>
+                <button
+                  onClick={() => setSelectedNodeId(null)}
+                  style={{ width: 28, height: 28, borderRadius: '50%', border: 'none', background: 'rgba(74,33,104,0.08)', color: 'rgba(74,33,104,0.6)', fontSize: 16, cursor: 'pointer', display: 'grid', placeItems: 'center', flexShrink: 0 }}
+                  aria-label="Close"
+                >✕</button>
               </div>
+
+              {/* Node sovereignty strip */}
+              {isSovereign ? (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '7px 10px', borderRadius: 7, background: 'rgba(34,120,58,0.07)', border: '1px solid rgba(34,120,58,0.2)', marginBottom: 14, fontSize: 11 }}>
+                  <span style={{ fontSize: 14 }}>🔑</span>
+                  <span style={{ color: '#1a6b32', fontWeight: 600 }}>You own this node</span>
+                  <span style={{ color: 'rgba(34,120,58,0.55)', marginLeft: 2 }}>· full control</span>
+                </div>
+              ) : isCreator && isUnclaimed ? (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '7px 10px', borderRadius: 7, background: 'rgba(74,33,104,0.05)', border: '1px solid rgba(74,33,104,0.14)', marginBottom: 14, fontSize: 11 }}>
+                  <span style={{ fontSize: 14 }}>✍️</span>
+                  <span style={{ color: 'var(--ds-plum,#2e1346)', fontWeight: 600 }}>Added by you</span>
+                  <span style={{ color: 'rgba(74,33,104,0.45)', marginLeft: 2 }}>· control until claimed</span>
+                </div>
+              ) : !canControl && isUnclaimed ? (
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 10px', borderRadius: 7, background: 'rgba(232,116,34,0.06)', border: '1px solid rgba(232,116,34,0.22)', marginBottom: 14 }}>
+                  <div style={{ fontSize: 11, color: 'var(--ds-plum,#2e1346)' }}>
+                    <span style={{ fontWeight: 600 }}>Unclaimed node</span>
+                    <span style={{ color: 'rgba(74,33,104,0.5)', marginLeft: 4 }}>· Is this you?</span>
+                  </div>
+                  <button
+                    onClick={() => navigate(`/node/${selectedNode.id}`)}
+                    style={{ fontSize: 11, padding: '4px 10px', borderRadius: 6, border: 'none', background: '#e87422', color: '#fff', fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}
+                  >Claim →</button>
+                </div>
+              ) : !canControl ? (
+                <div style={{ padding: '7px 10px', borderRadius: 7, background: 'rgba(74,33,104,0.04)', border: '1px solid rgba(74,33,104,0.1)', marginBottom: 14, fontSize: 11, color: 'rgba(74,33,104,0.5)' }}>
+                  🔒 Owned and managed by this person
+                </div>
+              ) : null}
 
               {/* Personal label editor */}
               <PersonalLabelEditor
@@ -944,20 +1133,12 @@ const TreePage = () => {
 
               {/* Smriti library */}
               <div style={{ padding: '14px 0', borderBottom: '1px solid var(--ds-border,rgba(74,33,104,0.1))', marginBottom: 14 }}>
-                <div className="ds-eyebrow" style={{ color: 'var(--ds-muted)', marginBottom: 10, fontSize: 9 }}>Smriti library · 3 recordings</div>
-                {[
-                  { t: 'Bachpan ki kahaniyan', d: 'Aug 2024 · 8m' },
-                  { t: 'Family recipes', d: 'Jul 2024 · 12m' },
-                  { t: 'Aashirvaad', d: 'Jun 2024 · 3m' },
-                ].map((s, i) => (
-                  <div key={i} style={{ display: 'flex', gap: 10, padding: '10px 0', alignItems: 'center', borderBottom: i < 2 ? '1px solid var(--ds-hairline)' : 'none' }}>
-                    <div style={{ width: 28, height: 28, borderRadius: 6, background: 'var(--ds-ivory-warm,#f5ede0)', display: 'grid', placeItems: 'center', fontSize: 13, cursor: 'pointer', border: '1px solid var(--ds-hairline)' }}>▶</div>
-                    <div style={{ flex: 1 }}>
-                      <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--ds-ink)' }}>{s.t}</div>
-                      <div style={{ fontSize: 11, color: 'var(--ds-ink-mute)' }}>{s.d}</div>
-                    </div>
-                  </div>
-                ))}
+                <div className="ds-eyebrow" style={{ color: 'var(--ds-muted)', marginBottom: 10, fontSize: 9 }}>Smriti library</div>
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, padding: '16px 0' }}>
+                  <div style={{ fontSize: 22, opacity: 0.4 }}>🎙️</div>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--ds-muted,#6b6b8a)' }}>Coming Soon</div>
+                  <div style={{ fontSize: 11, color: 'rgba(74,33,104,0.4)', textAlign: 'center', lineHeight: 1.5 }}>Recordings will appear here once added.</div>
+                </div>
               </div>
 
               {/* Vital details */}
@@ -977,24 +1158,25 @@ const TreePage = () => {
                 ))}
               </div>
 
-              {/* Privacy */}
-              <div style={{ padding: '12px 0', borderBottom: '1px solid var(--ds-border,rgba(74,33,104,0.1))', marginBottom: 14 }}>
-                <div className="ds-eyebrow" style={{ color: 'var(--ds-muted)', marginBottom: 8, fontSize: 9 }}>Privacy</div>
-                <select className="ds-input w-full" defaultValue="Tree (all generations)">
-                  <option>Private (only you)</option>
-                  <option>Parents only</option>
-                  <option>Grandparents and above</option>
-                  <option>Tree (all generations)</option>
-                  <option>Public</option>
-                </select>
-              </div>
+              {/* Privacy — only node sovereign or creator can change */}
+              {canControl && (
+                <div style={{ padding: '12px 0', borderBottom: '1px solid var(--ds-border,rgba(74,33,104,0.1))', marginBottom: 14 }}>
+                  <div className="ds-eyebrow" style={{ color: 'var(--ds-muted)', marginBottom: 8, fontSize: 9 }}>Privacy</div>
+                  <select className="ds-input w-full" defaultValue="Tree (all generations)">
+                    <option>Private (only you)</option>
+                    <option>Parents only</option>
+                    <option>Grandparents and above</option>
+                    <option>Tree (all generations)</option>
+                    <option>Public</option>
+                  </select>
+                </div>
+              )}
 
               {/* Sachet actions */}
               <div style={{ marginBottom: 14 }}>
                 <div className="ds-eyebrow" style={{ color: 'var(--ds-muted)', marginBottom: 10, fontSize: 9 }}>Node actions</div>
                 <div style={{ display: 'grid', gap: 8 }}>
                   {[
-                    { icon: '🪔', label: 'Re-verify gotra', price: '₹49', path: '/verification' },
                     { icon: '📜', label: 'Generate vanshavali', price: '₹149', path: '/upgrade' },
                     { icon: '🪷', label: 'Log a ceremony', price: '₹19', path: '/margdarshak-kyc' },
                     { icon: '✏️', label: 'Edit member', price: 'free', path: `/node/${selectedNode.id}` },
