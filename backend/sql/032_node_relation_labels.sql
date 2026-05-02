@@ -5,7 +5,7 @@
 CREATE TABLE IF NOT EXISTS public.node_relation_labels (
     id          UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id     UUID        NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-    node_id     UUID        NOT NULL REFERENCES public.persons(id) ON DELETE CASCADE,
+    node_id     UUID        NOT NULL REFERENCES public.persons(node_id) ON DELETE CASCADE,
     vansha_id   UUID        NOT NULL,
     label       TEXT        NOT NULL CHECK (char_length(trim(label)) > 0),
     created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
