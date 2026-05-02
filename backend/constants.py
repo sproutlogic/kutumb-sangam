@@ -24,6 +24,9 @@ SAMAY_TRANSACTIONS_TABLE    = "samay_transactions"
 SAMAY_RATINGS_TABLE         = "samay_ratings"
 SAMAY_PROFILES_TABLE        = "samay_profiles"
 
+SEWA_ITEMS_TABLE        = "sewa_items"
+SEVA_FUND_TABLE         = "seva_fund_entries"
+
 REFERRAL_EVENTS_TABLE  = "referral_events"
 NODE_CLAIMS_TABLE      = "node_claims"
 

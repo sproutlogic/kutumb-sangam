@@ -364,7 +364,7 @@ const SewaEngine = ({ samayProfile, samayRequests }: {
                 <div style={{ fontSize: 48 }}>🙏</div>
                 <div style={{ fontFamily: 'var(--ds-serif)', fontSize: 22, color: '#2a8068', marginTop: 12 }}>Sewa accepted!</div>
                 <div style={{ fontSize: 13, color: 'var(--ds-ink-soft)', marginTop: 8, lineHeight: 1.5 }}>
-                  +{openRequest?.hours ?? 1} hours added to your balance.
+                  +{openRequest?.hours_estimate ?? openRequest?.hours ?? 1} hours added to your balance.
                   {openRequest?.requester_name && ` ${openRequest.requester_name} has been notified.`}
                 </div>
                 <button onClick={() => navigate('/time-bank')} className="ds-btn ds-btn-sm" style={{ marginTop: 16, background: '#7adba0', color: '#0a1f17', fontWeight: 700 }}>View your ledger →</button>
@@ -380,14 +380,14 @@ const SewaEngine = ({ samayProfile, samayRequests }: {
                       {openRequest.requester_name ?? 'Community member'}
                     </div>
                     {openRequest.category && <span className="ds-tag ds-tag-plum" style={{ fontSize: 10, marginTop: 4, display: 'inline-block' }}>{openRequest.category}</span>}
-                    {openRequest.notes && <div style={{ fontSize: 13, color: 'var(--ds-ink-soft)', marginTop: 8, lineHeight: 1.5 }}>{openRequest.notes}</div>}
+                    {(openRequest.description ?? openRequest.notes) && <div style={{ fontSize: 13, color: 'var(--ds-ink-soft)', marginTop: 8, lineHeight: 1.5 }}>{openRequest.description ?? openRequest.notes}</div>}
                     <div style={{ display: 'flex', gap: 14, marginTop: 10, fontSize: 11, color: 'var(--ds-ink-mute)', fontFamily: 'var(--ds-mono)' }}>
-                      <span>⏱ ~{openRequest.hours} hrs</span>
+                      <span>⏱ ~{openRequest.hours_estimate ?? openRequest.hours ?? 1} hrs</span>
                     </div>
                   </div>
                 </div>
                 <div style={{ display: 'flex', gap: 10, marginTop: 18 }}>
-                  <button onClick={() => setAccepted(true)} className="ds-btn ds-btn-plum" style={{ flex: 2, justifyContent: 'center', fontWeight: 700 }}>🤝 Accept · earn +{openRequest.hours} hrs →</button>
+                  <button onClick={() => setAccepted(true)} className="ds-btn ds-btn-plum" style={{ flex: 2, justifyContent: 'center', fontWeight: 700 }}>🤝 Accept · earn +{openRequest.hours_estimate ?? openRequest.hours ?? 1} hrs →</button>
                   <button onClick={() => navigate('/time-bank')} className="ds-btn ds-btn-ghost ds-btn-sm" style={{ flex: 1, justifyContent: 'center' }}>See all</button>
                 </div>
               </>
@@ -679,7 +679,7 @@ const CommunityFeed = ({ familyRank, timeline, panchang, dashboardTasks, openSew
                 {/* Open Sewa request */}
                 {openSewa && (
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 10px', borderRadius: 6, background: 'rgba(122,219,160,0.08)', border: '1px solid rgba(122,219,160,0.25)' }}>
-                    <span style={{ fontSize: 12, color: 'var(--ds-ink)' }}>🙏 {openSewa.notes ?? openSewa.category ?? 'Open Sewa request'} · {openSewa.hours}h</span>
+                    <span style={{ fontSize: 12, color: 'var(--ds-ink)' }}>🙏 {openSewa.description ?? openSewa.notes ?? openSewa.category ?? 'Open Sewa request'} · {openSewa.hours_estimate ?? openSewa.hours ?? 1}h</span>
                     <button onClick={() => navigate('/time-bank')} className="ds-btn ds-btn-sm" style={{ padding: '4px 8px', fontSize: 10, background: '#2a8068', color: '#fff' }}>Reply →</button>
                   </div>
                 )}

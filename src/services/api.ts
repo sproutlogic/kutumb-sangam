@@ -1241,9 +1241,28 @@ export interface SamayRequest {
   scope: "local" | "global";
   category: string | null;
   status: string;
-  notes: string | null;
-  hours: number;
+  title: string;
+  description: string | null;
+  hours_estimate: number | null;
   requester_name?: string | null;
+  created_at: string;
+  /** @deprecated use description */
+  notes?: string | null;
+  /** @deprecated use hours_estimate */
+  hours?: number;
+}
+
+export interface SamayTransaction {
+  id: string;
+  helper_id: string;
+  requester_id: string;
+  helper_name?: string | null;
+  requester_name?: string | null;
+  hours: number;
+  status: "pending" | "assigned" | "helper_done" | "confirmed" | "disputed" | "cancelled";
+  credit_type: "local" | "global";
+  description?: string | null;
+  is_flagged?: boolean;
   created_at: string;
 }
 
@@ -1314,6 +1333,144 @@ export async function createDashboardTask(title: string): Promise<DashboardTask 
       }),
     });
     return (await parseJsonOrThrow(res)) as DashboardTask;
+  } catch {
+    return null;
+  }
+}
+
+export async function createSewaRequest(payload: {
+  title: string;
+  request_type: "offer" | "need";
+  scope: "local" | "global";
+  category?: string;
+  hours_estimate?: number;
+  description?: string;
+}): Promise<SamayRequest | null> {
+  try {
+    const res = await fetchApi(`${getApiBaseUrl()}/api/samay/requests`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify(payload),
+    });
+    return (await parseJsonOrThrow(res)) as SamayRequest;
+  } catch {
+    return null;
+  }
+}
+
+export async function fetchSamayTransactions(): Promise<SamayTransaction[]> {
+  try {
+    const res = await fetchApi(`${getApiBaseUrl()}/api/samay/transactions`, {
+      headers: { Accept: "application/json" },
+    });
+    const data = await parseJsonOrThrow(res);
+    return (Array.isArray(data) ? data : []) as SamayTransaction[];
+  } catch {
+    return [];
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Sewa Item Bank APIs
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface SewaItem {
+  id: string;
+  owner_id: string;
+  owner_name?: string | null;
+  title: string;
+  description: string | null;
+  category: "tools" | "eco_kit" | "seeds" | "books" | "equipment" | "general";
+  item_type: "lend" | "donate";
+  status: "available" | "borrowed" | "donated" | "unavailable";
+  borrower_id?: string | null;
+  created_at: string;
+}
+
+export async function fetchSewaItems(
+  category = "all",
+  item_type = "all",
+): Promise<SewaItem[]> {
+  try {
+    const params = new URLSearchParams({ category, item_type });
+    const res = await fetchApi(
+      `${getApiBaseUrl()}/api/samay/items?${params.toString()}`,
+      { headers: { Accept: "application/json" } },
+    );
+    const data = await parseJsonOrThrow(res);
+    return (Array.isArray(data) ? data : []) as SewaItem[];
+  } catch {
+    return [];
+  }
+}
+
+export async function fetchMySewaItems(): Promise<SewaItem[]> {
+  try {
+    const res = await fetchApi(`${getApiBaseUrl()}/api/samay/items/mine`, {
+      headers: { Accept: "application/json" },
+    });
+    const data = await parseJsonOrThrow(res);
+    return (Array.isArray(data) ? data : []) as SewaItem[];
+  } catch {
+    return [];
+  }
+}
+
+export async function postSewaItem(payload: {
+  title: string;
+  description?: string;
+  category: string;
+  item_type: "lend" | "donate";
+}): Promise<SewaItem | null> {
+  try {
+    const res = await fetchApi(`${getApiBaseUrl()}/api/samay/items`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify(payload),
+    });
+    return (await parseJsonOrThrow(res)) as SewaItem;
+  } catch {
+    return null;
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Seva Fund APIs (community micro-lending + donations)
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface SevaFundBalance {
+  total_donated: number;
+  total_lent_out: number;
+  total_returned: number;
+  total_received: number;
+  net_balance: number;
+}
+
+export async function fetchSevaFundBalance(): Promise<SevaFundBalance | null> {
+  try {
+    const res = await fetchApi(`${getApiBaseUrl()}/api/samay/money/summary`, {
+      headers: { Accept: "application/json" },
+    });
+    return (await parseJsonOrThrow(res)) as SevaFundBalance;
+  } catch {
+    return null;
+  }
+}
+
+export async function createSevaFundEntry(payload: {
+  to_user_id?: string;
+  amount: number;
+  entry_type: "lend" | "donate";
+  cause?: string;
+  description?: string;
+}): Promise<unknown> {
+  try {
+    const res = await fetchApi(`${getApiBaseUrl()}/api/samay/money/transfer`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify(payload),
+    });
+    return await parseJsonOrThrow(res);
   } catch {
     return null;
   }

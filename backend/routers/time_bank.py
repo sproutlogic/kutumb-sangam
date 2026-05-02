@@ -45,6 +45,7 @@ from constants import (
     SAMAY_BRANCHES_TABLE, SAMAY_BRANCH_MEMBERS_TABLE,
     SAMAY_REQUESTS_TABLE, SAMAY_TRANSACTIONS_TABLE,
     SAMAY_RATINGS_TABLE, SAMAY_PROFILES_TABLE,
+    SEWA_ITEMS_TABLE, SEVA_FUND_TABLE,
     USERS_TABLE,
 )
 from db import get_supabase
@@ -756,3 +757,187 @@ def flagged_trades(branch_id: str = Query(...), user: CurrentUser = None) -> lis
     res = (_sb().table(SAMAY_TRANSACTIONS_TABLE).select("*")
            .eq("branch_id", branch_id).eq("is_flagged", True).order("created_at", desc=True).execute())
     return _enrich_with_names(res.data or [], ["helper_id", "requester_id"])
+
+
+# ── Item Bank Pydantic models ──────────────────────────────────────────────────
+
+ITEM_CATEGORIES = {"tools", "eco_kit", "seeds", "books", "equipment", "general"}
+ITEM_TYPES      = {"lend", "donate"}
+
+
+class PostItemBody(BaseModel):
+    title: str = Field(min_length=2, max_length=200)
+    description: str | None = Field(default=None, max_length=500)
+    category: str = "general"
+    item_type: str = "lend"
+
+
+# ── Item Bank endpoints ────────────────────────────────────────────────────────
+
+@router.get("/items")
+def list_items(
+    category: str = Query("all"),
+    item_type: str = Query("all"),
+    user: CurrentUser = None,
+) -> list[dict[str, Any]]:
+    sb = _sb()
+    q = sb.table(SEWA_ITEMS_TABLE).select("*").eq("status", "available")
+    if category != "all":
+        q = q.eq("category", category)
+    if item_type != "all":
+        q = q.eq("item_type", item_type)
+    res = q.order("created_at", desc=True).limit(60).execute()
+    return _enrich_with_names(res.data or [], ["owner_id"])
+
+
+@router.get("/items/mine")
+def my_items(user: CurrentUser) -> list[dict[str, Any]]:
+    sb = _sb()
+    res = (sb.table(SEWA_ITEMS_TABLE).select("*")
+           .eq("owner_id", str(user["id"]))
+           .order("created_at", desc=True).limit(100).execute())
+    return _enrich_with_names(res.data or [], ["borrower_id"])
+
+
+@router.post("/items", status_code=status.HTTP_201_CREATED)
+def post_item(body: PostItemBody, user: CurrentUser) -> dict[str, Any]:
+    if body.item_type not in ITEM_TYPES:
+        raise HTTPException(status_code=422, detail="item_type must be 'lend' or 'donate'.")
+    sb = _sb()
+    res = sb.table(SEWA_ITEMS_TABLE).insert({
+        "owner_id": str(user["id"]),
+        "title": body.title.strip(),
+        "description": body.description,
+        "category": body.category if body.category in ITEM_CATEGORIES else "general",
+        "item_type": body.item_type,
+    }).execute()
+    if not res.data:
+        raise HTTPException(status_code=502, detail="Failed to post item.")
+    return res.data[0]
+
+
+@router.post("/items/{item_id}/borrow", status_code=status.HTTP_200_OK)
+def borrow_item(item_id: str, user: CurrentUser) -> dict[str, Any]:
+    sb = _sb()
+    item = sb.table(SEWA_ITEMS_TABLE).select("*").eq("id", item_id).limit(1).execute()
+    if not item.data:
+        raise HTTPException(status_code=404, detail="Item not found.")
+    it = item.data[0]
+    if it["status"] != "available":
+        raise HTTPException(status_code=409, detail="Item is not available.")
+    if it["owner_id"] == str(user["id"]):
+        raise HTTPException(status_code=400, detail="Cannot borrow your own item.")
+    res = sb.table(SEWA_ITEMS_TABLE).update({
+        "status": "borrowed",
+        "borrower_id": str(user["id"]),
+        "updated_at": datetime.utcnow().isoformat(),
+    }).eq("id", item_id).execute()
+    return res.data[0] if res.data else {"ok": True}
+
+
+@router.put("/items/{item_id}/return")
+def return_item(item_id: str, user: CurrentUser) -> dict[str, Any]:
+    sb = _sb()
+    item = sb.table(SEWA_ITEMS_TABLE).select("*").eq("id", item_id).limit(1).execute()
+    if not item.data:
+        raise HTTPException(status_code=404, detail="Item not found.")
+    it = item.data[0]
+    if it.get("borrower_id") != str(user["id"]) and it["owner_id"] != str(user["id"]):
+        raise HTTPException(status_code=403, detail="Not your borrow.")
+    res = sb.table(SEWA_ITEMS_TABLE).update({
+        "status": "available",
+        "borrower_id": None,
+        "due_back_at": None,
+        "updated_at": datetime.utcnow().isoformat(),
+    }).eq("id", item_id).execute()
+    return res.data[0] if res.data else {"ok": True}
+
+
+@router.delete("/items/{item_id}", status_code=status.HTTP_200_OK)
+def remove_item(item_id: str, user: CurrentUser) -> dict[str, Any]:
+    sb = _sb()
+    item = sb.table(SEWA_ITEMS_TABLE).select("owner_id,status").eq("id", item_id).limit(1).execute()
+    if not item.data:
+        raise HTTPException(status_code=404, detail="Item not found.")
+    if item.data[0]["owner_id"] != str(user["id"]):
+        raise HTTPException(status_code=403, detail="Not your item.")
+    if item.data[0]["status"] == "borrowed":
+        raise HTTPException(status_code=409, detail="Cannot remove a currently borrowed item.")
+    sb.table(SEWA_ITEMS_TABLE).update({"status": "unavailable"}).eq("id", item_id).execute()
+    return {"ok": True}
+
+
+# ── Seva Fund Pydantic models ──────────────────────────────────────────────────
+
+SEVA_CAUSES = {"tree_drive", "water_project", "clean_energy", "education", "relief", "waste_mgmt", "general"}
+
+
+class SevaFundEntryBody(BaseModel):
+    to_user_id: str | None = None
+    amount: float = Field(ge=10, le=100000)
+    entry_type: str = "donate"  # 'lend' | 'donate'
+    cause: str | None = None
+    description: str | None = Field(default=None, max_length=500)
+    due_back_at: str | None = None
+
+
+# ── Seva Fund endpoints ────────────────────────────────────────────────────────
+
+@router.get("/money/summary")
+def seva_fund_summary(user: CurrentUser) -> dict[str, Any]:
+    """Return the user's Seva Fund ledger summary (donated + lent out + pending return)."""
+    sb = _sb()
+    user_id = str(user["id"])
+    sent = (sb.table(SEVA_FUND_TABLE).select("amount,entry_type,status")
+            .eq("from_user_id", user_id).execute())
+    received = (sb.table(SEVA_FUND_TABLE).select("amount,entry_type,status")
+                .eq("to_user_id", user_id).execute())
+    sent_rows     = sent.data or []
+    received_rows = received.data or []
+
+    total_donated     = sum(r["amount"] for r in sent_rows if r["entry_type"] == "donate" and r["status"] == "donated")
+    total_lent        = sum(r["amount"] for r in sent_rows if r["entry_type"] == "lend"   and r["status"] == "active")
+    total_returned    = sum(r["amount"] for r in sent_rows if r["entry_type"] == "lend"   and r["status"] == "returned")
+    total_received    = sum(r["amount"] for r in received_rows)
+    return {
+        "total_donated":   round(total_donated, 2),
+        "total_lent_out":  round(total_lent, 2),
+        "total_returned":  round(total_returned, 2),
+        "total_received":  round(total_received, 2),
+        "net_balance":     round(total_received - total_lent, 2),
+    }
+
+
+@router.get("/money/transactions")
+def seva_fund_transactions(user: CurrentUser) -> list[dict[str, Any]]:
+    sb = _sb()
+    user_id = str(user["id"])
+    res = (sb.table(SEVA_FUND_TABLE).select("*")
+           .or_(f"from_user_id.eq.{user_id},to_user_id.eq.{user_id}")
+           .order("created_at", desc=True).limit(50).execute())
+    return _enrich_with_names(res.data or [], ["from_user_id", "to_user_id"])
+
+
+@router.post("/money/transfer", status_code=status.HTTP_201_CREATED)
+def seva_fund_transfer(body: SevaFundEntryBody, user: CurrentUser) -> dict[str, Any]:
+    if body.entry_type not in ("lend", "donate"):
+        raise HTTPException(status_code=422, detail="entry_type must be 'lend' or 'donate'.")
+    if body.entry_type == "lend" and not body.to_user_id:
+        raise HTTPException(status_code=422, detail="to_user_id required for lending.")
+    if body.to_user_id == str(user["id"]):
+        raise HTTPException(status_code=400, detail="Cannot transfer to yourself.")
+    cause = body.cause if body.cause in SEVA_CAUSES else "general"
+    sb = _sb()
+    res = sb.table(SEVA_FUND_TABLE).insert({
+        "from_user_id": str(user["id"]),
+        "to_user_id":   body.to_user_id,
+        "amount":       body.amount,
+        "entry_type":   body.entry_type,
+        "cause":        cause,
+        "description":  body.description,
+        "status":       "donated" if body.entry_type == "donate" else "active",
+        "due_back_at":  body.due_back_at,
+    }).execute()
+    if not res.data:
+        raise HTTPException(status_code=502, detail="Failed to record transfer.")
+    return res.data[0]
