@@ -2,11 +2,13 @@ import type { PositionedTreeNode } from "@/engine/treeLayout";
 
 /** Must match PersonNode R constant. */
 const NODE_R = 26;
+/** Half of PersonNode nameplate width (NP_W=84). Frame must enclose the nameplate, not just the shape. */
+const NP_HALF_W = 42;
 /** Snug horizontal padding around the pair. */
-const FRAME_MARGIN_X = 8;
-/** Vertical padding — top above shape, bottom below nameplate (shape + 8 gap + 30 nameplate). */
-const FRAME_MARGIN_Y_TOP = 8;
-const FRAME_MARGIN_Y_BOTTOM = 46;
+const FRAME_MARGIN_X = 10;
+/** Vertical padding — top above shape, bottom below nameplate (shape R + stem 8 + NP_H 30 + margin). */
+const FRAME_MARGIN_Y_TOP = 10;
+const FRAME_MARGIN_Y_BOTTOM = 50;
 
 /** Vertical offset from node center to “+” (must match trunk origin in TreePage). */
 export const SPOUSE_PLUS_Y_OFFSET = 2;
@@ -22,10 +24,9 @@ function orderedPair(na: PositionedTreeNode, nb: PositionedTreeNode): Pair {
   return na.x <= nb.x ? { a: na, b: nb } : { a: nb, b: na };
 }
 
-function nodeHalfWidth(node: PositionedTreeNode): number {
-  if (node.gender === "female" || node.gender === "male") return NODE_R;
-  // Triangle nodes are a little wider than the square/circle at the same R.
-  return (2 * NODE_R) / Math.sqrt(3);
+function nodeHalfWidth(_node: PositionedTreeNode): number {
+  // Use nameplate half-width (42) — wider than shape radius (26) — so frame encloses nameplates.
+  return NP_HALF_W;
 }
 
 function nodeHalfHeight(): number {

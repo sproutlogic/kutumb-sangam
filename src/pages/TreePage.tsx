@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState, useRef } from 'react';
+import React, { useEffect, useMemo, useState, useRef, useCallback } from 'react';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useLang } from '@/i18n/LanguageContext';
@@ -28,7 +28,7 @@ import {
   SpousePlusMark,
   spousePlusCenterY,
 } from '@/components/tree/MaritalUnitGraphics';
-import { AlertCircle, ChevronLeft, ChevronRight, Copy, Check, Link2, Loader2, Pencil, Share2, TreePine, UserPlus } from 'lucide-react';
+import { AlertCircle, ChevronLeft, ChevronRight, Copy, Check, Link2, Loader2, Pencil, Share2, TreePine, UserPlus, ZoomIn, ZoomOut, Maximize2 } from 'lucide-react';
 
 const PAGE_SIZE = 6;        // generations per page window
 const PAGE_THRESHOLD = 150; // switch to paginated mode above this many persons
@@ -521,14 +521,20 @@ const TreePage = () => {
             </button>
           </div>
         )}
-        <div className="relative w-full" style={{ height: Math.max(320, viewHeight) }}>
+        <div
+          style={{
+            width: Math.max(viewWidth * zoom, 100),
+            height: Math.max(viewHeight * zoom, 320),
+            minWidth: '100%',
+            position: 'relative',
+          }}
+        >
           <svg
-            className="absolute inset-0 w-full h-full"
+            style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', WebkitUserSelect: 'none', userSelect: 'none' } as React.CSSProperties}
             viewBox={`0 0 ${viewWidth} ${viewHeight}`}
             preserveAspectRatio="xMidYMid meet"
             draggable={false}
             onContextMenu={(e) => e.preventDefault()}
-            style={{ WebkitUserSelect: 'none', userSelect: 'none' } as React.CSSProperties}
           >
             <defs>
               <linearGradient id="branch-grad" x1="0" y1="1" x2="0" y2="0">
@@ -763,10 +769,6 @@ const TreePage = () => {
 
           </svg>
 
-          <div className="absolute bottom-4 left-4 px-3 py-1.5 rounded-lg glass-card text-xs font-body text-muted-foreground max-w-[min(100%,20rem)]">
-            {tr('tapToExplore')}
-            <span className="block mt-1 text-[10px] opacity-90">{tr('treeTapShiftSelect')}</span>
-          </div>
         </div>
       </>
     );
@@ -775,6 +777,25 @@ const TreePage = () => {
   const isMobile = useIsMobile();
   const isTablet = !isMobile && typeof window !== 'undefined' && window.innerWidth < 1024;
   const selectedNode = positionedNodes.find(n => n.id === selectedNodeId);
+
+  const [zoom, setZoom] = useState(1);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+
+  const clampZoom = (z: number) => Math.max(0.25, Math.min(3, z));
+  const zoomIn  = useCallback(() => setZoom(z => clampZoom(z + 0.15)), []);
+  const zoomOut = useCallback(() => setZoom(z => clampZoom(z - 0.15)), []);
+  const zoomFit = useCallback(() => {
+    if (!scrollContainerRef.current) return;
+    const { clientWidth, clientHeight } = scrollContainerRef.current;
+    setZoom(clampZoom(Math.min(clientWidth / viewWidth, clientHeight / viewHeight)));
+  }, [viewWidth, viewHeight]);
+
+  // Auto-fit when tree first loads
+  useEffect(() => {
+    if (isTreeInitialized) {
+      setTimeout(() => zoomFit(), 50);
+    }
+  }, [isTreeInitialized, zoomFit]);
   const completionPct = Math.round(Math.min(100, (membersUsed / plan.maxNodes) * 100));
 
   const nodeOwnerId   = (selectedNode as Record<string, unknown> | undefined)?.ownerId   as string | undefined;
@@ -807,12 +828,42 @@ const TreePage = () => {
           ].join(', '),
         }}>
           {/* Scrollable inner — inset 35px so content never bleeds over frame */}
-          <div style={{ position: 'absolute', inset: isMobile ? 0 : 35, overflow: 'auto' }}>
+          <div ref={scrollContainerRef} style={{ position: 'absolute', inset: isMobile ? 0 : 35, overflow: 'auto' }}>
             {/* Tree canvas body */}
             <div style={{ paddingTop: isMobile ? 70 : 16, paddingBottom: isMobile ? 120 : 80, minHeight: '100%', position: 'relative', zIndex: 1 }}>
               {treeCanvasBody()}
             </div>
           </div>
+
+          {/* Zoom controls */}
+          {!isMobile && (
+            <div style={{
+              position: 'absolute', bottom: isMobile ? 16 : 50, right: isMobile ? 16 : 50,
+              zIndex: 10, display: 'flex', flexDirection: 'column', gap: 4,
+            }}>
+              {[
+                { icon: <ZoomIn className="w-4 h-4" />, label: '+', onClick: zoomIn },
+                { icon: <ZoomOut className="w-4 h-4" />, onClick: zoomOut },
+                { icon: <Maximize2 className="w-4 h-4" />, onClick: zoomFit },
+              ].map(({ icon, onClick }, i) => (
+                <button
+                  key={i}
+                  onClick={onClick}
+                  style={{
+                    width: 34, height: 34, borderRadius: 8, border: '1px solid rgba(184,134,11,0.35)',
+                    background: 'rgba(252,250,244,0.92)', backdropFilter: 'blur(8px)',
+                    display: 'grid', placeItems: 'center', cursor: 'pointer',
+                    color: '#2e1346', boxShadow: '0 2px 8px rgba(0,0,0,0.12)',
+                  }}
+                >
+                  {icon}
+                </button>
+              ))}
+              <div style={{ fontSize: 9, textAlign: 'center', color: 'rgba(74,33,104,0.5)', fontFamily: 'var(--font-mono,monospace)', marginTop: 2 }}>
+                {Math.round(zoom * 100)}%
+              </div>
+            </div>
+          )}
         </div>
 
         {/* ── Right sidebar / mobile bottom sheet ───────────────────────── */}

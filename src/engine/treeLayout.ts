@@ -30,21 +30,23 @@ export function nodesForParentalUnionRow(nodes: readonly TreeNode[], u: UnionRow
  * Positive layoutGeneration (progenies) → negative rawY → top of SVG.
  */
 /** Vertical gap between generation bands (labels sit under nodes; keep ≥ node diameter + text). */
-export const TREE_VERTICAL_SPACING = 130;
+export const TREE_VERTICAL_SPACING = 140;
 
-const PADDING_Y = 52;
+const PADDING_Y = 60;
+/** Extra bottom padding: nameplate extends R(26)+stem(8)+NP_H(30)=64px below node center. */
+const PADDING_BOTTOM = PADDING_Y + 70;
 const PADDING_X = 56;
-/** Horizontal spacing between sibling centers from the parental union midpoint. */
-const CHILD_SPREAD = 90;
-/** Wider spread used when a repositioned child is also part of a couple (prevents frame overlap). */
-const COUPLE_CHILD_SPREAD = 116;
-/** Minimum horizontal gap (square / triangle can be wider than circle diameter). */
-const MIN_SLOT_CENTER_GAP = 90;
+/** Horizontal spacing between sibling centers. NP_W=84px, so need ≥84+gap. */
+const CHILD_SPREAD = 112;
+/** Wider spread when a repositioned child is also part of a couple. */
+const COUPLE_CHILD_SPREAD = 144;
+/** Minimum horizontal gap — must fit two nameplates (84px each) plus breathing room. */
+const MIN_SLOT_CENTER_GAP = 112;
 /** Legacy floor; real width scales with how many people share a generation row. */
 const MIN_LAYOUT_CANVAS_WIDTH = 400;
 
-/** Center distance between spouses — node R=26 each, so ≥52 to not overlap; 64 = 12px breathing room. */
-export const SPOUSE_SIDE_OFFSET = 64;
+/** Center distance between spouses — NP_W=84px so need ≥84+padding; 104 = 84+20. */
+export const SPOUSE_SIDE_OFFSET = 104;
 
 /**
  * Maps stored `node.generation` to a signed layout index for Y = -(g × spacing).
@@ -351,7 +353,7 @@ export function layoutTreeNodes(
   const yMin = Math.min(...yValues);
   const yMax = Math.max(...yValues);
   const offsetY = -yMin + PADDING_Y;
-  const viewHeight = Math.max(320, yMax - yMin + PADDING_Y * 2);
+  const viewHeight = Math.max(320, yMax - yMin + PADDING_Y + PADDING_BOTTOM);
 
   const positionedNodes: PositionedTreeNode[] = [];
 
