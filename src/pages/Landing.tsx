@@ -74,10 +74,10 @@ const Landing = () => {
       <nav style={{ position: 'sticky', top: 0, zIndex: 50, background: 'rgba(250,246,238,0.88)', backdropFilter: 'blur(14px)', borderBottom: '1px solid var(--ds-hairline)' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 24px', maxWidth: 1440, margin: '0 auto' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'var(--ds-plum)', display: 'grid', placeItems: 'center', color: 'var(--ds-gold-light)', fontFamily: 'var(--ds-deva)', fontSize: 18 }}>ॐ</div>
+            <img src="/prakriti.svg" alt="Prakriti" style={{ width: 32, height: 32, objectFit: 'contain' }} />
             <div>
-              <div style={{ fontFamily: 'var(--ds-serif)', fontSize: 19, fontWeight: 700, color: 'var(--ds-plum)', letterSpacing: '-0.01em' }}>Kutumb Sangam</div>
-              <div style={{ fontFamily: 'var(--ds-mono)', fontSize: 10, letterSpacing: '0.18em', textTransform: 'uppercase', color: 'var(--ds-ink-mute)', marginTop: 1 }}>Prakriti · by Aarush</div>
+              <div style={{ fontFamily: 'var(--ds-serif)', fontSize: 19, fontWeight: 700, color: 'var(--ds-plum)', letterSpacing: '-0.01em' }}>Prakriti</div>
+              <div style={{ fontFamily: 'var(--ds-mono)', fontSize: 10, letterSpacing: '0.18em', textTransform: 'uppercase', color: 'var(--ds-ink-mute)', marginTop: 1 }}>AARUSH</div>
             </div>
           </div>
           <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
@@ -248,7 +248,7 @@ const Landing = () => {
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 24 }} className="landing-kpi-grid">
             {[
               { num: '1000+', label: 'Families Onboarding Daily' },
-              { num: '70%',   label: 'Pandit Ji-Verified Nodes' },
+              { num: '70%',   label: 'Pandit Ji-Verified Members' },
               { num: '🛕',   label: 'Temple Trust Villages' },
               { num: '🇮🇳',  label: 'Pan-India Network' },
             ].map(s => (
@@ -277,7 +277,7 @@ const Landing = () => {
             {[
               { n: '01', title: 'Plant your first root', desc: 'Add yourself, your father, your gotra. 90 seconds. Free, no card.', icon: '🌱', sanskrit: 'बीज' },
               { n: '02', title: 'Grow the parivar', desc: 'Invite parents, dadaji, nanaji. Each adds their own branch — collaborative, not centralized.', icon: '🌳', sanskrit: 'अंकुर' },
-              { n: '03', title: 'Pandit-verify the lineage', desc: 'A network of 1,200+ verified Pandits stamp your gotra & vanshavali. ₹49 per node.', icon: '🪔', sanskrit: 'प्रमाण' },
+              { n: '03', title: 'Pandit-verify the lineage', desc: 'A network of 1,200+ verified Pandits stamp your gotra & vanshavali. ₹49 per person.', icon: '🪔', sanskrit: 'प्रमाण' },
               { n: '04', title: 'Record the elders', desc: 'Smriti — voice recordings of dadaji-dadiji. ₹9 per recording. Saved 100 years.', icon: '🎙️', sanskrit: 'स्मृति' },
             ].map(s => (
               <div key={s.n} className="ds-card" style={{ padding: 28, position: 'relative', overflow: 'hidden' }}>
@@ -326,8 +326,7 @@ const Landing = () => {
       <section style={{ padding: '120px 0', background: 'var(--ds-ivory-warm)', position: 'relative' }}>
         <div style={{ maxWidth: 1240, margin: '0 auto', padding: '0 24px' }}>
           <div style={{ textAlign: 'center', maxWidth: 720, margin: '0 auto 56px' }}>
-            <span className="ds-eyebrow">Sachet pricing · Pay-as-you-grow</span>
-            <h2 style={{ fontFamily: 'var(--ds-serif)', fontSize: 'clamp(36px,4vw,56px)', marginTop: 16, color: 'var(--ds-ink)' }}>
+            <h2 style={{ fontFamily: 'var(--ds-serif)', fontSize: 'clamp(36px,4vw,56px)', marginTop: 0, color: 'var(--ds-ink)' }}>
               Like an <em style={{ color: 'var(--ds-saffron)' }}>AstroTalk consultation</em>.<br />Not a Netflix subscription.
             </h2>
             <p style={{ marginTop: 18, fontSize: 17, color: 'var(--ds-ink-soft)', maxWidth: 600, margin: '18px auto 0' }}>
@@ -336,8 +335,8 @@ const Landing = () => {
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 18 }} className="landing-sachet-grid">
             {[
-              { name: 'Add a relative', price: 29, unit: 'one-time', desc: 'Build your tree freely. No member bulk subscription.', icon: '➕', popular: false, color: 'var(--ds-ink-soft)' },
-              { name: 'Pandit-verify a node', price: 49, unit: 'per node', desc: 'Lock gotra, vanshavali. Permanent expert stamp.', icon: '🪔', popular: true, color: 'var(--ds-saffron)' },
+              { name: 'Add a relative', price: 29, unit: 'one-time', desc: 'Build your tree freely. No bulk subscription.', icon: '➕', popular: false, color: 'var(--ds-ink-soft)' },
+              { name: 'Pandit-verify a member', price: 49, unit: 'per member', desc: 'Lock gotra, vanshavali. Permanent expert stamp.', icon: '🪔', popular: true, color: 'var(--ds-saffron)' },
               { name: 'Smriti voice recording', price: 9, unit: 'per minute', desc: "Record dadaji's stories. Stored for 100 years.", icon: '🎙️', popular: false, color: 'var(--ds-plum-rose)' },
               { name: 'Log a ceremony', price: 19, unit: 'per ceremony', desc: 'Mundan, vivah, shraddh. Stamps your Prakriti.', icon: '🪷', popular: false, color: 'var(--ds-gold-deep)' },
               { name: 'Kundali matching', price: 99, unit: 'per match', desc: 'For matrimony. Gotra + nakshatra + 36-guna.', icon: '⊛', popular: false, color: 'var(--ds-plum)' },
@@ -419,7 +418,7 @@ const Landing = () => {
               </div>
               {[
                 { who: 'Sharma–Kashyap', what: "recorded grandfather's voice", when: 'just now', i: '🎙️' },
-                { who: 'Verma parivar', what: 'pandit-verified 3 nodes', when: '1m ago', i: '🪔' },
+                { who: 'Verma parivar', what: 'pandit-verified 3 members', when: '1m ago', i: '🪔' },
                 { who: 'Mishra (Kanpur)', what: 'planted 5 trees · +12 score', when: '2m ago', i: '🌱' },
                 { who: 'Agarwal–Garg', what: 'completed mundan ritual', when: '3m ago', i: '🪷' },
                 { who: 'Tiwari (Varanasi)', what: 'invited 8 cousins', when: '4m ago', i: '➕' },
@@ -442,13 +441,13 @@ const Landing = () => {
         <div style={{ maxWidth: 1240, margin: '0 auto', padding: '0 24px' }}>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 60, alignItems: 'flex-start' }} className="landing-sewa-grid">
             <div style={{ position: 'sticky', top: 120 }}>
-              <span className="ds-eyebrow">Sewa Chakra · Time bank</span>
+              <span className="ds-eyebrow">Sewa Chakra · Time Bank</span>
               <p className="ds-sanskrit" style={{ fontSize: 30, marginTop: 18, color: 'var(--ds-plum-rose)', lineHeight: 1.3 }}>सेवा का मूल्य,<br />सेवा से होता है।</p>
               <h2 style={{ fontFamily: 'var(--ds-serif)', fontSize: 'clamp(36px,4vw,56px)', marginTop: 18, lineHeight: 1.05, color: 'var(--ds-ink)' }}>
-                Help one elder.<br /><em style={{ color: 'var(--ds-gold-deep)' }}>Earn an hour.</em><br />Use it next month.
+                Give one hour to your community.<br /><em style={{ color: 'var(--ds-gold-deep)' }}>Earn one hour back —</em><br />from anyone, for anything.
               </h2>
               <p style={{ marginTop: 18, fontSize: 17, color: 'var(--ds-ink-soft)', lineHeight: 1.6, maxWidth: 480 }}>
-                Sewa Chakra is a community-wide time bank. Drive dadaji to the doctor → bank 1 hour. Need someone to babysit during a wedding? Spend 2 hours. <strong>Money never enters the equation.</strong>
+                Sewa Chakra is Prakriti's community time bank. Every hour you give — to a neighbour, an elder, a stranger in your gotra — is logged as one Sewa hour. Redeem it from anyone in your kutumb, any time. A doctor's hour equals a carpenter's hour. <strong>No money. Just community.</strong>
               </p>
               <div className="ds-card" style={{ padding: 24, marginTop: 32, background: 'linear-gradient(135deg, rgba(212,154,31,0.08), var(--ds-paper))', border: '1px solid var(--ds-gold)' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', gap: 14 }}>
@@ -521,15 +520,15 @@ const Landing = () => {
                   <circle cx="70" cy="70" r="62" fill="none" stroke="rgba(212,154,31,0.2)" strokeWidth="1" strokeDasharray="2 4" />
                   <circle cx="70" cy="70" r="50" fill="none" stroke="var(--ds-gold-light)" strokeWidth="1.5" />
                   <text x="70" y="62" textAnchor="middle" fontSize="11" fill="var(--ds-gold-light)" fontFamily="var(--ds-mono)" letterSpacing="0.15em">VAISHAKH</text>
-                  <text x="70" y="84" textAnchor="middle" fontSize="32" fill="var(--ds-paper)" fontFamily="var(--ds-serif)" fontWeight="700">08</text>
+                  <text x="70" y="84" textAnchor="middle" fontSize="32" fill="var(--ds-paper)" fontFamily="var(--ds-serif)" fontWeight="700">03</text>
                   <text x="70" y="100" textAnchor="middle" fontSize="10" fill="rgba(255,255,255,0.5)" fontFamily="var(--ds-mono)">SHUKLA</text>
                 </svg>
               </div>
               <div>
-                <div className="ds-eyebrow" style={{ color: 'var(--ds-gold-light)' }}>Today · 1 May 2026 · Shubh divas</div>
-                <h3 style={{ fontSize: 28, marginTop: 8, color: 'var(--ds-paper)', fontFamily: 'var(--ds-serif)' }}>Shukla Chaturthi · Rohini Nakshatra</h3>
+                <div className="ds-eyebrow" style={{ color: 'var(--ds-gold-light)' }}>Today · 1 May 2026 · Akshay Tritiya</div>
+                <h3 style={{ fontSize: 28, marginTop: 8, color: 'var(--ds-paper)', fontFamily: 'var(--ds-serif)' }}>Vaishakh Shukla Tritiya · Rohini Nakshatra</h3>
                 <div style={{ display: 'flex', gap: 12, marginTop: 16, flexWrap: 'wrap' }}>
-                  {[['Yoga', 'Siddhi', true], ['Karana', 'Vanija', false], ['Rashi', 'Vrishabh', true], ['Tone', 'Shubh', true]].map(([k, v, good]) => (
+                  {[['Yoga', 'Siddhi', true], ['Karana', 'Vanija', false], ['Prakriti', 'Vrishabh', true], ['Tone', 'Shubh', true]].map(([k, v, good]) => (
                     <div key={k as string} style={{ padding: '10px 14px', borderRadius: 6, background: 'rgba(255,255,255,0.04)', border: `1px solid ${good ? 'rgba(122,219,160,0.3)' : 'rgba(255,255,255,0.08)'}` }}>
                       <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.45)', letterSpacing: '0.12em', textTransform: 'uppercase', fontFamily: 'var(--ds-mono)' }}>{k}</div>
                       <div style={{ fontSize: 14, fontWeight: 600, color: good ? '#7adba0' : 'var(--ds-paper)', marginTop: 2 }}>{v}</div>
@@ -539,9 +538,9 @@ const Landing = () => {
               </div>
               <div style={{ padding: '18px 20px', borderRadius: 8, background: 'linear-gradient(135deg, rgba(232,116,34,0.18), rgba(212,154,31,0.1))', border: '1px solid rgba(232,116,34,0.4)', maxWidth: 240 }}>
                 <div style={{ fontSize: 11, fontFamily: 'var(--ds-mono)', letterSpacing: '0.12em', color: 'var(--ds-gold-light)', textTransform: 'uppercase' }}>Right now · 4h window</div>
-                <div style={{ fontFamily: 'var(--ds-serif)', fontSize: 17, marginTop: 6, color: 'var(--ds-paper)', lineHeight: 1.3 }}>Siddhi yoga is live till 6:42 PM.</div>
-                <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)', marginTop: 6, lineHeight: 1.5 }}>Best window of the month for griha-pravesh sankalp.</div>
-                <button onClick={() => navigate('/eco-panchang')} className="ds-btn ds-btn-sm" style={{ marginTop: 12, background: 'var(--ds-saffron)', color: '#fff', width: '100%', justifyContent: 'center', fontWeight: 600 }}>Log sankalp · ₹19 →</button>
+                <div style={{ fontFamily: 'var(--ds-serif)', fontSize: 17, marginTop: 6, color: 'var(--ds-paper)', lineHeight: 1.3 }}>Akshay Tritiya — most auspicious day for new beginnings.</div>
+                <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)', marginTop: 6, lineHeight: 1.5 }}>Plant a sapling, start a Smriti, or log your family's Prakriti sankalp today.</div>
+                <button onClick={() => navigate('/eco-panchang')} className="ds-btn ds-btn-sm" style={{ marginTop: 12, background: 'var(--ds-saffron)', color: '#fff', width: '100%', justifyContent: 'center', fontWeight: 600 }}>Log Prakriti sankalp →</button>
               </div>
             </div>
           </div>
@@ -549,10 +548,10 @@ const Landing = () => {
           <div className="ds-eyebrow" style={{ color: 'var(--ds-gold-light)', marginBottom: 14 }}>Upcoming for your parivar</div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14 }} className="landing-panchang-grid">
             {[
-              { date: 'May 7', name: 'Akshay Tritiya', glyph: '🌾', what: 'Auspicious for new beginnings', cta: 'Plant a sapling on family land', cost: 0, urgency: 'In 6 days', accent: 'var(--ds-gold-deep)' },
-              { date: 'May 12', name: 'Buddha Purnima', glyph: '🌕', what: 'Full moon · purification day', cta: 'Record Smriti from elder', cost: 9, urgency: 'In 11 days', accent: 'var(--ds-plum-rose)' },
-              { date: 'May 26', name: 'Ganga Dussehra', glyph: '🌊', what: 'Sacred bathing & shraddh tarpan', cta: 'Log shraddh ceremony', cost: 19, urgency: 'In 25 days', accent: 'var(--ds-saffron)' },
-              { date: 'Jun 6', name: 'Nirjala Ekadashi', glyph: '🪷', what: 'Most powerful ekadashi · vrat', cta: 'Pandit-verify vrat sankalp', cost: 49, urgency: 'In 36 days', accent: 'var(--ds-plum)' },
+              { date: 'May 12', name: 'Buddha Purnima', glyph: '🌕', what: 'Full moon · nature purification day', cta: 'Record Smriti from a family member', cost: 9, urgency: 'In 11 days', accent: 'var(--ds-plum-rose)' },
+              { date: 'May 26', name: 'Ganga Dussehra', glyph: '🌊', what: 'Sacred river day · environmental sankalp', cta: 'Log a river-cleanup eco-action', cost: 0, urgency: 'In 25 days', accent: 'var(--ds-saffron)' },
+              { date: 'Jun 6', name: 'Nirjala Ekadashi', glyph: '🪷', what: 'Most powerful ekadashi · vrat & vriksh-seva', cta: 'Plant 11 saplings · log on Prakriti', cost: 0, urgency: 'In 36 days', accent: 'var(--ds-plum)' },
+              { date: 'Jun 21', name: 'World Forest Day', glyph: '🌳', what: 'Global tree day aligns with Prakriti score', cta: 'Join family tree-planting drive', cost: 0, urgency: 'In 51 days', accent: 'var(--ds-gold-deep)' },
             ].map((u, i) => (
               <div key={i} style={{ padding: 22, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 12, color: 'var(--ds-paper)', display: 'flex', flexDirection: 'column' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
@@ -581,11 +580,11 @@ const Landing = () => {
       <section style={{ padding: '120px 0', background: 'var(--ds-ivory-warm)', position: 'relative' }}>
         <div style={{ maxWidth: 1240, margin: '0 auto', padding: '0 24px' }}>
           <div style={{ textAlign: 'center', maxWidth: 720, margin: '0 auto 56px' }}>
-            <span className="ds-eyebrow">Kutumb Radar · Live awareness</span>
+            <span className="ds-eyebrow">Kutumb Radar · Arrival discovery</span>
             <h2 style={{ fontFamily: 'var(--ds-serif)', fontSize: 'clamp(36px,4vw,56px)', marginTop: 16, lineHeight: 1.05, color: 'var(--ds-ink)' }}>
-              Who in your <em style={{ color: 'var(--ds-gold-deep)' }}>parivar</em> needs you <em style={{ color: 'var(--ds-saffron)' }}>this week?</em>
+              Arrived somewhere new?<br /><em style={{ color: 'var(--ds-gold-deep)' }}>Find your kutumb.</em>
             </h2>
-            <p style={{ marginTop: 18, fontSize: 17, color: 'var(--ds-ink-soft)', lineHeight: 1.6 }}>One glance. Birthdays, anniversaries, ceremonies, urgent moments — across 4 rings of kin.</p>
+            <p style={{ marginTop: 18, fontSize: 17, color: 'var(--ds-ink-soft)', lineHeight: 1.6 }}>When you land in a new city, Kutumb Radar scans your tree and suggests members from your parivar and gotra who live nearby — waiting to welcome you.</p>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: 48, alignItems: 'center' }} className="landing-radar-grid">
             <div style={{ position: 'relative', aspectRatio: '1/1', maxWidth: 560, margin: '0 auto', width: '100%' }}>
@@ -646,31 +645,31 @@ const Landing = () => {
             </div>
             <div>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-                <div className="ds-eyebrow">This week · 2 urgent</div>
-                <span className="ds-pill"><span className="ds-pill-dot live" />Live</span>
+                <div className="ds-eyebrow">Nearby tree members · Mumbai</div>
+                <span className="ds-pill"><span className="ds-pill-dot live" />Scanning</span>
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                 {[
-                  { name: 'Pita ji', what: 'Doctor visit pending', urgent: true, action: 'Book darshan ₹19', ring: 1 },
-                  { name: 'Bua ji', what: 'Anniversary today', urgent: true, action: 'Send pranam · ₹9', ring: 2 },
-                  { name: 'Ravi cousin', what: 'Birthday in 3 days', urgent: false, action: 'Send blessing ₹0', ring: 2 },
-                  { name: 'Nani-side cousins', what: 'Reunion proposed', urgent: false, action: 'Vote', ring: 2 },
-                  { name: 'Kashyap gotra · Lucknow', what: '14 new families joined', urgent: false, action: 'Browse →', ring: 3 },
+                  { name: 'Ramesh Sharma · Andheri', what: 'Same gotra · Kashyap · 1.2 km away', urgent: true, action: 'Say namaste →', ring: 1 },
+                  { name: 'Priya Verma · Bandra', what: 'Cousin 3rd degree · 2.8 km', urgent: false, action: 'Connect →', ring: 2 },
+                  { name: 'Suresh Mishra · Dadar', what: 'Same vansha · Atri · 4.1 km', urgent: false, action: 'Connect →', ring: 2 },
+                  { name: 'Kavita Tiwari · Powai', what: 'Gotra-kin · Bharadwaj · 6.7 km', urgent: false, action: 'Connect →', ring: 3 },
+                  { name: 'Kashyap samaj · Mumbai', what: '38 members in this city from your tree', urgent: false, action: 'View all →', ring: 3 },
                 ].map((b, i) => (
-                  <div key={i} className="ds-card" style={{ padding: 16, display: 'flex', gap: 14, alignItems: 'center', border: b.urgent ? '1px solid var(--ds-saffron)' : '1px solid var(--ds-hairline)' }}>
-                    <div style={{ width: 8, height: 8, borderRadius: '50%', background: b.urgent ? 'var(--ds-saffron)' : 'var(--ds-plum-rose)', flexShrink: 0, boxShadow: b.urgent ? '0 0 0 4px rgba(232,116,34,0.15)' : 'none' }} />
+                  <div key={i} className="ds-card" style={{ padding: 16, display: 'flex', gap: 14, alignItems: 'center', border: b.urgent ? '1px solid var(--ds-gold)' : '1px solid var(--ds-hairline)' }}>
+                    <div style={{ width: 8, height: 8, borderRadius: '50%', background: b.urgent ? 'var(--ds-gold-deep)' : 'var(--ds-plum-rose)', flexShrink: 0, boxShadow: b.urgent ? '0 0 0 4px rgba(212,154,31,0.2)' : 'none' }} />
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontFamily: 'var(--ds-serif)', fontWeight: 600, color: 'var(--ds-plum)', fontSize: 15 }}>{b.name}</div>
                       <div style={{ fontSize: 13, color: 'var(--ds-ink-soft)', marginTop: 2 }}>{b.what}</div>
                     </div>
-                    <button onClick={() => navigate('/dashboard')} className="ds-btn ds-btn-sm" style={{ background: b.urgent ? 'var(--ds-saffron)' : 'var(--ds-ivory-warm)', color: b.urgent ? '#fff' : 'var(--ds-plum)', whiteSpace: 'nowrap', fontSize: 11, flexShrink: 0 }}>{b.action}</button>
+                    <button onClick={() => navigate('/dashboard')} className="ds-btn ds-btn-sm" style={{ background: b.urgent ? 'var(--ds-gold)' : 'var(--ds-ivory-warm)', color: b.urgent ? 'var(--ds-plum-deep)' : 'var(--ds-plum)', whiteSpace: 'nowrap', fontSize: 11, flexShrink: 0 }}>{b.action}</button>
                   </div>
                 ))}
               </div>
               <div className="ds-card" style={{ marginTop: 16, padding: 16, background: 'linear-gradient(135deg, var(--ds-plum-deep), var(--ds-plum))', border: 'none', color: 'var(--ds-paper)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
                 <div style={{ flex: 1, minWidth: 200 }}>
                   <div className="ds-eyebrow" style={{ color: 'var(--ds-gold-light)' }}>Pro · ₹49/mo · cancel anytime</div>
-                  <div style={{ fontFamily: 'var(--ds-serif)', fontSize: 16, color: 'var(--ds-paper)', marginTop: 4, lineHeight: 1.4 }}>WhatsApp + SMS reminders for every Radar event</div>
+                  <div style={{ fontFamily: 'var(--ds-serif)', fontSize: 16, color: 'var(--ds-paper)', marginTop: 4, lineHeight: 1.4 }}>Auto-scan on arrival · WhatsApp alerts when kin are nearby</div>
                 </div>
                 <button onClick={() => navigate('/upgrade')} className="ds-btn ds-btn-sm ds-btn-gold" style={{ whiteSpace: 'nowrap' }}>Enable →</button>
               </div>
@@ -683,41 +682,18 @@ const Landing = () => {
       <section style={{ background: '#0d0716', color: 'var(--ds-paper)', padding: '120px 0', position: 'relative', overflow: 'hidden' }}>
         <div style={{ position: 'absolute', inset: 0, background: 'radial-gradient(circle at 30% 50%, rgba(232,116,34,0.12), transparent 50%)', pointerEvents: 'none' }} />
         <div style={{ maxWidth: 1240, margin: '0 auto', padding: '0 24px', position: 'relative' }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1.1fr 0.9fr', gap: 60, alignItems: 'center' }} className="landing-smriti-grid">
-            <div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 60, alignItems: 'center' }} className="landing-smriti-grid">
+            <div style={{ maxWidth: 680, margin: '0 auto' }}>
               <span className="ds-eyebrow" style={{ color: 'var(--ds-gold-light)' }}>Prakriti Smriti · Voice archives</span>
               <p className="ds-sanskrit" style={{ fontSize: 32, marginTop: 20, color: 'var(--ds-gold-light)', lineHeight: 1.3 }}>घर के बुज़ुर्ग,<br />परिवार की जड़ हैं।</p>
               <h2 style={{ fontFamily: 'var(--ds-serif)', fontSize: 'clamp(36px,4.5vw,60px)', marginTop: 18, color: 'var(--ds-paper)', lineHeight: 1.05 }}>
-                The last elder from your family <em style={{ color: '#ff8a4a' }}>has already left.</em>
+                The last member from your family <em style={{ color: '#ff8a4a' }}>has already left.</em>
               </h2>
               <p style={{ marginTop: 20, fontSize: 18, color: 'rgba(255,255,255,0.7)', lineHeight: 1.6, maxWidth: 520 }}>
-                Don't let the next one go unrecorded. Smriti captures dadaji's stories, dadiji's blessings, in their language and their voice — for grandchildren who are not yet born.
+                Don't let the next one go unrecorded. Smriti captures everyone's stories, blessings and love in their language and their voice — for generations who are yet to come.
               </p>
               <div style={{ display: 'flex', gap: 12, marginTop: 32 }}>
-                <button onClick={() => navigate('/onboarding')} className="ds-btn ds-btn-gold ds-btn-lg">🎙️ Start a recording — ₹9</button>
-                <button className="ds-btn-ghost ds-btn-lg" style={{ color: 'var(--ds-paper)', borderColor: 'rgba(255,255,255,0.25)' }}>Hear a sample</button>
-              </div>
-            </div>
-            <div style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(212,154,31,0.25)', padding: 24, borderRadius: 12, color: 'var(--ds-paper)' }}>
-              <div style={{ display: 'flex', gap: 14, alignItems: 'center', marginBottom: 18 }}>
-                <div style={{ width: 54, height: 54, borderRadius: '50%', background: 'linear-gradient(135deg,var(--ds-saffron),var(--ds-gold))', display: 'grid', placeItems: 'center', fontSize: 24 }}>👴</div>
-                <div>
-                  <div style={{ fontFamily: 'var(--ds-serif)', fontSize: 20 }}>Dadaji Ramnath Sharma</div>
-                  <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.5)' }}>Recorded Apr 14, 2026 · 4 min 18 sec</div>
-                </div>
-              </div>
-              <div style={{ display: 'flex', gap: 2, alignItems: 'flex-end', height: 80, padding: '8px 0' }}>
-                {Array.from({ length: 60 }).map((_, i) => {
-                  const h = 12 + Math.abs(Math.sin(i * 0.4) * 60) + Math.abs(Math.sin(i * 0.13) * 20);
-                  return <div key={i} style={{ flex: 1, height: h, background: i < 28 ? 'var(--ds-gold-light)' : 'rgba(255,255,255,0.18)', borderRadius: 1 }} />;
-                })}
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 10, fontSize: 11, color: 'rgba(255,255,255,0.4)', fontFamily: 'var(--ds-mono)' }}>
-                <span>1:54</span><span>4:18</span>
-              </div>
-              <button className="ds-btn" style={{ marginTop: 18, width: '100%', justifyContent: 'center', background: 'var(--ds-gold)', color: 'var(--ds-plum-deep)', fontWeight: 700 }}>▶ Play this Smriti</button>
-              <div style={{ marginTop: 16, padding: 14, borderTop: '1px solid rgba(255,255,255,0.1)', fontSize: 13, color: 'rgba(255,255,255,0.65)', fontStyle: 'italic', lineHeight: 1.6 }}>
-                "...mere pitaji ne 1947 mein, partition ke baad, Lahore se Kanpur tak paidal yatra ki thi. Apne saath sirf ek pothi laye the, jismein hamari vanshavali likhi thi..."
+                <button className="ds-btn ds-btn-gold ds-btn-lg" disabled style={{ opacity: 0.7, cursor: 'not-allowed' }}>🎙️ Coming soon</button>
               </div>
             </div>
           </div>
@@ -798,7 +774,7 @@ const Landing = () => {
         <div style={{ maxWidth: 1240, margin: '0 auto', padding: '0 24px', position: 'relative', zIndex: 2 }}>
           <p style={{ fontFamily: 'var(--ds-mono)', fontSize: 11, letterSpacing: '0.25em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.45)', marginBottom: 20 }}>Before the forest falls</p>
           <h2 style={{ fontFamily: 'var(--ds-serif)', fontSize: 'clamp(32px,4.5vw,60px)', marginBottom: 24, lineHeight: 1.1 }}>
-            The last elder from your family<br />
+            The last member from your family<br />
             has already left us.<br />
             <span style={{ color: 'var(--ds-gold-light)', fontStyle: 'italic' }}>Don't let the next one go unrecorded.</span>
           </h2>

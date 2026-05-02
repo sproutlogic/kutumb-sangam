@@ -1218,3 +1218,132 @@ export async function markAllNotificationsRead(): Promise<void> {
     await fetchApi(`${getApiBaseUrl()}/api/notifications/read-all`, { method: "POST" });
   } catch { /* non-fatal */ }
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Samay (Time Bank) APIs
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface SamayProfile {
+  total_global_credits: number;
+  total_verified_hours: number;
+  avg_quality_rating: number | null;
+  d_score: number | null;
+  is_community_pillar: boolean;
+  local_balance?: number | null;
+}
+
+export interface SamayRequest {
+  id: string;
+  request_type: "offer" | "need";
+  scope: "local" | "global";
+  category: string | null;
+  status: string;
+  notes: string | null;
+  hours: number;
+  requester_name?: string | null;
+  created_at: string;
+}
+
+export async function fetchSamayProfile(): Promise<SamayProfile | null> {
+  try {
+    const res = await fetchApi(`${getApiBaseUrl()}/api/samay/profile`, {
+      headers: { Accept: "application/json" },
+    });
+    return (await parseJsonOrThrow(res)) as SamayProfile;
+  } catch {
+    return null;
+  }
+}
+
+export async function fetchSamayRequests(
+  scope: "local" | "global" = "local",
+  limit = 5,
+): Promise<SamayRequest[]> {
+  try {
+    const params = new URLSearchParams({ scope, limit: String(limit) });
+    const res = await fetchApi(`${getApiBaseUrl()}/api/samay/requests?${params.toString()}`, {
+      headers: { Accept: "application/json" },
+    });
+    const data = await parseJsonOrThrow(res);
+    return (Array.isArray(data) ? data : (data as { items?: unknown[] })?.items ?? []) as SamayRequest[];
+  } catch {
+    return [];
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Dashboard personal tasks (samay_requests with is_dashboard_task=true)
+// Backend needs: is_dashboard_task boolean column on samay_requests table
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface DashboardTask {
+  id: string;
+  title: string;
+  hours_estimate: number;
+  status: string;
+  created_at: string;
+}
+
+export async function fetchDashboardTasks(): Promise<DashboardTask[]> {
+  try {
+    const res = await fetchApi(
+      `${getApiBaseUrl()}/api/samay/requests?is_dashboard_task=true&limit=5`,
+      { headers: { Accept: "application/json" } },
+    );
+    const data = await parseJsonOrThrow(res);
+    return (Array.isArray(data) ? data : (data as { items?: unknown[] })?.items ?? []) as DashboardTask[];
+  } catch {
+    return [];
+  }
+}
+
+export async function createDashboardTask(title: string): Promise<DashboardTask | null> {
+  try {
+    const res = await fetchApi(`${getApiBaseUrl()}/api/samay/requests`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({
+        title,
+        request_type: "offer",
+        scope: "local",
+        hours_estimate: 0,
+        is_dashboard_task: true,
+      }),
+    });
+    return (await parseJsonOrThrow(res)) as DashboardTask;
+  } catch {
+    return null;
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Radar APIs
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface RadarMember {
+  node_id?: string | null;
+  name: string;
+  relation: string;
+  distance_km: number;
+  updated_at: string;
+  online?: boolean;
+}
+
+export async function fetchRadarNearby(
+  vansha_id: string,
+  radius_km = 10,
+): Promise<RadarMember[]> {
+  try {
+    const params = new URLSearchParams({
+      vansha_id: encodeURIComponent(vansha_id),
+      radius_km: String(radius_km),
+    });
+    const res = await fetchApi(`${getApiBaseUrl()}/api/radar/nearby?${params.toString()}`, {
+      headers: { Accept: "application/json" },
+    });
+    const data = await parseJsonOrThrow(res);
+    return (Array.isArray(data) ? data : (data as { members?: unknown[] })?.members ?? []) as RadarMember[];
+  } catch {
+    return [];
+  }
+}
