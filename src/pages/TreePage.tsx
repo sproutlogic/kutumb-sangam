@@ -1,6 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useLang } from '@/i18n/LanguageContext';
+import { useAuth } from '@/contexts/AuthContext';
+import { usePersonalLabels } from '@/hooks/usePersonalLabels';
 import { usePlan } from '@/contexts/PlanContext';
 import { useTree } from '@/contexts/TreeContext';
 import AppShell from '@/components/shells/AppShell';
@@ -228,10 +230,75 @@ function unionStrokeColor(unionId: string): string {
   return `hsl(${h % 360} 58% 40%)`;
 }
 
+// ── Personal label inline editor ───────────────────────────────────────────
+const PersonalLabelEditor: React.FC<{
+  nodeId: string;
+  currentLabel: string;
+  onSave: (label: string) => void;
+}> = ({ currentLabel, onSave }) => {
+  const [editing, setEditing] = React.useState(false);
+  const [draft, setDraft] = React.useState(currentLabel);
+
+  React.useEffect(() => {
+    setDraft(currentLabel);
+    setEditing(false);
+  }, [currentLabel]);
+
+  const handleSave = () => {
+    const trimmed = draft.trim();
+    if (!trimmed) return;
+    onSave(trimmed);
+    setEditing(false);
+  };
+
+  return (
+    <div style={{ padding: '12px 14px', borderRadius: 10, background: 'linear-gradient(135deg,rgba(74,33,104,0.06),rgba(212,154,31,0.04))', border: '1px solid rgba(74,33,104,0.12)', marginBottom: 16 }}>
+      <div style={{ fontSize: 9, letterSpacing: '0.14em', color: 'rgba(74,33,104,0.5)', fontFamily: 'var(--font-mono,monospace)', textTransform: 'uppercase', marginBottom: 8 }}>
+        आप इन्हें क्या कहते हैं?
+      </div>
+      {editing ? (
+        <div style={{ display: 'flex', gap: 6 }}>
+          <input
+            autoFocus
+            type="text"
+            value={draft}
+            onChange={e => setDraft(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter') handleSave(); if (e.key === 'Escape') setEditing(false); }}
+            placeholder="पिताजी, बप्पा, Chachu…"
+            style={{ flex: 1, padding: '6px 10px', borderRadius: 7, border: '1px solid rgba(74,33,104,0.25)', background: 'rgba(252,250,244,0.9)', fontSize: 13, fontFamily: 'var(--font-body,sans-serif)', outline: 'none' }}
+          />
+          <button
+            onClick={handleSave}
+            style={{ padding: '6px 12px', borderRadius: 7, border: 'none', background: 'var(--ds-plum,#2e1346)', color: '#fff', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
+          >✓</button>
+          <button
+            onClick={() => setEditing(false)}
+            style={{ padding: '6px 10px', borderRadius: 7, border: '1px solid rgba(74,33,104,0.2)', background: 'transparent', fontSize: 12, cursor: 'pointer', color: 'rgba(74,33,104,0.6)' }}
+          >✕</button>
+        </div>
+      ) : (
+        <button
+          onClick={() => { setDraft(currentLabel); setEditing(true); }}
+          style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'none', border: 'none', padding: 0, cursor: 'pointer', width: '100%', textAlign: 'left' }}
+        >
+          {currentLabel ? (
+            <span style={{ fontSize: 16, fontFamily: 'var(--font-heading,serif)', fontWeight: 700, color: 'var(--ds-plum,#2e1346)' }}>{currentLabel}</span>
+          ) : (
+            <span style={{ fontSize: 13, color: 'rgba(212,154,31,0.9)', fontStyle: 'italic' }}>Set your name for this person →</span>
+          )}
+          <span style={{ marginLeft: 'auto', fontSize: 11, color: 'rgba(74,33,104,0.45)' }}>✎</span>
+        </button>
+      )}
+    </div>
+  );
+};
+
 const TreePage = () => {
   const { tr } = useLang();
   const { plan, membersUsed, generationsUsed } = usePlan();
   const { state, isTreeInitialized, loadTreeState, setMatrimonyProfile } = useTree();
+  const { appUser } = useAuth();
+  const { getLabel, setLabel } = usePersonalLabels(appUser?.id);
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
 
@@ -362,14 +429,9 @@ const TreePage = () => {
   const hoverDetailsForNode = (node: PositionedTreeNode): string[] => {
     const canSee = canViewerSeeNodeDetails(node, state.currentUserId, state.edges);
     if (!canSee) return ['Details hidden by node privacy settings.'];
-    const lines = [
-      `Name: ${node.name || '-'}`,
-      `Relation: ${node.relation || '-'}`,
-    ];
-    if (node.dateOfBirth) lines.push(`DOB: ${node.dateOfBirth}`);
-    if (node.ancestralPlace) lines.push(`Ancestral: ${node.ancestralPlace}`);
-    if (node.currentResidence) lines.push(`Residence: ${node.currentResidence}`);
-    return lines;
+    const myLabel = getLabel(node.id);
+    if (!myLabel) return [`आप इन्हें क्या कहते हैं?`, `Click node → set your label`];
+    return [myLabel, node.name || ''];
   };
 
   const treeCanvasBody = () => {
@@ -435,6 +497,20 @@ const TreePage = () => {
 
     return (
       <>
+        {/* Eco tribute banner */}
+        <div style={{ margin: '0 16px 14px', padding: '14px 18px', borderRadius: 12, background: 'linear-gradient(135deg, rgba(34,120,58,0.09), rgba(212,154,31,0.07))', border: '1px solid rgba(34,120,58,0.22)', display: 'flex', gap: 14, alignItems: 'flex-start', position: 'relative', zIndex: 2 }}>
+          <span style={{ fontSize: 28, lineHeight: 1, flexShrink: 0 }}>🌳</span>
+          <div>
+            <div className="font-heading" style={{ fontSize: 13, fontWeight: 700, color: 'var(--ds-plum,#2e1346)', marginBottom: 5, letterSpacing: '0.01em' }}>
+              एक पेड़ — एक श्रद्धांजलि &nbsp;·&nbsp; Plant a tree for every soul in your Vansh
+            </div>
+            <div className="font-body" style={{ fontSize: 12, color: 'rgba(46,19,70,0.65)', lineHeight: 1.65 }}>
+              A single tree gifts <strong>~100 kg of oxygen</strong> per year, captures <strong>22 kg of CO₂</strong>, shelters <strong>200+ species</strong>, and purifies groundwater for generations to come.
+              Every tree planted in their name carries their <strong style={{ color: 'rgba(46,19,70,0.8)' }}>पुण्य</strong> forward — to their soul, and to all who carry their blood.
+            </div>
+          </div>
+        </div>
+
         {isPaginated && (
           <div className="flex items-center justify-between px-4 py-2 border-b border-border bg-muted/40">
             <button
@@ -461,6 +537,26 @@ const TreePage = () => {
         <div className="relative w-full" style={{ height: Math.max(320, viewHeight) }}>
           <div className="absolute inset-0 gradient-warm opacity-50" />
           <svg className="absolute inset-0 w-full h-full" viewBox={`0 0 ${viewWidth} ${viewHeight}`} preserveAspectRatio="xMidYMid meet">
+            <defs>
+              <linearGradient id="branch-grad" x1="0" y1="1" x2="0" y2="0">
+                <stop offset="0%" stopColor="#6b4a2a" stopOpacity="0.7"/>
+                <stop offset="60%" stopColor="#9a7a4a" stopOpacity="0.6"/>
+                <stop offset="100%" stopColor="#c89e58" stopOpacity="0.5"/>
+              </linearGradient>
+              {/* Person node fill gradients */}
+              <radialGradient id="person-grad-male" cx="40%" cy="35%" r="65%">
+                <stop offset="0%" stopColor="#7a4a9a"/>
+                <stop offset="100%" stopColor="#2e1346"/>
+              </radialGradient>
+              <radialGradient id="person-grad-female" cx="40%" cy="35%" r="65%">
+                <stop offset="0%" stopColor="#d47a9e"/>
+                <stop offset="100%" stopColor="#6a2a52"/>
+              </radialGradient>
+              <radialGradient id="person-grad-other" cx="40%" cy="35%" r="65%">
+                <stop offset="0%" stopColor="#8a8aaa"/>
+                <stop offset="100%" stopColor="#3a3a5a"/>
+              </radialGradient>
+            </defs>
             {/* Generation guide lines */}
             {Array.from(new Set(positionedNodes.map(n => n.y))).sort((a, b) => a - b).map((gy, i) => (
               <line key={`gen-${i}`} x1={20} y1={gy} x2={viewWidth - 20} y2={gy} stroke="rgba(74,33,104,0.08)" strokeDasharray="2 8" />
@@ -469,9 +565,18 @@ const TreePage = () => {
             {positionedNodes.length > 0 && (
               <ellipse cx={viewWidth / 2} cy={Math.min(...positionedNodes.map(n => n.y)) - 10} rx={viewWidth * 0.38} ry={60} fill="var(--ds-gold,#d49a1f)" opacity={0.05} />
             )}
-            {/* Earth line at bottom */}
-            <line x1={0} y1={viewHeight - 15} x2={viewWidth} y2={viewHeight - 15} stroke="#6b4a2a" strokeWidth={1} opacity={0.3} />
-            <text x={viewWidth - 30} y={viewHeight - 22} fontSize={9} fill="rgba(74,33,104,0.3)" fontFamily="monospace" letterSpacing="0.18em" textAnchor="end">— BHUMI · EARTH —</text>
+            {/* Decorative roots fanning from oldest generation */}
+            {positionedNodes.length > 0 && (() => {
+              const rootY = Math.max(...positionedNodes.map(n => n.y)) + 60;
+              return (
+                <g opacity="0.35">
+                  <path d={`M${viewWidth*0.3},${rootY} Q${viewWidth*0.1},${rootY+60} ${viewWidth*0.05},${viewHeight-10}`} stroke="#6b4a2a" strokeWidth="2" fill="none"/>
+                  <path d={`M${viewWidth*0.42},${rootY} Q${viewWidth*0.32},${rootY+60} ${viewWidth*0.22},${viewHeight-10}`} stroke="#6b4a2a" strokeWidth="2" fill="none"/>
+                  <path d={`M${viewWidth*0.58},${rootY} Q${viewWidth*0.62},${rootY+60} ${viewWidth*0.72},${viewHeight-10}`} stroke="#6b4a2a" strokeWidth="2" fill="none"/>
+                  <path d={`M${viewWidth*0.7},${rootY} Q${viewWidth*0.85},${rootY+60} ${viewWidth*0.9},${viewHeight-10}`} stroke="#6b4a2a" strokeWidth="2" fill="none"/>
+                </g>
+              );
+            })()}
             {/* Marital unit: rounded frame (behind nodes) */}
             {spouseEdges.map((e) => {
               const a = nodeMap[e.from];
@@ -495,17 +600,17 @@ const TreePage = () => {
                 : pu
                   ? unionStrokeColor(pu)
                   : "hsl(var(--primary))";
+              const midY = (from.y + 20 + to.y) / 2;
               return (
-                <line
+                <path
                   key={`ln-${i}`}
-                  x1={from.x}
-                  y1={from.y + 20}
-                  x2={to.x}
-                  y2={to.y}
-                  stroke={stroke}
+                  d={`M${from.x},${from.y + 20} C${from.x},${midY} ${to.x},${midY} ${to.x},${to.y}`}
+                  stroke={adopted ? stroke : "url(#branch-grad)"}
                   strokeWidth={adopted ? 2 : 2.5}
-                  strokeOpacity={adopted ? 0.55 : 0.38}
+                  strokeOpacity={adopted ? 0.55 : 1}
                   strokeDasharray={adopted ? "5 4" : undefined}
+                  fill="none"
+                  strokeLinecap="round"
                 />
               );
             })}
@@ -618,6 +723,7 @@ const TreePage = () => {
                   isSelected={selectedNodeId === node.id}
                   hasMatrimonialBridge={hasBridge}
                   containerVariant={getTreeNodeContainerVariant(node, state.unionRows ?? [])}
+                  personalLabel={getLabel(node.id)}
                   onHoverChange={(isHovering) => setHoveredNodeId(isHovering ? node.id : null)}
                   onSelect={(e) => {
                     if (hasBridge && !e.shiftKey) {
@@ -731,7 +837,6 @@ const TreePage = () => {
 
   const selectedNode = positionedNodes.find(n => n.id === selectedNodeId);
   const completionPct = Math.round(Math.min(100, (membersUsed / plan.maxNodes) * 100));
-  const [treeView, setTreeView] = useState<'lineage' | 'gotra' | 'timeline' | 'heatmap'>('lineage');
 
   return (
     <AppShell>
@@ -756,44 +861,6 @@ const TreePage = () => {
             </div>
           )}
 
-          {/* Toolbar overlay */}
-          <div style={{ position: 'absolute', top: 12, left: 12, right: 12, display: 'flex', justifyContent: 'space-between', gap: 10, zIndex: 5, flexWrap: 'wrap' }}>
-            <div style={{ display: 'flex', gap: 3, background: 'rgba(252,250,244,0.92)', backdropFilter: 'blur(10px)', border: '1px solid var(--ds-border, rgba(74,33,104,0.12))', borderRadius: 10, padding: '5px 6px' }}>
-              {([['lineage','Lineage'],['gotra','Gotra map'],['timeline','Timeline'],['heatmap','Eco heatmap']] as const).map(([k,l]) => (
-                <button
-                  key={k}
-                  onClick={() => setTreeView(k)}
-                  className="font-body"
-                  style={{ padding: '7px 13px', fontSize: 12, borderRadius: 7, border: 'none', cursor: 'pointer', fontWeight: 600, background: treeView === k ? 'var(--ds-plum, #2e1346)' : 'transparent', color: treeView === k ? '#fff' : 'rgba(74,33,104,0.65)', transition: 'all 0.15s' }}
-                >{l}</button>
-              ))}
-            </div>
-            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-              {isTreeInitialized && (
-                <div style={{ display: 'flex', gap: 8, alignItems: 'center', background: 'rgba(252,250,244,0.92)', backdropFilter: 'blur(10px)', border: '1px solid var(--ds-border, rgba(74,33,104,0.12))', borderRadius: 10, padding: '8px 14px', fontSize: 12 }}>
-                  <span className="ds-pill-dot live" />
-                  <span style={{ color: 'rgba(46,19,70,0.7)' }}><strong>{membersUsed}</strong> members</span>
-                </div>
-              )}
-              <div style={{ display: 'flex', gap: 8, alignItems: 'center', background: 'rgba(252,250,244,0.92)', backdropFilter: 'blur(10px)', border: '1px solid rgba(74,33,104,0.12)', borderRadius: 10, padding: '8px 14px', fontSize: 12 }}>
-                <span className="ds-pill-dot live" />
-                <span style={{ color: 'rgba(46,19,70,0.7)' }}>3 kin editing now</span>
-              </div>
-              <button
-                style={{ padding: '8px 14px', fontSize: 12, borderRadius: 10, border: '1px solid rgba(212,154,31,0.4)', background: 'rgba(252,250,244,0.92)', backdropFilter: 'blur(10px)', cursor: 'pointer', color: 'rgba(46,19,70,0.7)', fontWeight: 600 }}
-                onClick={() => navigate('/upgrade')}
-              >📜 Export PDF · ₹149</button>
-              <button
-                style={{ padding: '8px 16px', fontSize: 12, borderRadius: 10, border: 'none', background: 'var(--ds-plum, #2e1346)', color: '#fff', cursor: 'pointer', fontWeight: 700 }}
-                onClick={() => {
-                  const vid = vanshaId || defaultVanshaFromEnv;
-                  if (vid && selectedNodeId) navigate(`/node?vansha_id=${encodeURIComponent(vid)}&anchor_node_id=${encodeURIComponent(selectedNodeId)}`);
-                  else if (vid) navigate(`/node?vansha_id=${encodeURIComponent(vid)}`);
-                  else navigate('/node');
-                }}
-              >+ Add member</button>
-            </div>
-          </div>
 
           {/* Vansh badge corner */}
           {isTreeInitialized && (
@@ -810,7 +877,7 @@ const TreePage = () => {
           )}
 
           {/* Tree canvas body */}
-          <div style={{ paddingTop: 68, paddingBottom: 80, minHeight: '100%', position: 'relative', zIndex: 1 }}>
+          <div style={{ paddingTop: 16, paddingBottom: 80, minHeight: '100%', position: 'relative', zIndex: 1 }}>
             {treeCanvasBody()}
           </div>
 
@@ -855,6 +922,13 @@ const TreePage = () => {
                   )}
                 </div>
               </div>
+
+              {/* Personal label editor */}
+              <PersonalLabelEditor
+                nodeId={selectedNode.id}
+                currentLabel={getLabel(selectedNode.id)}
+                onSave={(label) => setLabel(selectedNode.id, label)}
+              />
 
               {/* Smriti upsell */}
               <div style={{ padding: 14, borderRadius: 8, background: 'linear-gradient(135deg, rgba(232,116,34,0.08), rgba(212,154,31,0.06))', border: '1px solid rgba(232,116,34,0.25)', marginBottom: 16 }}>
