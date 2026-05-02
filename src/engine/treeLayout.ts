@@ -130,6 +130,108 @@ function isSpouseEdge(e: TreeEdge): boolean {
   return rel === "spouse" || rel === "wife" || rel === "husband";
 }
 
+/**
+ * Mirror constants from MaritalUnitGraphics.tsx.
+ * Must stay in sync when those values change.
+ */
+const FRAME_HW = 44;   // NP_HALF_W(36) + FRAME_MARGIN_X(8): half-width from outer-spouse center to frame edge
+const SOLO_HW  = 36;   // NP_HALF_W: footprint half-width for a single node (nameplate only)
+const MIN_INTER_CONTAINER_GAP = 16; // minimum gap between any two adjacent frame / nameplate edges
+
+/**
+ * Post-layout pass: ensures couple frames and single-node nameplates never overlap
+ * horizontally on the same generation row. Shifts items rightward as needed.
+ * Call this after repositionChildrenByUnion.
+ */
+function separateCoupleFrames(
+  positionedNodes: PositionedTreeNode[],
+  spouseEdgesForTree: readonly TreeEdge[],
+): void {
+  const byId = new Map(positionedNodes.map(n => [n.id, n]));
+
+  // Build real couple pairs (both non-placeholder, on the same Y row)
+  const pairs: Array<[PositionedTreeNode, PositionedTreeNode]> = [];
+  const coupleIds = new Set<string>();
+  for (const e of spouseEdgesForTree) {
+    const a = byId.get(e.from), b = byId.get(e.to);
+    if (!a || !b || a.isPlaceholder || b.isPlaceholder) continue;
+    if (Math.abs(a.y - b.y) > 1) continue;
+    const pair: [PositionedTreeNode, PositionedTreeNode] = a.x <= b.x ? [a, b] : [b, a];
+    pairs.push(pair);
+    coupleIds.add(a.id);
+    coupleIds.add(b.id);
+  }
+
+  // Group nodes by Y row
+  const rowGroups = new Map<number, PositionedTreeNode[]>();
+  for (const n of positionedNodes) {
+    const key = Math.round(n.y);
+    if (!rowGroups.has(key)) rowGroups.set(key, []);
+    rowGroups.get(key)!.push(n);
+  }
+
+  // Run two iterations to handle chain reactions
+  for (let iter = 0; iter < 2; iter++) {
+    for (const rowNodes of rowGroups.values()) {
+      type PushItem = { x1: number; x2: number; push: (d: number) => void };
+      const items: PushItem[] = [];
+      const processed = new Set<string>();
+
+      // Sort row nodes by X for deterministic processing
+      const sortedRow = [...rowNodes].sort((a, b) => a.x - b.x);
+
+      for (const node of sortedRow) {
+        if (processed.has(node.id)) continue;
+
+        // Check if this node is part of a couple whose both members are on THIS row
+        const pair = coupleIds.has(node.id)
+          ? pairs.find(
+              p => (p[0].id === node.id || p[1].id === node.id) &&
+                    rowNodes.some(n => n.id === p[0].id) &&
+                    rowNodes.some(n => n.id === p[1].id),
+            )
+          : undefined;
+
+        if (pair) {
+          const [left, right] = pair;
+          const item: PushItem = {
+            x1: left.x - FRAME_HW,
+            x2: right.x + FRAME_HW,
+            push(d) {
+              (left  as unknown as { x: number }).x += d;
+              (right as unknown as { x: number }).x += d;
+              item.x1 += d;
+              item.x2 += d;
+            },
+          };
+          items.push(item);
+          processed.add(left.id);
+          processed.add(right.id);
+        } else if (!coupleIds.has(node.id)) {
+          const item: PushItem = {
+            x1: node.x - SOLO_HW,
+            x2: node.x + SOLO_HW,
+            push(d) {
+              (node as unknown as { x: number }).x += d;
+              item.x1 += d;
+              item.x2 += d;
+            },
+          };
+          items.push(item);
+          processed.add(node.id);
+        }
+      }
+
+      // Sort items by left edge, then sweep right, pushing when overlap detected
+      items.sort((a, b) => a.x1 - b.x1);
+      for (let i = 1; i < items.length; i++) {
+        const needed = items[i - 1].x2 + MIN_INTER_CONTAINER_GAP - items[i].x1;
+        if (needed > 0) items[i].push(needed);
+      }
+    }
+  }
+}
+
 function unitMinTime(u: LayoutUnit): number {
   if (u.kind === "couple") return Math.min(u.male.createdAt, u.female.createdAt);
   if (u.kind === "siblings") return Math.min(...u.nodes.map((n) => n.createdAt));
@@ -405,6 +507,8 @@ export function layoutTreeNodes(
   }
 
   repositionChildrenByUnion(positionedNodes, unionRows);
+  // Guarantee: no two couple frames / solo nameplates overlap horizontally
+  separateCoupleFrames(positionedNodes, edges.filter(isSpouseEdge));
   const viewWidth = fitHorizontalCanvas(positionedNodes);
 
   return { positionedNodes, viewHeight, viewWidth };

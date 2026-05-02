@@ -82,6 +82,10 @@ class PersonUpdateBody(BaseModel):
     gotra: Optional[str] = None
     mool_niwas: Optional[str] = None
     title: Optional[str] = None
+    parent_union_id: Optional[uuid.UUID] = Field(
+        default=None,
+        description="Restore/set parental union: links this child to the couple's union row.",
+    )
 
 
 def _normalize_gender(raw: Any) -> str:
@@ -530,6 +534,8 @@ def update_person(node_id: uuid.UUID, body: PersonUpdateBody, user: CurrentUser)
         updates["mool_niwas"] = body.mool_niwas.strip()
     if body.title is not None:
         updates["title"] = body.title.strip()
+    if body.parent_union_id is not None:
+        updates[PARENT_UNION_ID_COLUMN] = str(body.parent_union_id)
 
     if not updates:
         raise HTTPException(status_code=400, detail="No fields to update.")

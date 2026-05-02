@@ -9,7 +9,7 @@ import { useTree } from '@/contexts/TreeContext';
 import AppShell from '@/components/shells/AppShell';
 import TreeCompletionScore from '@/components/ui/TreeCompletionScore';
 import TrustBadge from '@/components/ui/TrustBadge';
-import { fetchMatrimonyProfile, fetchVanshaTree, fetchVanshaTreePage, getApiBaseUrl, getPersistedVanshaId } from '@/services/api';
+import { fetchMatrimonyProfile, fetchVanshaTree, fetchVanshaTreePage, getApiBaseUrl, getPersistedVanshaId, updatePerson } from '@/services/api';
 import { backendPayloadToTreeState } from '@/services/mapVanshaPayload';
 import { mergeMatrimonyProfile } from '@/engine/matrimonyDefaults';
 import { canViewerSeeNodeDetails } from '@/engine/privacy';
@@ -320,6 +320,8 @@ const TreePage = () => {
   const [retryToken, setRetryToken] = useState(0);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
+  const [linkParentUnionId, setLinkParentUnionId] = useState('');
+  const [isSavingParentLink, setIsSavingParentLink] = useState(false);
   const [isPaginated, setIsPaginated] = useState(false);
   const [genMin, setGenMin] = useState(-3);
   const [genMax, setGenMax] = useState(genMin + PAGE_SIZE - 1);
@@ -943,6 +945,63 @@ const TreePage = () => {
                   <UserPlus className="w-3 h-3" /> Add member
                 </button>
               </div>
+
+              {/* ── Connect to parents (restore missing trunk line) ───── */}
+              {selectedNode && vanshaId && (() => {
+                // Show unions as options — display name = "Male name + Female name"
+                const unions = state.unionRows ?? [];
+                const unionOptions = unions.map(u => {
+                  const mNode = state.nodes.find(n => n.id === u.maleNodeId);
+                  const fNode = state.nodes.find(n => n.id === u.femaleNodeId);
+                  const mName = mNode?.givenName || mNode?.name || 'Unknown';
+                  const fName = fNode?.givenName || fNode?.name || 'Unknown';
+                  return { id: u.id, label: `${mName} + ${fName}` };
+                });
+                if (unionOptions.length === 0) return null;
+                return (
+                  <details style={{ marginBottom: 14, borderRadius: 8, border: '1px solid rgba(74,33,104,0.15)', background: 'rgba(74,33,104,0.02)' }}>
+                    <summary style={{ padding: '8px 12px', cursor: 'pointer', fontSize: 11, fontWeight: 600, color: 'var(--ds-plum,#2e1346)', userSelect: 'none', listStyle: 'none', display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <span>🔗</span> Connect to parents / परिवार से जोड़ें
+                    </summary>
+                    <div style={{ padding: '8px 12px 12px' }}>
+                      <p style={{ fontSize: 10, color: 'rgba(74,33,104,0.55)', marginBottom: 8, lineHeight: 1.5 }}>
+                        Use this to restore a missing trunk line — select the couple whose child this person is.
+                      </p>
+                      <select
+                        value={linkParentUnionId}
+                        onChange={e => setLinkParentUnionId(e.target.value)}
+                        style={{ width: '100%', padding: '6px 8px', borderRadius: 6, border: '1px solid rgba(74,33,104,0.25)', background: 'rgba(252,250,244,0.9)', fontSize: 12, marginBottom: 8, outline: 'none' }}
+                      >
+                        <option value="">-- Select parent couple --</option>
+                        {unionOptions.map(u => (
+                          <option key={u.id} value={u.id}>{u.label}</option>
+                        ))}
+                      </select>
+                      <button
+                        disabled={!linkParentUnionId || isSavingParentLink}
+                        onClick={async () => {
+                          if (!linkParentUnionId || !selectedNode) return;
+                          setIsSavingParentLink(true);
+                          try {
+                            await updatePerson(selectedNode.id, { parent_union_id: linkParentUnionId });
+                            const data = await fetchVanshaTree(vanshaId!);
+                            loadTreeState(backendPayloadToTreeState(data));
+                            setLinkParentUnionId('');
+                            toast({ title: 'Trunk line restored', description: `${selectedNode.name} connected to parents.` });
+                          } catch (e) {
+                            toast({ title: 'Failed to connect', description: e instanceof Error ? e.message : 'Error', variant: 'destructive' });
+                          } finally {
+                            setIsSavingParentLink(false);
+                          }
+                        }}
+                        style={{ width: '100%', padding: '7px 0', borderRadius: 7, border: 'none', background: linkParentUnionId ? 'var(--ds-plum,#2e1346)' : 'rgba(74,33,104,0.2)', color: '#fff', fontSize: 12, fontWeight: 700, cursor: linkParentUnionId ? 'pointer' : 'default', opacity: isSavingParentLink ? 0.6 : 1 }}
+                      >
+                        {isSavingParentLink ? 'Connecting…' : '🔗 Link as child of this couple'}
+                      </button>
+                    </div>
+                  </details>
+                );
+              })()}
 
               {/* Node sovereignty strip */}
               {isSovereign ? (

@@ -315,6 +315,7 @@ export async function updatePerson(
     gotra?: string;
     mool_niwas?: string;
     title?: string;
+    parent_union_id?: string;
   },
 ): Promise<{ ok: boolean }> {
   requireValidVanshaUuid(nodeId);
