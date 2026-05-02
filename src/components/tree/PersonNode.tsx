@@ -40,7 +40,7 @@ const PLACEHOLDER_FILL = "hsl(var(--muted) / 0.35)";
 const FROZEN_FILL      = "hsl(var(--destructive) / 0.1)";
 
 // Nameplate dimensions
-const NP_W = 84;
+const NP_W = 72;
 const NP_H = 30;
 const NP_RX = 7;
 
@@ -103,12 +103,11 @@ export function PersonNode({
   // ── Shape inner ────────────────────────────────────────────────────────────
   const shapeInner = (() => {
     const common = {
-      fill:            fillMain,
-      stroke:          strokeMain,
-      strokeWidth:     isSelected ? 2.75 : 2,
-      strokeDasharray: isDotted || isPh ? "4 3" : undefined,
-      opacity:         isDeceased ? 0.55 : 1,
-      filter:          isSelected ? `url(#${shadowId})` : undefined,
+      fill:        fillMain,
+      stroke:      strokeMain,
+      strokeWidth: isSelected ? 2.75 : 2,
+      opacity:     isDeceased ? 0.55 : 1,
+      filter:      isSelected ? `url(#${shadowId})` : undefined,
     };
     if (g === "male") {
       const s = rr * 2;
@@ -125,7 +124,6 @@ export function PersonNode({
       />
     );
   })();
-
 
   // ── Verified gold ring ─────────────────────────────────────────────────────
   const verifiedRing = node.verificationTier && node.verificationTier !== "none" ? (
