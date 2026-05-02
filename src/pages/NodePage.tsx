@@ -115,7 +115,7 @@ const NodePage = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { appUser } = useAuth();
-  const { setLabel } = usePersonalLabels(appUser?.id);
+  const { setLabel } = usePersonalLabels(appUser?.id, appUser?.vansha_id);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -478,7 +478,7 @@ const NodePage = () => {
         loadTreeState(newState);
         // Save personal label for the newly created node
         const newNode = newState.nodes.find(n => n.name?.includes(first_name));
-        if (newNode) setLabel(newNode.id, form.personalLabel.trim());
+        if (newNode) setLabel(newNode.id, form.personalLabel.trim(), effectiveVanshaId);
         toast({
           title: tr('activityAddedMember'),
           description: displayName,

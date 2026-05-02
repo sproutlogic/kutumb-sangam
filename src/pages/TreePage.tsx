@@ -298,7 +298,7 @@ const TreePage = () => {
   const { plan, membersUsed, generationsUsed } = usePlan();
   const { state, isTreeInitialized, loadTreeState, setMatrimonyProfile } = useTree();
   const { appUser } = useAuth();
-  const { getLabel, setLabel } = usePersonalLabels(appUser?.id);
+  const { getLabel, setLabel } = usePersonalLabels(appUser?.id, appUser?.vansha_id);
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
 

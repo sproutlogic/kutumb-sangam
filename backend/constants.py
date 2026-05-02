@@ -50,6 +50,8 @@ ONBOARDING_APPROVALS_TABLE = "onboarding_approvals"
 TRANSACTIONS_TABLE         = "transactions"
 TRANSACTION_APPROVALS_TABLE = "transaction_approvals"
 
+NODE_RELATION_LABELS_TABLE = "node_relation_labels"
+
 VANSHA_ID_COLUMN = "vansha_id"
 PARENT_UNION_ID_COLUMN = "parent_union_id"
 
