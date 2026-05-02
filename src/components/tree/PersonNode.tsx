@@ -126,29 +126,6 @@ export function PersonNode({
     );
   })();
 
-  // ── Outer halo ring ────────────────────────────────────────────────────────
-  const shapeOuter = (() => {
-    const common = {
-      fill:         "none",
-      stroke:       "hsl(var(--primary))",
-      strokeWidth:  isSelected ? 2 : 1,
-      strokeOpacity: isSelected ? 0.5 : 0.12,
-    };
-    if (g === "male") {
-      const s = outerR * 2;
-      return <rect x={x - outerR} y={y - outerR} width={s} height={s} rx={7} ry={7} {...common} />;
-    }
-    if (g === "female") {
-      return <circle cx={x} cy={y} r={outerR} {...common} />;
-    }
-    return (
-      <polygon
-        points={trianglePointsFlatBase(x, y, outerR)}
-        strokeLinejoin="round"
-        {...common}
-      />
-    );
-  })();
 
   // ── Verified gold ring ─────────────────────────────────────────────────────
   const verifiedRing = node.verificationTier && node.verificationTier !== "none" ? (
@@ -235,7 +212,6 @@ export function PersonNode({
           </filter>
         </defs>
       )}
-      {shapeOuter}
       {verifiedRing}
       {shapeInner}
       {/* Initials */}

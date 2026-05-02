@@ -43,8 +43,8 @@ const MIN_SLOT_CENTER_GAP = 68;
 /** Legacy floor; real width scales with how many people share a generation row. */
 const MIN_LAYOUT_CANVAS_WIDTH = 400;
 
-/** Center distance between spouses — inner shapes ~4 px gap, outer rings nearly touching. */
-export const SPOUSE_SIDE_OFFSET = 40;
+/** Center distance between spouses — node R=26 each, so ≥52 to not overlap; 64 = 12px breathing room. */
+export const SPOUSE_SIDE_OFFSET = 64;
 
 /**
  * Maps stored `node.generation` to a signed layout index for Y = -(g × spacing).
