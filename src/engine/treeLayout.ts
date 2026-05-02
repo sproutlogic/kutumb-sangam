@@ -30,16 +30,16 @@ export function nodesForParentalUnionRow(nodes: readonly TreeNode[], u: UnionRow
  * Positive layoutGeneration (progenies) → negative rawY → top of SVG.
  */
 /** Vertical gap between generation bands (labels sit under nodes; keep ≥ node diameter + text). */
-export const TREE_VERTICAL_SPACING = 104;
+export const TREE_VERTICAL_SPACING = 130;
 
 const PADDING_Y = 52;
 const PADDING_X = 56;
 /** Horizontal spacing between sibling centers from the parental union midpoint. */
-const CHILD_SPREAD = 68;
+const CHILD_SPREAD = 90;
 /** Wider spread used when a repositioned child is also part of a couple (prevents frame overlap). */
-const COUPLE_CHILD_SPREAD = 92;
+const COUPLE_CHILD_SPREAD = 116;
 /** Minimum horizontal gap (square / triangle can be wider than circle diameter). */
-const MIN_SLOT_CENTER_GAP = 68;
+const MIN_SLOT_CENTER_GAP = 90;
 /** Legacy floor; real width scales with how many people share a generation row. */
 const MIN_LAYOUT_CANVAS_WIDTH = 400;
 

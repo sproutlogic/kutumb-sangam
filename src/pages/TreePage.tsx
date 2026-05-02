@@ -498,20 +498,6 @@ const TreePage = () => {
 
     return (
       <>
-        {/* Eco tribute banner */}
-        <div style={{ margin: '0 16px 14px', padding: '14px 18px', borderRadius: 12, background: 'linear-gradient(135deg, rgba(34,120,58,0.09), rgba(212,154,31,0.07))', border: '1px solid rgba(34,120,58,0.22)', display: 'flex', gap: 14, alignItems: 'flex-start', position: 'relative', zIndex: 2 }}>
-          <span style={{ fontSize: 28, lineHeight: 1, flexShrink: 0 }}>🌳</span>
-          <div>
-            <div className="font-heading" style={{ fontSize: 13, fontWeight: 700, color: 'var(--ds-plum,#2e1346)', marginBottom: 5, letterSpacing: '0.01em' }}>
-              एक पेड़ — एक श्रद्धांजलि &nbsp;·&nbsp; Plant a tree for every soul in your Vansh
-            </div>
-            <div className="font-body" style={{ fontSize: 12, color: 'rgba(46,19,70,0.65)', lineHeight: 1.65 }}>
-              A single tree gifts <strong>~100 kg of oxygen</strong> per year, captures <strong>22 kg of CO₂</strong>, shelters <strong>200+ species</strong>, and purifies groundwater for generations to come.
-              Every tree planted in their name carries their <strong style={{ color: 'rgba(46,19,70,0.8)' }}>पुण्य</strong> forward — to their soul, and to all who carry their blood.
-            </div>
-          </div>
-        </div>
-
         {isPaginated && (
           <div className="flex items-center justify-between px-4 py-2 border-b border-border bg-muted/40">
             <button
@@ -536,7 +522,6 @@ const TreePage = () => {
           </div>
         )}
         <div className="relative w-full" style={{ height: Math.max(320, viewHeight) }}>
-          <div className="absolute inset-0 gradient-warm opacity-50" />
           <svg
             className="absolute inset-0 w-full h-full"
             viewBox={`0 0 ${viewWidth} ${viewHeight}`}
@@ -546,24 +531,6 @@ const TreePage = () => {
             style={{ WebkitUserSelect: 'none', userSelect: 'none' } as React.CSSProperties}
           >
             <defs>
-              {/* Corner rosette symbol — reused at all 4 corners */}
-              <symbol id="corner-rosette" viewBox="0 0 48 48">
-                {/* Bracket arms */}
-                <line x1="0" y1="2" x2="32" y2="2" stroke="#c8a44a" strokeWidth="2" strokeLinecap="round"/>
-                <line x1="2" y1="0" x2="2" y2="32" stroke="#c8a44a" strokeWidth="2" strokeLinecap="round"/>
-                {/* Curved flourish */}
-                <path d="M 6 32 Q 12 12 32 6" stroke="#c8a44a" strokeWidth="1.2" fill="none" opacity="0.55" strokeLinecap="round"/>
-                {/* Outer ring */}
-                <circle cx="2" cy="2" r="9" fill="none" stroke="#c8a44a" strokeWidth="1.5" opacity="0.7"/>
-                {/* Wood fill */}
-                <circle cx="2" cy="2" r="7" fill="#2c1a08"/>
-                {/* Brass fill */}
-                <circle cx="2" cy="2" r="5" fill="#c8a44a"/>
-                {/* Dark center */}
-                <circle cx="2" cy="2" r="2.5" fill="#1a0a04"/>
-                {/* Bright highlight */}
-                <circle cx="1" cy="1" r="1" fill="#f0d060" opacity="0.85"/>
-              </symbol>
               <linearGradient id="branch-grad" x1="0" y1="1" x2="0" y2="0">
                 <stop offset="0%" stopColor="#6b4a2a" stopOpacity="0.7"/>
                 <stop offset="60%" stopColor="#9a7a4a" stopOpacity="0.6"/>
@@ -583,26 +550,6 @@ const TreePage = () => {
                 <stop offset="100%" stopColor="#3a3a5a"/>
               </radialGradient>
             </defs>
-            {/* Generation guide lines */}
-            {Array.from(new Set(positionedNodes.map(n => n.y))).sort((a, b) => a - b).map((gy, i) => (
-              <line key={`gen-${i}`} x1={20} y1={gy} x2={viewWidth - 20} y2={gy} stroke="rgba(74,33,104,0.08)" strokeDasharray="2 8" />
-            ))}
-            {/* Canopy bloom at top */}
-            {positionedNodes.length > 0 && (
-              <ellipse cx={viewWidth / 2} cy={Math.min(...positionedNodes.map(n => n.y)) - 10} rx={viewWidth * 0.38} ry={60} fill="var(--ds-gold,#d49a1f)" opacity={0.05} />
-            )}
-            {/* Decorative roots fanning from oldest generation */}
-            {positionedNodes.length > 0 && (() => {
-              const rootY = Math.max(...positionedNodes.map(n => n.y)) + 60;
-              return (
-                <g opacity="0.35">
-                  <path d={`M${viewWidth*0.3},${rootY} Q${viewWidth*0.1},${rootY+60} ${viewWidth*0.05},${viewHeight-10}`} stroke="#6b4a2a" strokeWidth="2" fill="none"/>
-                  <path d={`M${viewWidth*0.42},${rootY} Q${viewWidth*0.32},${rootY+60} ${viewWidth*0.22},${viewHeight-10}`} stroke="#6b4a2a" strokeWidth="2" fill="none"/>
-                  <path d={`M${viewWidth*0.58},${rootY} Q${viewWidth*0.62},${rootY+60} ${viewWidth*0.72},${viewHeight-10}`} stroke="#6b4a2a" strokeWidth="2" fill="none"/>
-                  <path d={`M${viewWidth*0.7},${rootY} Q${viewWidth*0.85},${rootY+60} ${viewWidth*0.9},${viewHeight-10}`} stroke="#6b4a2a" strokeWidth="2" fill="none"/>
-                </g>
-              );
-            })()}
             {/* Marital unit: rounded frame (behind nodes) */}
             {spouseEdges.map((e) => {
               const a = nodeMap[e.from];
@@ -814,87 +761,12 @@ const TreePage = () => {
               return <SpousePlusMark key={`plus-${e.from}-${e.to}`} left={left} right={right} />;
             })}
 
-            {/* Corner rosettes — sit just inside the inset frame border (35px) */}
-            {!isMobile && (<>
-              {/* Top-left: normal */}
-              <g transform={`translate(35,35)`}>
-                <use href="#corner-rosette" width={48} height={48} />
-              </g>
-              {/* Top-right: flip horizontally around the corner point */}
-              <g transform={`translate(${viewWidth - 35},35) scale(-1,1)`}>
-                <use href="#corner-rosette" width={48} height={48} />
-              </g>
-              {/* Bottom-left: flip vertically */}
-              <g transform={`translate(35,${viewHeight - 35}) scale(1,-1)`}>
-                <use href="#corner-rosette" width={48} height={48} />
-              </g>
-              {/* Bottom-right: flip both axes */}
-              <g transform={`translate(${viewWidth - 35},${viewHeight - 35}) scale(-1,-1)`}>
-                <use href="#corner-rosette" width={48} height={48} />
-              </g>
-            </>)}
-
-            {/* Tiled watermark — screenshot deterrence */}
-            {Array.from({ length: Math.ceil(viewHeight / 120) }).map((_, row) =>
-              Array.from({ length: Math.ceil(viewWidth / 200) }).map((_, col) => (
-                <text
-                  key={`wm-${row}-${col}`}
-                  x={col * 200 + 20}
-                  y={row * 120 + 60}
-                  fontSize={10}
-                  fontFamily="var(--font-mono, monospace)"
-                  fill="rgba(74,33,104,0.07)"
-                  transform={`rotate(-22, ${col * 200 + 20}, ${row * 120 + 60})`}
-                  pointerEvents="none"
-                  style={{ userSelect: 'none' } as React.CSSProperties}
-                >
-                  {state.treeName || 'Prakriti'} · prakriti.ecotech.co.in
-                </text>
-              ))
-            )}
           </svg>
 
           <div className="absolute bottom-4 left-4 px-3 py-1.5 rounded-lg glass-card text-xs font-body text-muted-foreground max-w-[min(100%,20rem)]">
             {tr('tapToExplore')}
             <span className="block mt-1 text-[10px] opacity-90">{tr('treeTapShiftSelect')}</span>
           </div>
-        </div>
-
-        <div className="border-t border-border/50 p-4 flex flex-col sm:flex-row items-center justify-center gap-3">
-          {selectedNodeId && (
-            <button
-              type="button"
-              onClick={() => navigate(`/node/${selectedNodeId}`)}
-              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg border border-border bg-secondary font-semibold font-body text-sm hover:bg-secondary/80 transition-colors"
-            >
-              <Pencil className="w-4 h-4" />
-              {tr('editSelectedMember')}
-            </button>
-          )}
-          <button
-            type="button"
-            onClick={() => {
-              if (!selectedNodeId) {
-                toast({
-                  title: tr('selectTreeMemberFirst'),
-                  variant: 'destructive',
-                });
-                return;
-              }
-              const vidForAdd = vanshaId || defaultVanshaFromEnv;
-              if (vidForAdd) {
-                navigate(
-                  `/node?vansha_id=${encodeURIComponent(vidForAdd)}&anchor_node_id=${encodeURIComponent(selectedNodeId)}`,
-                );
-                return;
-              }
-              navigate(`/node?anchor_node_id=${encodeURIComponent(selectedNodeId)}`);
-            }}
-            className="inline-flex items-center gap-2 px-6 py-2.5 rounded-lg gradient-hero text-primary-foreground font-semibold font-body text-sm shadow-warm hover:opacity-90 transition-opacity hover-scale"
-          >
-            <UserPlus className="w-4 h-4" />
-            {tr('addMember')}
-          </button>
         </div>
       </>
     );
@@ -912,14 +784,6 @@ const TreePage = () => {
   const canControl    = isSovereign || isCreator;
   const isUnclaimed   = !nodeOwnerId || nodeOwnerId === nodeCreatedBy;
 
-  const PUNYA_SEVAS = [
-    { icon: '🌳', title: 'Plant a tree for every soul', sub: 'One tree = 100 kg O₂/yr · 200+ species sheltered', cta: 'Plant now · ₹199', color: '#1a6b32' },
-    { icon: '\u{1F4A7}', title: 'Organise water distribution', sub: 'Earn punya by quenching thirst this summer', cta: 'Organise · ₹499', color: '#1a4a8a' },
-    { icon: '\u{1F35B}', title: 'Organise anna-daan', sub: 'Feed 50 people — punya for every morsel', cta: 'Log seva · ₹299', color: '#8a3a00' },
-    { icon: '\u{1F9F9}', title: 'Lead a swachchhata drive', sub: 'Clean your gali, earn your Prakriti score', cta: 'Register · free', color: '#5a2a8a' },
-  ];
-  const punySeva = PUNYA_SEVAS[membersUsed % PUNYA_SEVAS.length];
-
   const sidebarW = isMobile ? 0 : isTablet ? 260 : 320;
 
   return (
@@ -930,9 +794,8 @@ const TreePage = () => {
         {/* ── Tree canvas ──────────────────────────────────────────────── */}
         <div style={{
           flex: 1, position: 'relative',
-          background: 'linear-gradient(180deg, var(--ds-ivory, #faf8f2) 0%, #f5f0e8 100%)',
-          overflow: 'auto',
-          /* Royal frame: gold line → dark mahogany → brass molding → dark mahogany → gold line */
+          background: '#f7f5f0',
+          overflow: 'hidden',
           boxShadow: isMobile ? 'none' : [
             'inset 0 0 0 2px #c8a44a',
             'inset 0 0 0 14px #2c1a08',
@@ -941,92 +804,15 @@ const TreePage = () => {
             'inset 0 0 0 24px #9a7b2a',
             'inset 0 0 0 33px #2c1a08',
             'inset 0 0 0 35px #c8a44a',
-            'inset 0 3px 24px rgba(0,0,0,0.10)',
           ].join(', '),
         }}>
-
-          {/* Dot-grid texture */}
-          <div style={{ position: 'absolute', inset: 0, backgroundImage: 'radial-gradient(circle at 1px 1px, rgba(74,33,104,0.06) 1px, transparent 0)', backgroundSize: '28px 28px', pointerEvents: 'none', zIndex: 0 }} />
-
-          {/* Vansh watermark */}
-          {isTreeInitialized && (
-            <div aria-hidden style={{ position: 'absolute', inset: 0, pointerEvents: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 0, overflow: 'hidden' }}>
-              <div style={{ transform: 'rotate(-18deg)', textAlign: 'center', userSelect: 'none' }}>
-                <div className="font-heading" style={{ fontSize: 'clamp(60px,12vw,200px)', fontWeight: 700, lineHeight: 0.9, background: 'linear-gradient(135deg, rgba(46,19,70,0.07), rgba(212,154,31,0.09))', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>
-                  {state.treeName || 'वंश'}
-                </div>
-                <div className="font-heading" style={{ fontSize: 'clamp(18px,3vw,48px)', color: 'rgba(74,33,104,0.10)', marginTop: -8, fontStyle: 'italic' }}>{state.treeName}</div>
-              </div>
+          {/* Scrollable inner — inset 35px so content never bleeds over frame */}
+          <div style={{ position: 'absolute', inset: isMobile ? 0 : 35, overflow: 'auto' }}>
+            {/* Tree canvas body */}
+            <div style={{ paddingTop: isMobile ? 70 : 16, paddingBottom: isMobile ? 120 : 80, minHeight: '100%', position: 'relative', zIndex: 1 }}>
+              {treeCanvasBody()}
             </div>
-          )}
-
-
-          {/* Royal Vansh nameplate badge */}
-          {isTreeInitialized && (() => {
-            const selfNode = state.nodes.find(n => n.id === state.currentUserId);
-            const gotra = (selfNode as Record<string, unknown>)?.gotra as string | undefined;
-            const moolNiwas = (selfNode as Record<string, unknown>)?.moolNiwas as string | undefined;
-            const ancestral = (selfNode as Record<string, unknown>)?.ancestralPlace as string | undefined;
-            const row2 = gotra ? `${gotra} Gotra` : (moolNiwas || null);
-            const row3 = ancestral || moolNiwas || null;
-            return (
-              <div style={{
-                position: 'absolute', top: 16, left: '50%', transform: 'translateX(-50%)',
-                zIndex: 6, minWidth: 200, maxWidth: 280,
-                background: 'linear-gradient(160deg, #6b1a1a 0%, #3d0a0a 60%, #2a0606 100%)',
-                border: '2px solid #b8860b',
-                borderRadius: 4,
-                boxShadow: '0 0 0 1px rgba(184,134,11,0.25), 0 6px 28px rgba(0,0,0,0.45), inset 0 1px 0 rgba(212,166,60,0.18)',
-                padding: '12px 22px 14px',
-                textAlign: 'center',
-                userSelect: 'none',
-              }}>
-                {/* Top ornamental line */}
-                <div style={{ position: 'absolute', top: 5, left: 10, right: 10, height: 1, background: 'linear-gradient(90deg, transparent, #b8860b 30%, #d4a628 50%, #b8860b 70%, transparent)' }} />
-                {/* Row 1: Vansh name */}
-                <div className="font-heading" style={{ fontSize: 15, fontWeight: 800, color: '#e8c060', letterSpacing: '0.08em', textTransform: 'uppercase', lineHeight: 1.2, textShadow: '0 1px 4px rgba(0,0,0,0.6)' }}>
-                  {state.treeName || 'वंश'}
-                </div>
-                {/* Row 2: Gotra or Mool Niwas */}
-                {row2 && (
-                  <div style={{ fontSize: 10, color: '#c9a84c', letterSpacing: '0.14em', marginTop: 5, fontFamily: 'var(--font-mono, monospace)', textTransform: 'uppercase', opacity: 0.9 }}>
-                    {row2}
-                  </div>
-                )}
-                {/* Row 3: Ancestral place */}
-                {row3 && row3 !== row2 && (
-                  <div style={{ fontSize: 10, color: '#c9a84c', letterSpacing: '0.1em', marginTop: 3, fontFamily: 'var(--font-body, sans-serif)', opacity: 0.75 }}>
-                    {row3}
-                  </div>
-                )}
-                {/* Bottom ornamental line */}
-                <div style={{ position: 'absolute', bottom: 5, left: 10, right: 10, height: 1, background: 'linear-gradient(90deg, transparent, #b8860b 30%, #d4a628 50%, #b8860b 70%, transparent)' }} />
-              </div>
-            );
-          })()}
-
-          {/* Tree canvas body */}
-          <div style={{ paddingTop: isMobile ? 70 : 16, paddingBottom: isMobile ? 120 : 80, minHeight: '100%', position: 'relative', zIndex: 1 }}>
-            {treeCanvasBody()}
           </div>
-
-          {/* Punya-arjan seva strip */}
-          {isTreeInitialized && (
-            <div style={{ position: 'sticky', bottom: 12, margin: '0 12px', zIndex: 5 }}>
-              <div style={{ padding: '13px 16px', borderRadius: 10, background: 'rgba(252,250,244,0.95)', backdropFilter: 'blur(12px)', border: `1px solid ${punySeva.color}30`, boxShadow: `0 2px 16px ${punySeva.color}18`, display: 'flex', gap: 12, alignItems: 'center' }}>
-                <div style={{ fontSize: 28, lineHeight: 1, flexShrink: 0 }}>{punySeva.icon}</div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 9, letterSpacing: '0.14em', color: punySeva.color, fontFamily: 'var(--font-mono,monospace)', textTransform: 'uppercase', opacity: 0.7, marginBottom: 2 }}>पुण्य अर्जन · Seva opportunity</div>
-                  <div className="font-heading" style={{ fontSize: 13, fontWeight: 700, color: 'var(--ds-plum,#2e1346)', lineHeight: 1.2 }}>{punySeva.title}</div>
-                  <div style={{ fontSize: 11, color: 'rgba(74,33,104,0.55)', marginTop: 2 }}>{punySeva.sub}</div>
-                </div>
-                <button
-                  onClick={() => navigate('/eco-sewa')}
-                  style={{ flexShrink: 0, padding: '7px 13px', borderRadius: 8, border: 'none', background: punySeva.color, color: '#fff', fontSize: 11, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}
-                >{punySeva.cta}</button>
-              </div>
-            </div>
-          )}
         </div>
 
         {/* ── Right sidebar / mobile bottom sheet ───────────────────────── */}
@@ -1082,6 +868,29 @@ const TreePage = () => {
                 >✕</button>
               </div>
 
+              {/* Edit + Add member actions */}
+              <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
+                <button
+                  onClick={() => navigate(`/node/${selectedNode.id}`)}
+                  style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '8px 10px', borderRadius: 8, border: '1px solid rgba(74,33,104,0.15)', background: 'rgba(74,33,104,0.04)', fontSize: 12, fontWeight: 600, color: 'var(--ds-plum,#2e1346)', cursor: 'pointer' }}
+                >
+                  <Pencil className="w-3 h-3" /> Edit profile
+                </button>
+                <button
+                  onClick={() => {
+                    const vidForAdd = vanshaId || defaultVanshaFromEnv;
+                    if (vidForAdd) {
+                      navigate(`/node?vansha_id=${encodeURIComponent(vidForAdd)}&anchor_node_id=${encodeURIComponent(selectedNode.id)}`);
+                    } else {
+                      navigate(`/node?anchor_node_id=${encodeURIComponent(selectedNode.id)}`);
+                    }
+                  }}
+                  style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '8px 10px', borderRadius: 8, border: 'none', background: 'var(--ds-plum,#2e1346)', fontSize: 12, fontWeight: 600, color: '#fff', cursor: 'pointer' }}
+                >
+                  <UserPlus className="w-3 h-3" /> Add member
+                </button>
+              </div>
+
               {/* Node sovereignty strip */}
               {isSovereign ? (
                 <div style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '7px 10px', borderRadius: 7, background: 'rgba(34,120,58,0.07)', border: '1px solid rgba(34,120,58,0.2)', marginBottom: 14, fontSize: 11 }}>
@@ -1119,6 +928,33 @@ const TreePage = () => {
                 onSave={(label) => setLabel(selectedNode.id, label)}
               />
 
+              {/* Arpit karein — punya seva CTAs */}
+              <div style={{ marginBottom: 14 }}>
+                <div className="ds-eyebrow" style={{ color: 'var(--ds-muted)', marginBottom: 8, fontSize: 9 }}>अर्पित करें · In their name</div>
+                <div style={{ display: 'grid', gap: 7 }}>
+                  {[
+                    { icon: '🌳', label: 'Plant a tree', sub: '100 kg O₂/yr · 200+ species', cta: '₹199', color: '#1a6b32', path: '/eco-sewa' },
+                    { icon: '💧', label: 'Water station for animals', sub: 'Earn punya this summer', cta: '₹499', color: '#1a4a8a', path: '/eco-sewa' },
+                    { icon: '🫗', label: 'Jal seva · Water drive', sub: 'Quench thirst, earn punya', cta: '₹99', color: '#1a5a6a', path: '/eco-sewa' },
+                    { icon: '🧹', label: 'Swachchhata drive', sub: 'Lead a cleanliness drive', cta: 'Free', color: '#5a2a8a', path: '/eco-sewa' },
+                    { icon: '🙌', label: 'Do it yourself', sub: 'Log your own seva', cta: 'Log', color: '#8a3a00', path: '/eco-sewa' },
+                  ].map(({ icon, label, sub, cta, color, path }) => (
+                    <button
+                      key={label}
+                      onClick={() => navigate(path)}
+                      style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px', borderRadius: 8, border: `1px solid ${color}22`, background: `${color}08`, cursor: 'pointer', textAlign: 'left' }}
+                    >
+                      <span style={{ fontSize: 20, lineHeight: 1, flexShrink: 0 }}>{icon}</span>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--ds-plum,#2e1346)' }}>{label}</div>
+                        <div style={{ fontSize: 10, color: 'rgba(74,33,104,0.5)', marginTop: 1 }}>{sub}</div>
+                      </div>
+                      <span style={{ fontSize: 11, fontWeight: 700, color, flexShrink: 0 }}>{cta} →</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
               {/* Smriti upsell */}
               <div style={{ padding: 14, borderRadius: 8, background: 'linear-gradient(135deg, rgba(232,116,34,0.08), rgba(212,154,31,0.06))', border: '1px solid rgba(232,116,34,0.25)', marginBottom: 16 }}>
                 <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
@@ -1146,12 +982,12 @@ const TreePage = () => {
                 <div className="ds-eyebrow" style={{ color: 'var(--ds-muted)', marginBottom: 8, fontSize: 9 }}>Vital details</div>
                 {[
                   ['Name', selectedNode.name],
-                  ['Relation', selectedNode.relation],
-                  selectedNode.dateOfBirth ? ['Date of birth', selectedNode.dateOfBirth] : null,
+                  ['आप क्या कहते हैं', getLabel(selectedNode.id) || '—'],
+                  (canControl || (selectedNode as Record<string,unknown>).privacyLevel !== 'private') && selectedNode.dateOfBirth ? ['Date of birth', selectedNode.dateOfBirth] : null,
                   selectedNode.ancestralPlace ? ['Ancestral place', selectedNode.ancestralPlace] : null,
                   selectedNode.currentResidence ? ['Residence', selectedNode.currentResidence] : null,
                 ].filter(Boolean).map(([k, v]) => (
-                  <div key={k as string} style={{ display: 'grid', gridTemplateColumns: '100px 1fr', gap: 6, padding: '5px 0', fontSize: 13 }}>
+                  <div key={k as string} style={{ display: 'grid', gridTemplateColumns: '110px 1fr', gap: 6, padding: '5px 0', fontSize: 13 }}>
                     <span style={{ color: 'var(--ds-muted,#6b6b8a)' }}>{k}</span>
                     <span style={{ color: 'var(--ds-text,#1c0d2e)', fontWeight: 500 }}>{v}</span>
                   </div>
