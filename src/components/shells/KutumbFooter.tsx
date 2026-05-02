@@ -9,11 +9,11 @@ const KutumbFooter: React.FC = () => {
         <div className="ds-footer-grid">
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
-              <div style={{ width: 36, height: 36, borderRadius: '50%', background: 'var(--ds-gold)', display: 'grid', placeItems: 'center', color: 'var(--ds-plum-deep)', fontFamily: 'var(--ds-deva)', fontSize: 20 }}>ॐ</div>
-              <div style={{ fontFamily: 'var(--ds-serif)', fontSize: 20, fontWeight: 600, color: 'var(--ds-gold-light)' }}>Kutumb Sangam</div>
+              <img src="/prakriti.svg" alt="Prakriti" style={{ width: 36, height: 36, objectFit: 'contain' }} />
+              <div style={{ fontFamily: 'var(--ds-serif)', fontSize: 20, fontWeight: 600, color: 'var(--ds-gold-light)' }}>Prakriti</div>
             </div>
             <p style={{ fontSize: 14, lineHeight: 1.6, maxWidth: 340 }}>
-              India's first family-tree intelligence platform. Built at IIT Kanpur. For every parivar, every gotra, every village.
+              India's first family-tree intelligence platform. For every parivar, every gotra, every village.
             </p>
             <p className="ds-sanskrit" style={{ marginTop: 18, color: 'var(--ds-gold-light)', fontSize: 18 }}>वसुधैव कुटुम्बकम्</p>
             <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', marginTop: 4, fontStyle: 'italic' }}>The world is one family.</p>
