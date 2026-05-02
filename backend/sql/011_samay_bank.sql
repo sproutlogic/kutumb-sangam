@@ -55,6 +55,8 @@ CREATE TABLE IF NOT EXISTS public.samay_requests (
     helper_id       text          REFERENCES public.users(id),
     -- Global posts: not visible until visible_from (30-min anti-farming delay)
     visible_from    timestamptz   NOT NULL DEFAULT now(),
+    -- Dashboard-only personal task; not shown in time-bank marketplace
+    is_dashboard_task boolean     NOT NULL DEFAULT false,
     created_at      timestamptz   DEFAULT now()
 );
 

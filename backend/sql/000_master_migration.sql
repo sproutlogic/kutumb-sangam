@@ -418,9 +418,11 @@ CREATE TABLE IF NOT EXISTS public.samay_requests (
     hours_estimate NUMERIC(6,2),
     status         TEXT          NOT NULL DEFAULT 'open'
                                  CHECK (status IN ('open','assigned','completed','closed')),
-    helper_id      UUID          REFERENCES public.users(id),
-    visible_from   TIMESTAMPTZ   NOT NULL DEFAULT now(),
-    created_at     TIMESTAMPTZ   DEFAULT now()
+    helper_id         UUID          REFERENCES public.users(id),
+    visible_from      TIMESTAMPTZ   NOT NULL DEFAULT now(),
+    -- Dashboard-only personal task; not shown in time-bank marketplace
+    is_dashboard_task BOOLEAN       NOT NULL DEFAULT false,
+    created_at        TIMESTAMPTZ   DEFAULT now()
 );
 
 CREATE TABLE IF NOT EXISTS public.samay_transactions (
