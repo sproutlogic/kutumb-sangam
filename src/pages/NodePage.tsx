@@ -1,4 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
+import { useAuth } from '@/contexts/AuthContext';
+import { usePersonalLabels } from '@/hooks/usePersonalLabels';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useLang } from '@/i18n/LanguageContext';
 import { usePlan } from '@/contexts/PlanContext';
@@ -112,6 +114,8 @@ const NodePage = () => {
   const { state, addNode, editNode, setNodePrivacy, loadTreeState, linkSpousePair } = useTree();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const { appUser } = useAuth();
+  const { setLabel } = usePersonalLabels(appUser?.id);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -149,6 +153,7 @@ const NodePage = () => {
     parentId: '',
     fatherName: '',
     motherName: '',
+    personalLabel: '',
   });
 
   // currentResidence is optional — deceased members may not have one
@@ -408,6 +413,14 @@ const NodePage = () => {
       });
       return;
     }
+    if (!form.personalLabel.trim()) {
+      toast({
+        title: 'आप इन्हें क्या कहते हैं?',
+        description: 'Please enter what you call this person (e.g. पिताजी, बप्पा, Chachu)',
+        variant: 'destructive',
+      });
+      return;
+    }
 
     if (anchorNodeId && !anchorNode) {
       toast({
@@ -461,7 +474,11 @@ const NodePage = () => {
           mother_name: isChildRelation(relationLabel) ? form.motherName.trim() || null : null,
         });
         const data = await fetchVanshaTree(effectiveVanshaId);
-        loadTreeState(backendPayloadToTreeState(data));
+        const newState = backendPayloadToTreeState(data);
+        loadTreeState(newState);
+        // Save personal label for the newly created node
+        const newNode = newState.nodes.find(n => n.name?.includes(first_name));
+        if (newNode) setLabel(newNode.id, form.personalLabel.trim());
         toast({
           title: tr('activityAddedMember'),
           description: displayName,
@@ -672,6 +689,25 @@ const NodePage = () => {
               </p>
             )}
           </div>
+
+          {/* Personal label — compulsory on add, optional update on edit */}
+          {!isEdit && (
+            <div>
+              <label className="block text-sm font-semibold font-body mb-1">
+                आप इन्हें क्या कहते हैं? <span className="text-destructive">*</span>
+              </label>
+              <p className="text-xs text-muted-foreground font-body mb-2">
+                Your personal name for this person — only you see this on hover.
+              </p>
+              <input
+                type="text"
+                value={form.personalLabel}
+                onChange={e => set('personalLabel', e.target.value)}
+                placeholder="e.g. पिताजी, बप्पा, दादू, Chachu, Nani…"
+                className="w-full px-3 py-2.5 rounded-lg border border-border bg-background text-sm font-body focus:outline-none focus:ring-2 focus:ring-primary/30"
+              />
+            </div>
+          )}
 
           {isEdit && existingNode && state.nodes.length > 1 && (
             <div className="space-y-3 rounded-lg border border-border/60 bg-muted/15 p-4">
