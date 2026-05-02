@@ -2,13 +2,13 @@ import type { PositionedTreeNode } from "@/engine/treeLayout";
 
 /** Must match PersonNode R constant. */
 const NODE_R = 26;
-/** Half of PersonNode nameplate width (NP_W=84). Frame must enclose the nameplate, not just the shape. */
-const NP_HALF_W = 42;
+/** Half of PersonNode nameplate width (NP_W=72). Frame must enclose the nameplate, not just the shape. */
+const NP_HALF_W = 36;
 /** Snug horizontal padding around the pair. */
-const FRAME_MARGIN_X = 10;
-/** Vertical padding — top above shape, bottom below nameplate (shape R + stem 8 + NP_H 30 + margin). */
-const FRAME_MARGIN_Y_TOP = 10;
-const FRAME_MARGIN_Y_BOTTOM = 50;
+const FRAME_MARGIN_X = 8;
+/** Vertical padding — top above shape, bottom below nameplate (shape R=26 + stem 8 + NP_H 30 + margin). */
+const FRAME_MARGIN_Y_TOP = 8;
+const FRAME_MARGIN_Y_BOTTOM = 48;
 
 /** Vertical offset from node center to “+” (must match trunk origin in TreePage). */
 export const SPOUSE_PLUS_Y_OFFSET = 2;

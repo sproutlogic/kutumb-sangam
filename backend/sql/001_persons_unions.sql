@@ -16,6 +16,7 @@ CREATE TABLE IF NOT EXISTS public.persons (
     branch               TEXT        NOT NULL DEFAULT 'main',
     gotra                TEXT        NOT NULL DEFAULT '',
     mool_niwas           TEXT        NOT NULL DEFAULT '',
+    title                TEXT        NOT NULL DEFAULT '',
     relative_gen_index   INTEGER     NOT NULL DEFAULT 0,
     generation           INTEGER     NOT NULL DEFAULT 0,
     -- lineage links (nullable — filled when parents are known)

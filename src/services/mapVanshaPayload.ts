@@ -73,6 +73,7 @@ function mapPerson(row: Row): TreeNode {
   const mool = str(row, "mool_niwas", "moolNiwas", "native_place", "mool_nivas");
   const ancestral = str(row, "ancestral_place", "ancestralPlace", "pitri_sthan");
   const currentRes = str(row, "current_residence", "currentResidence", "residence");
+  const title = str(row, "title", "honorific");
   const dob = str(row, "date_of_birth", "dateOfBirth", "dob");
 
   const maidenRaw = str(row, "maiden_vansha_id", "maidenVanshaId");
@@ -101,6 +102,7 @@ function mapPerson(row: Row): TreeNode {
     branch: str(row, "branch", "branch_label") || "main",
     gotra,
     moolNiwas: mool,
+    title: title || undefined,
     parentUnionId: parentUnionRaw || null,
     fatherNodeId: fatherNodeRaw || null,
     motherNodeId: motherNodeRaw || null,

@@ -139,6 +139,7 @@ const NodePage = () => {
   }, [existingNode?.id, existingNode?.privacyNodeIds]);
 
   const [form, setForm] = useState({
+    title: '',
     givenName: '',
     middleName: '',
     surname: '',
@@ -182,6 +183,7 @@ const NodePage = () => {
     if (existingNode) {
       const sp = splitLegacyDisplayName(existingNode.name);
       setForm({
+        title: (existingNode as Record<string, unknown>).title as string ?? '',
         givenName: existingNode.givenName ?? sp.given,
         middleName: existingNode.middleName ?? '',
         surname: existingNode.surname ?? sp.sur,
@@ -223,6 +225,20 @@ const NodePage = () => {
       state.nodes[0]?.ancestralPlace ||
       '';
     if (source) set('ancestralPlace', source);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form.relation, anchorNode?.id]);
+
+  // Auto-fill gotra + moolNiwas from anchor/tree for non-spouse new members
+  useEffect(() => {
+    if (isEdit) return;
+    if (isSpouseRelation(form.relation)) return; // spouse comes from a different family
+    const ref =
+      anchorNode ||
+      state.nodes.find(n => n.relation?.toLowerCase() === 'self') ||
+      state.nodes[0];
+    if (!ref) return;
+    if (!form.gotra.trim() && ref.gotra) set('gotra', ref.gotra);
+    if (!form.moolNiwas.trim() && ref.moolNiwas) set('moolNiwas', ref.moolNiwas);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [form.relation, anchorNode?.id]);
 
@@ -356,6 +372,7 @@ const NodePage = () => {
             branch: form.branch || undefined,
             gotra: form.gotra || undefined,
             mool_niwas: form.moolNiwas || undefined,
+            title: form.title.trim() || undefined,
           });
           const data = await fetchVanshaTree(effectiveVanshaId);
           loadTreeState(backendPayloadToTreeState(data));
@@ -461,13 +478,14 @@ const NodePage = () => {
           last_name,
           date_of_birth: form.dateOfBirth.trim(),
           ancestral_place: form.ancestralPlace.trim(),
-          current_residence: form.currentResidence.trim(),
+          current_residence: form.currentResidence.trim() || undefined,
           gender: form.gender,
           relation: relationLabel,
           relative_gen_index,
           branch: form.branch || 'main',
           gotra: form.gotra,
           mool_niwas: form.moolNiwas.trim() || form.ancestralPlace.trim(),
+          title: form.title.trim() || undefined,
           parent_node_id: hasKutumbAnchor ? undefined : form.parentId || undefined,
           anchor_node_id: hasKutumbAnchor ? anchorNodeId : null,
           father_name: isChildRelation(relationLabel) ? form.fatherName.trim() || null : null,
@@ -614,6 +632,42 @@ const NodePage = () => {
         {isEdit && isOwnNode && <NodeSovereigntyBadge />}
 
         <div className="bg-card rounded-xl p-8 shadow-card border border-border/50 space-y-5">
+          {/* Title / Honorific */}
+          <div>
+            <label className="block text-sm font-medium font-body mb-1.5">
+              शीर्षक / Title
+              <span className="ml-2 text-[10px] text-muted-foreground font-normal">optional</span>
+            </label>
+            <select
+              value={form.title}
+              onChange={(e) => set('title', e.target.value)}
+              className={inputClass}
+            >
+              <option value="">-- Select Title --</option>
+              <optgroup label="General">
+                <option value="Shri">Shri (श्री)</option>
+                <option value="Smt.">Smt. (श्रीमती)</option>
+                <option value="Kumari">Kumari (कुमारी)</option>
+                <option value="Mr.">Mr.</option>
+                <option value="Mrs.">Mrs.</option>
+                <option value="Ms.">Ms.</option>
+              </optgroup>
+              <optgroup label="Professional">
+                <option value="Dr.">Dr.</option>
+                <option value="Prof.">Prof.</option>
+                <option value="Adv.">Adv. (Advocate)</option>
+                <option value="Eng.">Eng. (Engineer)</option>
+                <option value="CA">CA (Chartered Accountant)</option>
+              </optgroup>
+              <optgroup label="Military / Govt">
+                <option value="Col.">Col. (Colonel)</option>
+                <option value="Maj.">Maj. (Major)</option>
+                <option value="Capt.">Capt. (Captain)</option>
+                <option value="IAS">IAS</option>
+                <option value="IPS">IPS</option>
+              </optgroup>
+            </select>
+          </div>
           <div>
             <label className="block text-sm font-medium font-body mb-1.5">{tr('givenName')}</label>
             <input value={form.givenName} onChange={(e) => set('givenName', e.target.value)} className={inputClass} />

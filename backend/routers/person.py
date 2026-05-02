@@ -45,13 +45,14 @@ class PersonCreateBody(BaseModel):
         description="Date of birth (ISO YYYY-MM-DD)",
     )
     ancestral_place: str = Field(min_length=1, description="Ancestral / native place")
-    current_residence: str = Field(min_length=1, description="Current place of residence")
+    current_residence: str = Field(default="", description="Current place of residence (optional)")
     gender: str = Field(default="other", description="male | female | other")
     relation: str = Field(default="member", description="UI relation label (exact dropdown string)")
     relative_gen_index: int = Field(default=0, description="Signed lineage: used when anchor_node_id is omitted")
     branch: str = "main"
     gotra: str = ""
     mool_niwas: str = ""
+    title: str = Field(default="", description="Honorific title (Shri / Smt. / Dr. / Prof. etc.)")
     parent_node_id: Optional[uuid.UUID] = None
     maiden_vansha_id: Optional[uuid.UUID] = None
     anchor_node_id: Optional[uuid.UUID] = Field(
@@ -80,6 +81,7 @@ class PersonUpdateBody(BaseModel):
     branch: Optional[str] = None
     gotra: Optional[str] = None
     mool_niwas: Optional[str] = None
+    title: Optional[str] = None
 
 
 def _normalize_gender(raw: Any) -> str:
@@ -242,6 +244,7 @@ def create_person(body: PersonCreateBody) -> dict[str, Any]:
         "date_of_birth": body.date_of_birth.strip(),
         "ancestral_place": body.ancestral_place.strip(),
         "current_residence": body.current_residence.strip(),
+        "title": (body.title or "").strip(),
         "gender": body.gender.lower() if body.gender else "other",
         "branch": body.branch or "main",
         "gotra": body.gotra or "",
@@ -525,6 +528,8 @@ def update_person(node_id: uuid.UUID, body: PersonUpdateBody, user: CurrentUser)
         updates["gotra"] = body.gotra.strip()
     if body.mool_niwas is not None:
         updates["mool_niwas"] = body.mool_niwas.strip()
+    if body.title is not None:
+        updates["title"] = body.title.strip()
 
     if not updates:
         raise HTTPException(status_code=400, detail="No fields to update.")

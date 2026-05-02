@@ -556,11 +556,13 @@ const TreePage = () => {
                 <stop offset="100%" stopColor="#3a3a5a"/>
               </radialGradient>
             </defs>
-            {/* Marital unit: rounded frame (behind nodes) */}
+            {/* Marital unit: rounded frame — only for real (non-placeholder) couples */}
             {spouseEdges.map((e) => {
               const a = nodeMap[e.from];
               const b = nodeMap[e.to];
               if (!a || !b) return null;
+              // Skip if either spouse is a placeholder — avoids solo-node ghost frames
+              if (a.isPlaceholder || b.isPlaceholder) return null;
               const left = a.x <= b.x ? a : b;
               const right = a.x <= b.x ? b : a;
               return <SpouseCoupleFrame key={`frame-${e.from}-${e.to}`} left={left} right={right} />;

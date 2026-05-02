@@ -36,17 +36,17 @@ const PADDING_Y = 60;
 /** Extra bottom padding: nameplate extends R(26)+stem(8)+NP_H(30)=64px below node center. */
 const PADDING_BOTTOM = PADDING_Y + 70;
 const PADDING_X = 56;
-/** Horizontal spacing between sibling centers. NP_W=84px, so need ≥84+gap. */
+/** Horizontal spacing between sibling centers. NP_W=72px, so need ≥72+gap. */
 const CHILD_SPREAD = 112;
 /** Wider spread when a repositioned child is also part of a couple. */
 const COUPLE_CHILD_SPREAD = 144;
-/** Minimum horizontal gap — must fit two nameplates (84px each) plus breathing room. */
+/** Minimum horizontal gap — must fit two nameplates (72px each) plus breathing room. */
 const MIN_SLOT_CENTER_GAP = 112;
 /** Legacy floor; real width scales with how many people share a generation row. */
 const MIN_LAYOUT_CANVAS_WIDTH = 400;
 
-/** Center distance between spouses — NP_W=84px so need ≥84+padding; 104 = 84+20. */
-export const SPOUSE_SIDE_OFFSET = 104;
+/** Center distance between spouses — NP_W=72px so need ≥72+padding; 80 = 72+8. */
+export const SPOUSE_SIDE_OFFSET = 80;
 
 /**
  * Maps stored `node.generation` to a signed layout index for Y = -(g × spacing).

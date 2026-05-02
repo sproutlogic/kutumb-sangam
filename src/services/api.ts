@@ -240,7 +240,7 @@ export interface CreatePersonPayload {
   /** ISO YYYY-MM-DD */
   date_of_birth: string;
   ancestral_place: string;
-  current_residence: string;
+  current_residence?: string;
   gender: string;
   relation: string;
   /** Ignored when anchor_node_id is set (server computes from Vruksha rules). */
@@ -248,6 +248,7 @@ export interface CreatePersonPayload {
   branch?: string;
   gotra?: string;
   mool_niwas?: string;
+  title?: string;
   parent_node_id?: string;
   /** Selected tree node: required for Vruksha Add Member flow. */
   anchor_node_id?: string | null;
@@ -313,6 +314,7 @@ export async function updatePerson(
     branch?: string;
     gotra?: string;
     mool_niwas?: string;
+    title?: string;
   },
 ): Promise<{ ok: boolean }> {
   requireValidVanshaUuid(nodeId);

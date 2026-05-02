@@ -58,6 +58,7 @@ export interface TreeNode {
   branch: string;
   gotra: string;
   moolNiwas: string;
+  title?: string;
   ownerId: string; // who controls this node
   createdBy: string;
   createdAt: number;
