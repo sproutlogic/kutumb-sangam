@@ -21,62 +21,20 @@ function firstDayOfWeek(year: number, month: number) { return new Date(year, mon
 function monthDateStr(y: number, m: number, d: number) { return `${y}-${pad2(m + 1)}-${pad2(d)}`; }
 function capitalize(s: string | null | undefined) { return s ? s.charAt(0).toUpperCase() + s.slice(1) : '—'; }
 
-/**
- * Compute sunrise and sunset for a given lat/lon using the NOAA solar
- * equations (Wikipedia "Sunrise equation"). Accurate to ±2 min for India.
- * Returns IST HH:MM strings always (panchang is always India time).
- */
-function computeSunTimes(lat: number, lon: number, date: Date = new Date()): { sunrise: string; sunset: string } {
-  const toRad = (deg: number) => deg * Math.PI / 180;
-  const J0 = 2451545.0; // J2000.0
-
-  // Julian date from JS timestamp
-  const jd = date.getTime() / 86_400_000 + 2_440_587.5;
-
-  // Number of days since J2000, corrected for longitude
-  const n = Math.ceil(jd - J0 - 0.0009 - lon / 360);
-
-  // Mean solar noon (Julian)
-  const Jstar = J0 + 0.0009 + lon / 360 + n;
-
-  // Solar mean anomaly (degrees → radians)
-  const Mrad = toRad((357.5291 + 0.98560028 * (Jstar - J0)) % 360);
-
-  // Equation of center
-  const C = 1.9148 * Math.sin(Mrad) + 0.0200 * Math.sin(2 * Mrad) + 0.0003 * Math.sin(3 * Mrad);
-
-  // Ecliptic longitude (radians)
-  const lamRad = toRad(((Mrad * 180 / Math.PI) + C + 280.46646 + 180) % 360);
-
-  // Solar transit (Julian)
-  const Jtransit = Jstar + 0.0053 * Math.sin(Mrad) - 0.0069 * Math.sin(2 * lamRad);
-
-  // Declination
-  const sinDec = Math.sin(lamRad) * Math.sin(toRad(23.44));
-  const cosDec = Math.sqrt(1 - sinDec * sinDec);
-
-  // Hour angle (−0.83° accounts for atmospheric refraction + solar disc)
-  const cosOmega =
-    (Math.sin(toRad(-0.83)) - Math.sin(toRad(lat)) * sinDec) /
-    (Math.cos(toRad(lat)) * cosDec);
-
-  if (Math.abs(cosOmega) > 1) return { sunrise: '—', sunset: '—' }; // polar
-
-  const omega = Math.acos(cosOmega) * 180 / Math.PI; // degrees
-
-  const toIST = (j: number): string => {
-    const d = new Date((j - 2_440_587.5) * 86_400_000);
+/** Parse ISO or Unix-seconds timestamp → IST HH:MM (always India time). */
+function parseTsToHHMM(ts: string | number | null | undefined): string {
+  if (ts == null || ts === '') return '—';
+  try {
+    const num = Number(ts);
+    const d = !isNaN(num) && num > 1_000_000_000
+      ? new Date(num * 1000)
+      : new Date(String(ts));
+    if (isNaN(d.getTime())) return '—';
     return d.toLocaleTimeString('en-IN', {
       hour: '2-digit', minute: '2-digit',
-      hour12: false,
-      timeZone: 'Asia/Kolkata',
+      hour12: false, timeZone: 'Asia/Kolkata',
     });
-  };
-
-  return {
-    sunrise: toIST(Jtransit - omega / 360),
-    sunset:  toIST(Jtransit + omega / 360),
-  };
+  } catch { return '—'; }
 }
 
 function daysFromToday(dateStr: string): number {
@@ -112,7 +70,6 @@ const KIND_MAP: Record<string, string> = {
 };
 
 // Ujjain — traditional Hindu meridian, used as default
-const UJJAIN = { lat: 23.1809, lon: 75.7771 };
 
 const EcoPanchangPage = () => {
   const [panchang, setPanchang]   = useState<TodayPanchang | null>(null);
@@ -121,52 +78,50 @@ const EcoPanchangPage = () => {
   const [loading, setLoading]     = useState(true);
   const [selected, setSelected]   = useState<string>(todayStr());
   const [deeds, setDeeds]         = useState<Deed[]>(DEFAULT_DEEDS);
-  // lat/lon used ONLY for sunrise/sunset computation (client-side solar formula)
-  const [sunLoc, setSunLoc]       = useState<{ lat: number; lon: number }>(UJJAIN);
+  const [userLat, setUserLat]     = useState<number | undefined>(undefined);
+  const [userLon, setUserLon]     = useState<number | undefined>(undefined);
   const [locLabel, setLocLabel]   = useState<string>('');
 
   const now = new Date();
   const [year, setYear]   = useState(now.getFullYear());
   const [month, setMonth] = useState(now.getMonth());
 
-  /* ── Fetch today's panchang (tithi/nakshatra/masa — no sunrise) ── */
+  /* ── Geolocation first, then fetch panchang with coords ─────── */
   useEffect(() => {
-    // Always fetch from Ujjain — tithi/nakshatra are the same across India
-    fetchTodayPanchang().then(data => {
-      if (data) {
-        setPanchang(data);
-        const rec = data.eco_recommendation;
-        if (rec) {
-          setDeeds([
-            { icon: '🌱', what: rec.plant     || 'Plant a native tree',      score: '+12', done: false },
-            { icon: '💧', what: rec.water     || 'Restore one water source', score: '+10', done: false },
-            { icon: '🌿', what: rec.observe   || 'Observe nature today',     score: '+5',  done: false },
-            { icon: '🤝', what: rec.community || 'Community eco-action',     score: '+6',  done: false },
-          ]);
+    const doFetch = (lat?: number, lon?: number) => {
+      fetchTodayPanchang(lat, lon).then(data => {
+        if (data) {
+          setPanchang(data);
+          const rec = data.eco_recommendation;
+          if (rec) {
+            setDeeds([
+              { icon: '🌱', what: rec.plant     || 'Plant a native tree',      score: '+12', done: false },
+              { icon: '💧', what: rec.water     || 'Restore one water source', score: '+10', done: false },
+              { icon: '🌿', what: rec.observe   || 'Observe nature today',     score: '+5',  done: false },
+              { icon: '🤝', what: rec.community || 'Community eco-action',     score: '+6',  done: false },
+            ]);
+          }
         }
-      }
-    }).finally(() => setLoading(false));
-  }, []);
+      }).finally(() => setLoading(false));
+    };
 
-  /* ── Geolocation — only for sunrise/sunset display ───────────── */
-  useEffect(() => {
-    if (typeof navigator === 'undefined' || !navigator.geolocation) {
+    if (typeof navigator !== 'undefined' && navigator.geolocation) {
+      const timer = setTimeout(() => { setLocLabel('Ujjain (default)'); doFetch(); }, 5000);
+      navigator.geolocation.getCurrentPosition(
+        pos => {
+          clearTimeout(timer);
+          setUserLat(pos.coords.latitude);
+          setUserLon(pos.coords.longitude);
+          setLocLabel('Your location');
+          doFetch(pos.coords.latitude, pos.coords.longitude);
+        },
+        () => { clearTimeout(timer); setLocLabel('Ujjain (default)'); doFetch(); },
+        { timeout: 4500, maximumAge: 300_000 },
+      );
+    } else {
       setLocLabel('Ujjain (default)');
-      return;
+      doFetch();
     }
-    const timer = setTimeout(() => setLocLabel('Ujjain (default)'), 5000);
-    navigator.geolocation.getCurrentPosition(
-      pos => {
-        clearTimeout(timer);
-        setSunLoc({ lat: pos.coords.latitude, lon: pos.coords.longitude });
-        setLocLabel('Your location');
-      },
-      () => {
-        clearTimeout(timer);
-        setLocLabel('Ujjain (default)');
-      },
-      { timeout: 4500, maximumAge: 300_000 },
-    );
   }, []);
 
   /* ── Fetch calendar for current month ───────────────────── */
@@ -204,9 +159,9 @@ const EcoPanchangPage = () => {
   const todayPaksha    = capitalize(panchang?.paksha);
   const todayMasa      = panchang?.masa ?? '';
   const todaySamvat    = panchang?.samvat_year;
-
-  // Sunrise/sunset computed locally from user's coordinates (avoids DB cache drift)
-  const { sunrise: todaySunrise, sunset: todaySunset } = computeSunTimes(sunLoc.lat, sunLoc.lon, now);
+  // Sunrise/sunset from Prokerala via astral (backend computes for user coords)
+  const todaySunrise   = parseTsToHHMM(panchang?.sunrise_ts);
+  const todaySunset    = parseTsToHHMM(panchang?.sunset_ts);
 
   const avoidItems: string[] = panchang?.eco_recommendation?.avoid
     ? panchang.eco_recommendation.avoid.split(/[,;]/).map(s => s.trim()).filter(Boolean)
@@ -358,12 +313,14 @@ const EcoPanchangPage = () => {
                 const tithiName  = row?.tithis?.name_common ?? '';
                 const isSpecial  = row?.special_flag != null && MAJOR_FLAGS.has(row.special_flag);
 
+                const masaName = row?.masa_name ?? '';
+                const vratLabel = isSpecial ? (row?.special_flag ?? '') : '';
+
                 return (
                   <button
                     key={day}
                     onClick={() => setSelected(dateStr)}
                     style={{
-                      aspectRatio: '1',
                       borderRadius: 6,
                       border: isSelected
                         ? '2px solid var(--ds-plum)'
@@ -381,20 +338,33 @@ const EcoPanchangPage = () => {
                       cursor: 'pointer',
                       display: 'flex',
                       flexDirection: 'column',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      padding: '3px 2px',
-                      gap: 1,
-                      minHeight: 38,
+                      alignItems: 'flex-start',
+                      padding: '5px 6px',
+                      gap: 2,
+                      minHeight: 64,
+                      textAlign: 'left',
                     }}
                   >
-                    <span style={{ fontSize: 13, fontWeight: isToday || isSelected ? 700 : 500, fontFamily: 'var(--ds-serif)', lineHeight: 1 }}>{day}</span>
+                    {/* Date number */}
+                    <span style={{ fontSize: 16, fontWeight: 700, fontFamily: 'var(--ds-serif)', lineHeight: 1 }}>{day}</span>
+                    {/* Tithi */}
                     {tithiName && (
-                      <span style={{ fontSize: 7, fontFamily: 'var(--ds-mono)', color: isSelected ? 'rgba(255,255,255,0.65)' : isSpecial ? '#2aa86b' : 'var(--ds-ink-mute)', textAlign: 'center', lineHeight: 1.1, letterSpacing: '0.03em', textTransform: 'uppercase' }}>
-                        {tithiName.slice(0, 5)}
+                      <span style={{ fontSize: 9, color: isSelected ? 'rgba(255,255,255,0.8)' : 'var(--ds-ink-soft)', lineHeight: 1.2, wordBreak: 'break-word' }}>
+                        {tithiName.length > 9 ? tithiName.slice(0, 8) + '…' : tithiName}
                       </span>
                     )}
-                    {isSpecial && !isSelected && <span style={{ fontSize: 8, lineHeight: 1 }}>🌿</span>}
+                    {/* Vrat badge */}
+                    {vratLabel && (
+                      <span style={{ fontSize: 8, fontWeight: 700, color: isSelected ? '#a8f0c6' : '#2aa86b', lineHeight: 1, textTransform: 'capitalize' }}>
+                        {vratLabel}
+                      </span>
+                    )}
+                    {/* Masa */}
+                    {masaName && (
+                      <span style={{ fontSize: 8, color: isSelected ? 'rgba(255,255,255,0.5)' : 'var(--ds-ink-mute)', lineHeight: 1 }}>
+                        {masaName}
+                      </span>
+                    )}
                   </button>
                 );
               })}

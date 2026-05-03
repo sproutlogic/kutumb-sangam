@@ -84,6 +84,22 @@ def _fetch_missing_from_prokerala(
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
+def _sun_times_astral(lat: float, lon: float, d: date) -> tuple[str, str]:
+    """
+    Compute sunrise and sunset for given coordinates using the astral library
+    (Jean Meeus algorithm). Returns ISO-8601 strings with IST offset (+05:30).
+    No Prokerala credits consumed. Accuracy ±1 minute.
+    """
+    from astral import LocationInfo
+    from astral.sun import sun
+    import zoneinfo
+
+    loc = LocationInfo(latitude=lat, longitude=lon, timezone="Asia/Kolkata")
+    tz  = zoneinfo.ZoneInfo("Asia/Kolkata")
+    s   = sun(loc.observer, date=d, tzinfo=tz)
+    return s["sunrise"].isoformat(), s["sunset"].isoformat()
+
+
 def _is_admin(user: dict[str, Any]) -> bool:
     return user.get("role") in ("admin", "superadmin")
 
@@ -194,6 +210,8 @@ def get_today(
     ref_lat   = lat or UJJAIN_LAT
     ref_lon   = lon or UJJAIN_LON
 
+    from services.prokerala import get_day_panchang
+
     # 1. DB cache hit
     cached = (
         sb.table(PANCHANG_CALENDAR_TABLE)
@@ -205,11 +223,20 @@ def get_today(
     if cached.data:
         row   = cached.data[0]
         tithi = row.get("tithis") or {}
+
+        # If caller passed coordinates, compute accurate sunrise/sunset via
+        # astral (Jean Meeus algorithm, ±1 min). Zero Prokerala credits used.
+        if lat is not None and lon is not None:
+            try:
+                sr, ss = _sun_times_astral(lat, lon, date.today())
+                row = {**row, "sunrise_ts": sr, "sunset_ts": ss}
+            except Exception as e:
+                logger.warning("astral sun times failed: %s — using cached", e)
+
         return _build_response(row, tithi)
 
     # 2. Cache miss → call Prokerala
     logger.info("panchang/today: cache miss for %s — calling Prokerala", today_str)
-    from services.prokerala import get_day_panchang
     try:
         pk = get_day_panchang(date.today(), ref_lat, ref_lon)
     except Exception:

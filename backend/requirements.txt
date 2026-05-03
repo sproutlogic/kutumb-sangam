@@ -9,6 +9,9 @@ PyJWT>=2.8.0
 # Panchang — Prokerala API HTTP client (replaces pyswisseph C extension)
 httpx>=0.27.0
 
+# Sunrise/sunset for user location (zero API credits, ±1 min accuracy)
+astral>=3.2
+
 # Razorpay payment gateway (wire TODO blocks in payments.py once keys are set)
 razorpay>=1.4.2
 
