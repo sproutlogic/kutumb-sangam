@@ -3,14 +3,17 @@ Eco-Panchang APIs.
 
 GET  /api/panchang/tithis              — all 30 tithi definitions (public, cached)
 GET  /api/panchang/tithis/{id}         — single tithi with full templates
-GET  /api/panchang/calendar            — rolling window (?from=&to=, max 90d)
+GET  /api/panchang/calendar            — any date range (?from=&to=, max 90d);
+                                         on-demand Prokerala fetch + permanent cache
+                                         for missing dates — works for past centuries
+                                         and decades ahead.
 GET  /api/panchang/today               — today's tithi + eco-recommendation (?lat=&lon=)
-POST /api/panchang/calendar/seed       — manual 90-day refresh trigger (admin only)
 """
 
 from __future__ import annotations
 
 import logging
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import date, timedelta, datetime
 from typing import Any, Optional
 
@@ -23,6 +26,59 @@ from middleware.auth import get_current_user
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/panchang", tags=["panchang"])
+
+# In-process cache for all 30 tithis (static content, never changes)
+_tithis_map: dict[int, dict] | None = None
+
+def _load_tithis(sb) -> dict[int, dict]:
+    global _tithis_map
+    if _tithis_map:
+        return _tithis_map
+    res = sb.table(TITHIS_TABLE).select("*").execute()
+    _tithis_map = {int(t["id"]): t for t in (res.data or [])}
+    return _tithis_map
+
+
+def _fetch_missing_from_prokerala(
+    sb,
+    missing_dates: list[date],
+    lat: float,
+    lon: float,
+) -> list[dict[str, Any]]:
+    """
+    Parallel-fetch missing dates from Prokerala, upsert to DB, return enriched rows.
+    HTTP calls are parallel (fast). DB writes are sequential (safe).
+    Dates that fail are silently skipped — frontend uses Meeus fallback.
+    """
+    from services.prokerala import get_day_panchang
+
+    tithis = _load_tithis(sb)
+
+    # ── Parallel Prokerala HTTP calls ─────────────────────────────────────
+    pk_results: dict[date, dict] = {}
+    with ThreadPoolExecutor(max_workers=8) as ex:
+        futures = {ex.submit(get_day_panchang, d, lat, lon): d for d in missing_dates}
+        for f in as_completed(futures, timeout=45):
+            d = futures[f]
+            try:
+                pk_results[d] = f.result()
+            except Exception as exc:
+                logger.warning("Prokerala: failed for %s — %s", d.isoformat(), exc)
+
+    # ── Sequential DB upserts (thread-safe) ───────────────────────────────
+    rows: list[dict] = []
+    for d, pk in sorted(pk_results.items()):
+        tithi = tithis.get(pk["tithi_id"], {})
+        db_row = {k: v for k, v in pk.items() if k != "festivals"}
+        try:
+            sb.table(PANCHANG_CALENDAR_TABLE).upsert(
+                db_row, on_conflict="gregorian_date"
+            ).execute()
+        except Exception:
+            logger.warning("Prokerala: DB upsert failed for %s", d.isoformat())
+        rows.append({**db_row, "tithis": tithi})
+
+    return rows
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -69,24 +125,34 @@ def get_tithi(tithi_id: int) -> dict[str, Any]:
 def get_calendar(
     from_date: str = Query(default=None, alias="from", description="YYYY-MM-DD"),
     to_date:   str = Query(default=None, alias="to",   description="YYYY-MM-DD"),
+    lat: Optional[float] = Query(default=None, description="Observer latitude"),
+    lon: Optional[float] = Query(default=None, description="Observer longitude"),
 ) -> list[dict[str, Any]]:
     """
-    Return panchang_calendar rows with embedded tithi data.
-    Defaults to today → today+7. Maximum window: 90 days.
+    Return panchang for any date range — past centuries or decades ahead.
+    Maximum 90-day window per request.
+
+    On-demand caching: dates not yet in DB are fetched from Prokerala in
+    parallel, stored permanently, and returned alongside cached rows.
+    Subsequent requests for the same dates are served from DB (0 API cost).
     """
-    today = date.today()
+    today_val = date.today()
     try:
-        start = date.fromisoformat(from_date) if from_date else today
-        end   = date.fromisoformat(to_date)   if to_date   else today + timedelta(days=7)
+        start = date.fromisoformat(from_date) if from_date else today_val
+        end   = date.fromisoformat(to_date)   if to_date   else today_val + timedelta(days=7)
     except ValueError:
         raise HTTPException(status_code=400, detail="Dates must be in YYYY-MM-DD format.")
 
     if (end - start).days > 90:
-        raise HTTPException(status_code=400, detail="Maximum calendar window is 90 days.")
+        raise HTTPException(status_code=400, detail="Maximum window is 90 days.")
     if end < start:
         raise HTTPException(status_code=400, detail="'to' must be after 'from'.")
 
+    ref_lat = lat or UJJAIN_LAT
+    ref_lon = lon or UJJAIN_LON
     sb = get_supabase()
+
+    # ── 1. Query DB cache ─────────────────────────────────────────────────
     res = (
         sb.table(PANCHANG_CALENDAR_TABLE)
         .select("*, tithis(*)")
@@ -95,7 +161,21 @@ def get_calendar(
         .order("gregorian_date")
         .execute()
     )
-    return res.data or []
+    cached_rows  = res.data or []
+    cached_dates = {r["gregorian_date"] for r in cached_rows}
+
+    # ── 2. Find missing dates ─────────────────────────────────────────────
+    span        = (end - start).days + 1
+    all_dates   = [start + timedelta(days=i) for i in range(span)]
+    missing     = [d for d in all_dates if d.isoformat() not in cached_dates]
+
+    # ── 3. On-demand fetch for missing dates via Prokerala ────────────────
+    if missing:
+        logger.info("calendar: %d missing dates — fetching from Prokerala", len(missing))
+        new_rows = _fetch_missing_from_prokerala(sb, missing, ref_lat, ref_lon)
+        cached_rows.extend(new_rows)
+
+    return sorted(cached_rows, key=lambda r: r.get("gregorian_date", ""))
 
 
 @router.get("/today")
@@ -135,15 +215,8 @@ def get_today(
         logger.exception("Prokerala call failed for %s", today_str)
         raise HTTPException(status_code=503, detail="Panchang data unavailable — Prokerala API error.")
 
-    # 3. Look up tithis table for eco_recommendation (by tithi_id)
-    tithi_res = (
-        sb.table(TITHIS_TABLE)
-        .select("*")
-        .eq("id", pk["tithi_id"])
-        .limit(1)
-        .execute()
-    )
-    tithi = tithi_res.data[0] if tithi_res.data else {}
+    # 3. Look up tithis (in-process cache — no extra DB round-trip)
+    tithi = _load_tithis(sb).get(pk["tithi_id"], {})
 
     # 4. Upsert to DB so next request is served from cache
     db_row = {k: v for k, v in pk.items() if k != "festivals"}   # festivals not a DB column
@@ -172,46 +245,6 @@ def _build_response(row: dict, tithi: dict) -> dict[str, Any]:
         "ref_lon":          row.get("ref_lon", UJJAIN_LON),
         "eco_recommendation": _eco_recommendation(tithi),
     }
-
-
-class SeedBody(BaseModel):
-    window_days: int = 90
-    lat: float = UJJAIN_LAT
-    lon: float = UJJAIN_LON
-
-
-@router.post("/calendar/seed")
-def seed_calendar(
-    body: SeedBody,
-    current_user: dict[str, Any] = Depends(get_current_user),
-) -> dict[str, Any]:
-    """
-    Pre-fill panchang_calendar for window_days ahead using Prokerala API.
-    Admin only. Costs 10 Prokerala credits per day.
-    """
-    if not _is_admin(current_user):
-        raise HTTPException(status_code=403, detail="Admin role required.")
-    if not (7 <= body.window_days <= 365):
-        raise HTTPException(status_code=400, detail="window_days must be between 7 and 365.")
-
-    from services.prokerala import get_day_panchang
-    sb      = get_supabase()
-    today   = date.today()
-    seeded  = 0
-    errors  = 0
-
-    for i in range(body.window_days):
-        d = today + timedelta(days=i)
-        try:
-            pk = get_day_panchang(d, body.lat, body.lon)
-            db_row = {k: v for k, v in pk.items() if k != "festivals"}
-            sb.table(PANCHANG_CALENDAR_TABLE).upsert(db_row, on_conflict="gregorian_date").execute()
-            seeded += 1
-        except Exception:
-            logger.warning("seed: failed for %s", d.isoformat())
-            errors += 1
-
-    return {"ok": True, "rows_seeded": seeded, "errors": errors, "window_days": body.window_days}
 
 
 # ── Prakriti Insights (panchang_articles) ─────────────────────────────────────
