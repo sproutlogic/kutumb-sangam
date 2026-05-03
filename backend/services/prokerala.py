@@ -215,6 +215,7 @@ def get_day_panchang(for_date: date, lat: float, lon: float) -> dict[str, Any]:
 
     # masa from Prokerala (advanced endpoint returns hindu_maah)
     hindu_maah = data.get("hindu_maah") or {}
+    logger.info("Prokerala hindu_maah: %s", hindu_maah)
     masa_obj   = hindu_maah.get("purnimanta") or hindu_maah.get("amanta") or {}
     masa_name  = masa_obj.get("name") or _compute_masa(for_date)  # local fallback
 
