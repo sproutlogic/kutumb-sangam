@@ -70,12 +70,13 @@ def _fetch_missing_from_prokerala(
     for d, pk in sorted(pk_results.items()):
         tithi = tithis.get(pk["tithi_id"], {})
         db_row = {k: v for k, v in pk.items() if k != "festivals"}
+        db_row["source"] = "prokerala"
         try:
             sb.table(PANCHANG_CALENDAR_TABLE).upsert(
                 db_row, on_conflict="gregorian_date"
             ).execute()
-        except Exception:
-            logger.warning("Prokerala: DB upsert failed for %s", d.isoformat())
+        except Exception as e:
+            logger.warning("Prokerala: DB upsert failed for %s — %s", d.isoformat(), e)
         rows.append({**db_row, "tithis": tithi})
 
     return rows
@@ -220,10 +221,11 @@ def get_today(
 
     # 4. Upsert to DB so next request is served from cache
     db_row = {k: v for k, v in pk.items() if k != "festivals"}   # festivals not a DB column
+    db_row["source"] = "prokerala"
     try:
         sb.table(PANCHANG_CALENDAR_TABLE).upsert(db_row, on_conflict="gregorian_date").execute()
-    except Exception:
-        logger.warning("panchang/today: DB upsert failed — serving uncached response")
+    except Exception as e:
+        logger.warning("panchang/today: DB upsert failed — %s", e)
 
     return _build_response({**db_row, "tithis": tithi}, tithi)
 
