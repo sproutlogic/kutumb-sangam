@@ -217,7 +217,9 @@ def get_today(
         raise HTTPException(status_code=503, detail="Panchang data unavailable — Prokerala API error.")
 
     # 3. Look up tithis (in-process cache — no extra DB round-trip)
-    tithi = _load_tithis(sb).get(pk["tithi_id"], {})
+    tithis_loaded = _load_tithis(sb)
+    logger.info("panchang/today: tithi_id=%s tithis_keys=%s", pk["tithi_id"], sorted(tithis_loaded.keys()))
+    tithi = tithis_loaded.get(pk["tithi_id"], {})
 
     # 4. Upsert to DB so next request is served from cache
     db_row = {k: v for k, v in pk.items() if k != "festivals"}   # festivals not a DB column
