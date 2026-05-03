@@ -28,7 +28,6 @@ SEWA_ITEMS_TABLE        = "sewa_items"
 SEVA_FUND_TABLE         = "seva_fund_entries"
 
 REFERRAL_EVENTS_TABLE  = "referral_events"
-NODE_CLAIMS_TABLE      = "node_claims"
 
 # Kutumb Pro — Community OS
 ORGANIZATIONS_TABLE    = "organizations"
