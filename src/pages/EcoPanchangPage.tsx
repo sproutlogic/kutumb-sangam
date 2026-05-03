@@ -994,7 +994,7 @@ function WeekView({
   articleDates: Set<string>;
 }) {
   return (
-    <div className="grid grid-cols-7 gap-1.5">
+    <div className="grid grid-cols-7 gap-1">
       {Array.from({ length: 7 }).map((_, i) => {
         const d      = addDays(windowStart, i);
         const row    = rows.find(r => r.gregorian_date === d);
@@ -1006,7 +1006,7 @@ function WeekView({
             key={d}
             onClick={() => onSelectDate(d)}
             className={[
-              "rounded-xl border p-2 text-center transition-all flex flex-col items-center gap-1",
+              "rounded-lg border p-1.5 text-center transition-all flex flex-col items-center gap-0.5",
               isSel    ? "border-green-500 bg-green-600 text-white shadow-md"
               : isToday ? "border-green-500 bg-green-50 dark:bg-green-950/50 ring-2 ring-green-400"
                        : "border-border hover:bg-muted",
@@ -1015,7 +1015,7 @@ function WeekView({
             <span className={`text-[10px] ${isSel ? "text-white/80" : "text-muted-foreground"}`}>
               {new Date(d + "T00:00:00").toLocaleDateString("en-IN", { weekday: "short" })}
             </span>
-            <span className={`text-base font-bold leading-tight ${isSel ? "text-white" : isToday ? "text-green-700 dark:text-green-400" : "text-foreground"}`}>
+            <span className={`text-sm font-bold leading-tight ${isSel ? "text-white" : isToday ? "text-green-700 dark:text-green-400" : "text-foreground"}`}>
               {new Date(d + "T00:00:00").getDate()}
             </span>
             <span className={`text-[9px] leading-tight text-center font-medium line-clamp-2 ${isToday ? "text-white/90" : "text-foreground/80"}`}>
@@ -1073,7 +1073,7 @@ function MonthView({
           const dayNum = idx - startDay + 1;
           const isThisMonth = dayNum >= 1 && dayNum <= totalDays;
           if (!isThisMonth) {
-            return <div key={idx} className="rounded-lg h-16 bg-muted/20" />;
+            return <div key={idx} className="rounded-lg h-12 bg-muted/20" />;
           }
 
           const dateStr  = monthDateStr(year, month, dayNum);
@@ -1088,7 +1088,7 @@ function MonthView({
               key={idx}
               onClick={() => onSelectDate(dateStr)}
               className={[
-                "rounded-lg border p-1.5 text-left flex flex-col gap-0.5 h-16 transition-all overflow-hidden",
+                "rounded-lg border p-1 text-left flex flex-col gap-0.5 h-12 transition-all overflow-hidden",
                 isSel    ? "border-green-500 bg-green-50 dark:bg-green-950/50 shadow"
                 : isToday ? "border-emerald-400 bg-emerald-50/60 dark:bg-emerald-950/30"
                          : "border-border hover:bg-muted",

@@ -10,6 +10,7 @@ import {
   resolveVanshaIdForApi, fetchPrakritiScore, type PrakritiScore,
   fetchFamilyRank, type FamilyRank,
   fetchTodayPanchang,
+  fetchPanchangCalendar, type PanchangCalendarRow,
   fetchSamayProfile, type SamayProfile,
   fetchSamayRequests, type SamayRequest,
   fetchRadarNearby, type RadarMember,
@@ -28,11 +29,15 @@ interface LivePanchang {
   tithiEn: string;
   pakshaLabel: string;
   nakshatra: string | null;
+  yoga: string | null;
   sunriseStr: string | null;
   isSpecial: boolean;
   specialFlag: string | null;
   ecoPlant: string | null;
+  ecoWater: string | null;
   ecoCommunity: string | null;
+  ecoAvoid: string | null;
+  ecoObserve: string | null;
 }
 
 const PAKSHA_LABEL: Record<string, string> = { shukla: 'शुक्ल पक्ष', krishna: 'कृष्ण पक्ष' };
@@ -59,11 +64,15 @@ function useLivePanchang(): LivePanchang | null {
         tithiEn: merged.name_common || 'Tithi',
         pakshaLabel: PAKSHA_LABEL[finalPaksha] ?? finalPaksha,
         nakshatra: api?.nakshatra ?? null,
+        yoga: api?.yoga ?? null,
         sunriseStr,
         isSpecial: !!api?.special_flag,
         specialFlag: api?.special_flag ?? null,
         ecoPlant: (ecoRec.plant ?? merged.plant_action) || null,
+        ecoWater: (ecoRec.water ?? merged.water_action) || null,
         ecoCommunity: (ecoRec.community ?? merged.community_action) || null,
+        ecoAvoid: (ecoRec.avoid ?? merged.avoid_action) || null,
+        ecoObserve: (ecoRec.observe ?? merged.nature_observation) || null,
       });
     }
     load();
@@ -187,12 +196,23 @@ const CommunityHero = ({ appUser, score, familyRank, panchang }: {
   const displayScore = score?.total_score ?? 78;
   const firstName = appUser?.full_name?.split(' ')[0] ?? 'there';
   const [todos, setTodos] = useState([
-    { icon: '🌱', t: 'Plant a sapling — counts 2× today', done: false, src: 'eco' },
     { icon: '🤝', t: 'Accept 1 Sewa request near you', done: false, src: 'sewa' },
     { icon: '📲', t: 'Invite 1 member to your tree — both get +12', done: false, src: 'tree' },
     { icon: '📍', t: 'Scan Kutumb Radar — kin may be nearby', done: false, src: 'radar' },
-    { icon: '🪔', t: 'Log sankalp for Akshaya Tritiya', done: false, src: 'panchang' },
   ]);
+  // Inject panchang-based actions once API data arrives
+  useEffect(() => {
+    if (!panchang) return;
+    const panchangTasks: Array<{ icon: string; t: string; done: boolean; src: string }> = [];
+    if (panchang.ecoPlant)     panchangTasks.push({ icon: '🌱', t: panchang.ecoPlant,     done: false, src: 'panchang' });
+    if (panchang.ecoWater)     panchangTasks.push({ icon: '💧', t: panchang.ecoWater,     done: false, src: 'panchang' });
+    if (panchang.ecoCommunity) panchangTasks.push({ icon: '🌿', t: panchang.ecoCommunity, done: false, src: 'panchang' });
+    if (panchang.specialFlag)  panchangTasks.push({ icon: '🪔', t: `${panchang.tithiName} — log your sankalp`, done: false, src: 'panchang' });
+    if (panchangTasks.length > 0) {
+      setTodos(prev => [...panchangTasks, ...prev.filter(t => t.src !== 'panchang')]);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [panchang]);
   const [newTask, setNewTask] = useState('');
   const doneCnt = todos.filter(t => t.done).length;
   return (
@@ -615,7 +635,9 @@ const CommunityFeed = ({ familyRank, timeline, panchang, dashboardTasks, openSew
             </div>
             <div className="ds-card" style={{ padding: 20, background: 'linear-gradient(180deg,#142822,#0d1d18)', color: 'var(--ds-paper)', border: 'none' }}>
               <span className="ds-eyebrow" style={{ color: '#7adba0' }}>
-                {panchang?.isSpecial ? 'Right now · 2× day' : 'Today · eco window'}
+                {panchang?.specialFlag
+                  ? `${panchang.tithiName} · विशेष तिथि`
+                  : `आज · ${panchang?.pakshaLabel ?? 'eco window'}`}
               </span>
               <div style={{ fontFamily: 'var(--ds-serif)', fontSize: 20, marginTop: 8 }}>
                 {panchang ? panchang.tithiName : '—'}
@@ -623,11 +645,24 @@ const CommunityFeed = ({ familyRank, timeline, panchang, dashboardTasks, openSew
               <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.45)', marginTop: 2 }}>
                 {panchang?.pakshaLabel ?? ''}
                 {panchang?.nakshatra ? ` · ${panchang.nakshatra}` : ''}
+                {panchang?.yoga ? ` · ${panchang.yoga} योग` : ''}
               </div>
-              <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.6)', marginTop: 6, lineHeight: 1.5 }}>
-                {panchang?.isSpecial ? 'Most auspicious day. Log eco-actions — they count double today.' : 'Every eco-action logged today adds to your Prakriti score.'}
-              </p>
-              <button onClick={() => navigate('/eco-panchang')} className="ds-btn ds-btn-sm" style={{ marginTop: 14, background: '#7adba0', color: '#0a1f17', fontWeight: 700, width: '100%', justifyContent: 'center' }}>Log a planting — free →</button>
+              {/* Tithi-based eco actions from live API */}
+              <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 4 }}>
+                {panchang?.ecoPlant && (
+                  <p style={{ fontSize: 12, color: 'rgba(122,219,160,0.9)', lineHeight: 1.5, margin: 0 }}>🌱 {panchang.ecoPlant}</p>
+                )}
+                {panchang?.ecoWater && (
+                  <p style={{ fontSize: 12, color: 'rgba(147,210,255,0.85)', lineHeight: 1.5, margin: 0 }}>💧 {panchang.ecoWater}</p>
+                )}
+                {panchang?.ecoCommunity && (
+                  <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)', lineHeight: 1.5, margin: 0 }}>🤝 {panchang.ecoCommunity}</p>
+                )}
+                {!panchang?.ecoPlant && !panchang?.ecoWater && !panchang?.ecoCommunity && (
+                  <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.55)', lineHeight: 1.5, margin: 0 }}>हर eco-action आज के Prakriti score में जुड़ता है।</p>
+                )}
+              </div>
+              <button onClick={() => navigate('/eco-panchang')} className="ds-btn ds-btn-sm" style={{ marginTop: 12, background: '#7adba0', color: '#0a1f17', fontWeight: 700, width: '100%', justifyContent: 'center' }}>Log eco-action →</button>
             </div>
             <div className="ds-card" style={{ padding: 20 }}>
               <span className="ds-eyebrow">Today's actions</span>
@@ -668,11 +703,34 @@ const CommunityFeed = ({ familyRank, timeline, panchang, dashboardTasks, openSew
                   </div>
                 )}
 
+                {/* Tithi-based: water action */}
+                {panchang?.ecoWater && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 10px', borderRadius: 6, background: 'rgba(56,189,248,0.07)', border: '1px solid rgba(56,189,248,0.2)' }}>
+                    <span style={{ fontSize: 12, color: 'var(--ds-ink)' }}>💧 {panchang.ecoWater}</span>
+                    <button onClick={() => navigate('/eco-panchang')} className="ds-btn ds-btn-sm" style={{ padding: '4px 8px', fontSize: 10, background: 'var(--ds-plum)', color: '#fff' }}>Do →</button>
+                  </div>
+                )}
+
                 {/* Tithi-based: community action */}
                 {panchang?.ecoCommunity && (
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 10px', borderRadius: 6, background: 'var(--ds-ivory-warm)', border: '1px solid var(--ds-hairline)' }}>
                     <span style={{ fontSize: 12, color: 'var(--ds-ink)' }}>🤝 {panchang.ecoCommunity}</span>
                     <button onClick={() => navigate('/eco-panchang')} className="ds-btn ds-btn-sm" style={{ padding: '4px 8px', fontSize: 10, background: 'var(--ds-plum)', color: '#fff' }}>Do →</button>
+                  </div>
+                )}
+
+                {/* Tithi-based: nature observation */}
+                {panchang?.ecoObserve && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 10px', borderRadius: 6, background: 'rgba(168,85,247,0.06)', border: '1px solid rgba(168,85,247,0.18)' }}>
+                    <span style={{ fontSize: 12, color: 'var(--ds-ink)' }}>👁 {panchang.ecoObserve}</span>
+                    <button onClick={() => navigate('/eco-panchang')} className="ds-btn ds-btn-sm" style={{ padding: '4px 8px', fontSize: 10, background: 'var(--ds-plum)', color: '#fff' }}>Note →</button>
+                  </div>
+                )}
+
+                {/* Tithi-based: avoid */}
+                {panchang?.ecoAvoid && (
+                  <div style={{ padding: '7px 10px', borderRadius: 6, background: 'rgba(249,115,22,0.06)', border: '1px solid rgba(249,115,22,0.18)' }}>
+                    <span style={{ fontSize: 11, color: 'var(--ds-ink-soft)' }}>⚠️ आज बचें: {panchang.ecoAvoid}</span>
                   </div>
                 )}
 
@@ -698,37 +756,107 @@ const CommunityFeed = ({ familyRank, timeline, panchang, dashboardTasks, openSew
 };
 
 /* ─────────────────────────────────────────────────────────────
-   8. On This Day — community + gotra, not only family
+   8. Eco-Auspicious Days Ahead — real panchang calendar data
 ───────────────────────────────────────────────────────────── */
+
+const OTDAY_SPECIAL_LABELS: Record<string, string> = {
+  ekadashi: 'एकादशी', purnima: 'पूर्णिमा', amavasya: 'अमावस्या',
+  pradosh: 'प्रदोष', chaturthi: 'चतुर्थी', ashtami: 'अष्टमी',
+  navami: 'नवमी', sankranti: 'संक्रांति',
+};
+const OTDAY_SPECIAL_ICONS: Record<string, string> = {
+  ekadashi: '🌿', purnima: '🌕', amavasya: '🌑', pradosh: '🪔',
+  chaturthi: '🐘', ashtami: '⚔️', navami: '🙏', sankranti: '🌞',
+};
+const OTDAY_SPECIAL_TONES: Record<string, string> = {
+  purnima: '#d4a01f', amavasya: '#5c5c8a', ekadashi: '#2a8068',
+  pradosh: 'var(--ds-plum-rose)', chaturthi: '#9c4e00',
+};
+const OTDAY_ECO_DESC: Record<string, string> = {
+  ekadashi: 'Fast from grains, plant a tulsi or donate food. Ideal for eco-pledges.',
+  purnima: 'Full moon — peak energy for tree planting and water conservation.',
+  amavasya: 'Ancestors\' day — clean a water body or feed birds and animals.',
+  pradosh: 'Twilight rite — light a lamp near a tree; offer water to its roots.',
+  chaturthi: 'Ganesh tithi — start a new eco-project or begin composting.',
+  ashtami: 'Mid-paksha — water birds and animals; observe local biodiversity.',
+  navami: 'Navami energy — organise a community clean-up or tree circle.',
+  sankranti: 'Solar transition — ideal day for sowing seeds and new beginnings.',
+};
+
 const OnThisDay = () => {
   const navigate = useNavigate();
-  const today = new Date().toLocaleString('en-IN', { day: 'numeric', month: 'long' });
-  const items = [
-    { yr: 'Today', who: 'Akshaya Tritiya · Your gotra', text: '1,400+ Kashyap families have planted saplings on this day historically. Start your record.', icon: '🌾', cta: 'Log a planting', tone: '#2a8068' },
-    { yr: '1962', who: 'Your tree', text: 'A member of your tree turns 63 today. Have you wished them?', icon: '🎂', cta: 'Send aashirvaad', tone: 'var(--ds-saffron)' },
-    { yr: '1947', who: 'Gotra memory', text: 'Many Kashyap families moved post-partition on dates like today. Record your movement story.', icon: '🚂', cta: 'Add to tree →', tone: 'var(--ds-plum-rose)' },
-    { yr: 'Nature', who: 'Prakriti note', text: 'May 2 · peak Rohini Nakshatra for sowing in North India. Ideal day to plant a fruit tree.', icon: '🌱', cta: 'Log eco-action', tone: 'var(--ds-gold-deep)' },
-  ];
+  const todayLabel = new Date().toLocaleString('en-IN', { day: 'numeric', month: 'long' });
+  const [auspicious, setAuspicious] = useState<PanchangCalendarRow[]>([]);
+  const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    const from = new Date().toISOString().slice(0, 10);
+    const to   = new Date(Date.now() + 35 * 86400000).toISOString().slice(0, 10);
+    fetchPanchangCalendar(from, to)
+      .then(rows => {
+        const specials = rows.filter(r => r.special_flag);
+        setAuspicious(specials.slice(0, 4));
+      })
+      .catch(() => {})
+      .finally(() => setLoaded(true));
+  }, []);
+
+  // Build display items from real calendar data
+  const items = auspicious.map(r => {
+    const flag     = r.special_flag ?? 'default';
+    const tithiRec = r.tithis as Record<string, string> | undefined;
+    const tithiName = tithiRec?.name_sanskrit || tithiRec?.name_common || OTDAY_SPECIAL_LABELS[flag] || flag;
+    const daysAway = Math.round(
+      (new Date(r.gregorian_date + 'T00:00:00').getTime() - new Date().setHours(0,0,0,0)) / 86400000,
+    );
+    const dateStr = new Date(r.gregorian_date + 'T00:00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
+    return {
+      yr:   daysAway === 0 ? 'आज' : daysAway === 1 ? 'कल' : `${daysAway} दिन बाद`,
+      who:  `${OTDAY_SPECIAL_LABELS[flag] ?? flag} · ${dateStr}`,
+      text: OTDAY_ECO_DESC[flag] ?? 'Auspicious tithi for eco-actions and community service.',
+      tithi: tithiName,
+      icon: OTDAY_SPECIAL_ICONS[flag] ?? '🌾',
+      cta:  'Log eco-action',
+      tone: OTDAY_SPECIAL_TONES[flag] ?? 'var(--ds-gold-deep)',
+    };
+  });
+
   return (
     <section style={{ padding: '72px 0', background: 'linear-gradient(180deg,#f4ecdb,var(--ds-ivory))' }}>
       <div style={{ maxWidth: 1240, margin: '0 auto', padding: '0 24px' }}>
-        <div style={{ marginBottom: 24 }}>
-          <span className="ds-eyebrow" style={{ color: 'var(--ds-gold-deep)' }}>On this day · {today}</span>
-          <h2 style={{ fontFamily: 'var(--ds-serif)', fontSize: 32, marginTop: 6, color: 'var(--ds-ink)' }}>
-            This date has <span style={{ fontStyle: 'italic', color: 'var(--ds-plum-rose)' }}>happened before</span>
-          </h2>
+        <div style={{ marginBottom: 24, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', flexWrap: 'wrap', gap: 12 }}>
+          <div>
+            <span className="ds-eyebrow" style={{ color: 'var(--ds-gold-deep)' }}>Eco-auspicious days ahead · {todayLabel}</span>
+            <h2 style={{ fontFamily: 'var(--ds-serif)', fontSize: 32, marginTop: 6, color: 'var(--ds-ink)' }}>
+              Upcoming <span style={{ fontStyle: 'italic', color: 'var(--ds-plum-rose)' }}>special tithis</span> for action
+            </h2>
+          </div>
+          <button onClick={() => navigate('/eco-panchang')} className="ds-btn ds-btn-sm ds-btn-ghost">Open full calendar →</button>
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14 }} className="dash-otd-grid">
-          {items.map((it, i) => (
-            <div key={i} className="ds-card" style={{ padding: 22, position: 'relative', overflow: 'hidden' }}>
-              <div style={{ position: 'absolute', top: -10, right: -10, fontSize: 80, opacity: 0.05, fontFamily: 'var(--ds-serif)', color: it.tone, fontWeight: 700 }}>{it.yr}</div>
-              <div style={{ fontSize: 32, marginBottom: 10 }}>{it.icon}</div>
-              <div className="ds-eyebrow" style={{ color: it.tone }}>{it.yr} · {it.who}</div>
-              <p style={{ fontSize: 14, marginTop: 8, fontFamily: 'var(--ds-serif)', lineHeight: 1.4, color: 'var(--ds-ink)', position: 'relative' }}>{it.text}</p>
-              <button onClick={() => navigate('/eco-panchang')} className="ds-btn ds-btn-sm ds-btn-plum" style={{ marginTop: 14 }}>{it.cta}</button>
-            </div>
-          ))}
-        </div>
+        {!loaded ? (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14 }} className="dash-otd-grid">
+            {[0,1,2,3].map(i => (
+              <div key={i} className="ds-card" style={{ padding: 22, height: 140, background: 'rgba(212,154,31,0.04)', border: '1px solid rgba(212,154,31,0.15)' }} />
+            ))}
+          </div>
+        ) : items.length > 0 ? (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14 }} className="dash-otd-grid">
+            {items.map((it, i) => (
+              <div key={i} className="ds-card" style={{ padding: 22, position: 'relative', overflow: 'hidden' }}>
+                <div style={{ position: 'absolute', top: -6, right: 8, fontSize: 11, fontFamily: 'var(--ds-mono)', fontWeight: 700, color: it.tone, opacity: 0.7, letterSpacing: '0.05em' }}>{it.yr}</div>
+                <div style={{ fontSize: 32, marginBottom: 10 }}>{it.icon}</div>
+                <div className="ds-eyebrow" style={{ color: it.tone }}>{it.who}</div>
+                <div style={{ fontFamily: 'var(--ds-serif)', fontSize: 13, fontWeight: 600, color: 'var(--ds-plum)', marginTop: 3 }}>{it.tithi}</div>
+                <p style={{ fontSize: 13, marginTop: 6, lineHeight: 1.4, color: 'var(--ds-ink)', position: 'relative' }}>{it.text}</p>
+                <button onClick={() => navigate('/eco-panchang')} className="ds-btn ds-btn-sm ds-btn-plum" style={{ marginTop: 14 }}>{it.cta}</button>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="ds-card" style={{ padding: 32, textAlign: 'center', color: 'var(--ds-ink-mute)', fontSize: 13 }}>
+            No upcoming special tithis found. <button onClick={() => navigate('/eco-panchang')} className="ds-btn ds-btn-sm ds-btn-ghost" style={{ marginLeft: 8 }}>Open calendar →</button>
+          </div>
+        )}
       </div>
     </section>
   );
