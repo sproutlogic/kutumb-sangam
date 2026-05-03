@@ -48,12 +48,13 @@ class Settings(BaseSettings):
     smtp_pass:  str = ""
     smtp_from:  str = "noreply@prakriti.ecotech.co.in"
 
-    # ── Panchang seeder ───────────────────────────────────────────────────────
-    # Optional: AstroAPI.com key for richer panchang data (nakshatra, yoga).
-    # Leave blank to use the offline pyswisseph / drik-panchanga library only.
-    panchang_api_key: str = ""
+    # ── Prokerala Panchang API ────────────────────────────────────────────────
+    # OAuth2 client_credentials — dashboard: api.prokerala.com
+    # 10 credits per daily panchang call. Free tier = 5,000 credits/month.
+    prokerala_client_id:     str = "96372791-e204-4a58-b89a-d25321509530"
+    prokerala_client_secret: str = "bH5s1CWSH6tm2Fcc5sz8llZqpwNBJgXxWIysESSm"
 
-    # Panchang rolling window in days (seeder fills this many days ahead)
+    # Panchang rolling window in days (seed endpoint fills this many days ahead)
     panchang_window_days: int = 90
 
     @property

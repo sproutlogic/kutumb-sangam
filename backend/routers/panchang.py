@@ -11,7 +11,7 @@ POST /api/panchang/calendar/seed       — manual 90-day refresh trigger (admin 
 from __future__ import annotations
 
 import logging
-from datetime import date, timedelta
+from datetime import date, timedelta, datetime
 from typing import Any, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -104,55 +104,60 @@ def get_today(
     lon: Optional[float] = Query(default=None, description="Observer longitude (Ujjain default)"),
 ) -> dict[str, Any]:
     """
-    Return today's tithi with eco-recommendation.
-    Optionally accepts lat/lon for location-specific sunrise tithi.
-    Defaults to Ujjain (23.1809°N, 75.7771°E) — traditional Hindu meridian.
+    Return today's tithi, vrat and festival data via Prokerala API.
+    Checks DB cache first — calls Prokerala only on cache miss, then stores result.
+    Optionally accepts lat/lon for location-specific sunrise. Defaults to Ujjain.
     """
-    sb = get_supabase()
+    sb        = get_supabase()
     today_str = date.today().isoformat()
+    ref_lat   = lat or UJJAIN_LAT
+    ref_lon   = lon or UJJAIN_LON
 
-    # Try DB first (pre-seeded)
-    res = (
+    # 1. DB cache hit
+    cached = (
         sb.table(PANCHANG_CALENDAR_TABLE)
         .select("*, tithis(*)")
         .eq("gregorian_date", today_str)
         .limit(1)
         .execute()
     )
-
-    if res.data:
-        row = res.data[0]
+    if cached.data:
+        row   = cached.data[0]
         tithi = row.get("tithis") or {}
-    else:
-        # On-demand computation if seeder hasn't run yet
-        logger.warning("panchang/today: no DB row for %s — computing on-demand", today_str)
-        from workers.panchang_seeder import _compute_tithi_drik, seed_panchang_window
-        ref_lat = lat or UJJAIN_LAT
-        ref_lon = lon or UJJAIN_LON
-        try:
-            data = _compute_tithi_drik(date.today(), ref_lat, ref_lon)
-            # Seed the row for future requests
-            seed_panchang_window(window_days=7, lat=ref_lat, lon=ref_lon)
-            # Re-fetch
-            res2 = (
-                sb.table(PANCHANG_CALENDAR_TABLE)
-                .select("*, tithis(*)")
-                .eq("gregorian_date", today_str)
-                .limit(1)
-                .execute()
-            )
-            if res2.data:
-                row   = res2.data[0]
-                tithi = row.get("tithis") or {}
-            else:
-                row   = {"gregorian_date": today_str, **data}
-                tithi = {}
-        except Exception:
-            logger.exception("panchang/today: on-demand computation failed")
-            raise HTTPException(status_code=503, detail="Panchang data not yet available. Run /calendar/seed first.")
+        return _build_response(row, tithi)
 
+    # 2. Cache miss → call Prokerala
+    logger.info("panchang/today: cache miss for %s — calling Prokerala", today_str)
+    from services.prokerala import get_day_panchang
+    try:
+        pk = get_day_panchang(date.today(), ref_lat, ref_lon)
+    except Exception:
+        logger.exception("Prokerala call failed for %s", today_str)
+        raise HTTPException(status_code=503, detail="Panchang data unavailable — Prokerala API error.")
+
+    # 3. Look up tithis table for eco_recommendation (by tithi_id)
+    tithi_res = (
+        sb.table(TITHIS_TABLE)
+        .select("*")
+        .eq("id", pk["tithi_id"])
+        .limit(1)
+        .execute()
+    )
+    tithi = tithi_res.data[0] if tithi_res.data else {}
+
+    # 4. Upsert to DB so next request is served from cache
+    db_row = {k: v for k, v in pk.items() if k != "festivals"}   # festivals not a DB column
+    try:
+        sb.table(PANCHANG_CALENDAR_TABLE).upsert(db_row, on_conflict="gregorian_date").execute()
+    except Exception:
+        logger.warning("panchang/today: DB upsert failed — serving uncached response")
+
+    return _build_response({**db_row, "tithis": tithi}, tithi)
+
+
+def _build_response(row: dict, tithi: dict) -> dict[str, Any]:
     return {
-        "date":             today_str,
+        "date":             row.get("gregorian_date"),
         "tithi":            tithi,
         "nakshatra":        row.get("nakshatra"),
         "yoga":             row.get("yoga"),
@@ -180,15 +185,33 @@ def seed_calendar(
     body: SeedBody,
     current_user: dict[str, Any] = Depends(get_current_user),
 ) -> dict[str, Any]:
-    """Manually trigger a panchang_calendar refresh. Admin only."""
+    """
+    Pre-fill panchang_calendar for window_days ahead using Prokerala API.
+    Admin only. Costs 10 Prokerala credits per day.
+    """
     if not _is_admin(current_user):
         raise HTTPException(status_code=403, detail="Admin role required.")
     if not (7 <= body.window_days <= 365):
         raise HTTPException(status_code=400, detail="window_days must be between 7 and 365.")
 
-    from workers.panchang_seeder import seed_panchang_window
-    inserted = seed_panchang_window(window_days=body.window_days, lat=body.lat, lon=body.lon)
-    return {"ok": True, "rows_seeded": inserted, "window_days": body.window_days}
+    from services.prokerala import get_day_panchang
+    sb      = get_supabase()
+    today   = date.today()
+    seeded  = 0
+    errors  = 0
+
+    for i in range(body.window_days):
+        d = today + timedelta(days=i)
+        try:
+            pk = get_day_panchang(d, body.lat, body.lon)
+            db_row = {k: v for k, v in pk.items() if k != "festivals"}
+            sb.table(PANCHANG_CALENDAR_TABLE).upsert(db_row, on_conflict="gregorian_date").execute()
+            seeded += 1
+        except Exception:
+            logger.warning("seed: failed for %s", d.isoformat())
+            errors += 1
+
+    return {"ok": True, "rows_seeded": seeded, "errors": errors, "window_days": body.window_days}
 
 
 # ── Prakriti Insights (panchang_articles) ─────────────────────────────────────
