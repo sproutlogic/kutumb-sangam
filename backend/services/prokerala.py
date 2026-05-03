@@ -21,7 +21,7 @@ from config import get_settings
 logger = logging.getLogger(__name__)
 
 _TOKEN_URL    = "https://api.prokerala.com/token"
-_PANCHANG_URL = "https://api.prokerala.com/v2/panchanga/detail"
+_PANCHANG_URL = "https://api.prokerala.com/v2/astrology/panchang"
 
 # In-process token cache (reset on worker restart)
 _token: str | None = None
