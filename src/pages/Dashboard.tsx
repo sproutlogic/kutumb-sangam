@@ -186,14 +186,15 @@ const RightNowMoment = ({ panchang }: { panchang: LivePanchang | null }) => {
    3. Community Hero — score + gotra comparison + rank + todo
    CRO: social comparison drives action + aspiration
 ───────────────────────────────────────────────────────────── */
-const CommunityHero = ({ appUser, score, familyRank, panchang }: {
+const CommunityHero = ({ appUser, score, familyRank, panchang, userPersonNode }: {
   appUser: { full_name?: string | null } | null;
   score: PrakritiScore | null;
   familyRank: FamilyRank | null;
   panchang: LivePanchang | null;
+  userPersonNode: Record<string, unknown> | null;
 }) => {
   const navigate = useNavigate();
-  const displayScore = score?.total_score ?? 78;
+  void score;
   const firstName = appUser?.full_name?.split(' ')[0] ?? 'there';
   const [todos, setTodos] = useState([
     { icon: '🤝', t: 'Accept 1 Sewa request near you', done: false, src: 'sewa' },
@@ -232,39 +233,43 @@ const CommunityHero = ({ appUser, score, familyRank, panchang }: {
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr 1fr', gap: 18, alignItems: 'start' }} className="dash-hero-grid">
 
-          {/* Score + gotra comparison */}
-          <div className="ds-card" style={{ padding: 28, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(212,154,31,0.3)', color: 'var(--ds-paper)' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span className="ds-eyebrow" style={{ color: 'var(--ds-gold-light)' }}>Prakriti score</span>
-              <span className="ds-pill" style={{ background: 'rgba(122,219,160,0.12)', borderColor: 'rgba(122,219,160,0.3)', color: '#7adba0' }}>↑ +6 this week</span>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'flex-end', gap: 14, marginTop: 14 }}>
-              <div className="ds-score-num" style={{ fontSize: 100, color: 'var(--ds-gold-light)', lineHeight: 1 }}>{displayScore}</div>
-              <div style={{ paddingBottom: 12 }}>
-                <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.4)' }}>/100</div>
-                {familyRank && <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.6)', marginTop: 4 }}>#{familyRank.city_rank} in {familyRank.city ?? 'city'}</div>}
-                {familyRank && <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.45)' }}>#{familyRank.state_rank} in {familyRank.state ?? 'state'}</div>}
+          {/* Royal Nameplate */}
+          {(() => {
+            const str = (key: string) => String(userPersonNode?.[key] ?? '').trim() || null;
+            const first = str('first_name'); const mid = str('middle_name'); const last = str('last_name');
+            const fullName = [first, mid, last].filter(Boolean).join(' ') || appUser?.full_name || '—';
+            const fatherName = str('father_name');
+            const moolNiwas = str('mool_niwas') || str('ancestral_place');
+            const gotra = str('gotra');
+            return (
+              <div className="ds-card" style={{ padding: 28, background: 'linear-gradient(145deg,rgba(28,10,45,0.92),rgba(45,18,72,0.88))', border: '2px solid rgba(212,154,31,0.5)', color: 'var(--ds-paper)', display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 0, minHeight: 220, position: 'relative', overflow: 'hidden' }}>
+                <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 3, background: 'linear-gradient(90deg,transparent,rgba(212,154,31,0.7),transparent)' }} />
+                <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 3, background: 'linear-gradient(90deg,transparent,rgba(212,154,31,0.5),transparent)' }} />
+                <div style={{ fontFamily: 'var(--ds-mono)', fontSize: 9, letterSpacing: '0.28em', textTransform: 'uppercase', color: 'rgba(212,154,31,0.6)', marginBottom: 14 }}>कुलनामपट्टिका</div>
+                <div style={{ fontFamily: 'var(--ds-serif)', fontSize: 'clamp(20px,2vw,30px)', fontWeight: 700, color: 'var(--ds-gold-light)', lineHeight: 1.15 }}>
+                  {fullName}
+                </div>
+                {fatherName && (
+                  <div style={{ fontFamily: 'var(--ds-serif)', fontSize: 15, color: 'rgba(255,255,255,0.65)', marginTop: 10 }}>
+                    s/o {fatherName}
+                  </div>
+                )}
+                {moolNiwas && (
+                  <div style={{ fontFamily: 'var(--ds-serif)', fontSize: 14, fontStyle: 'italic', color: 'rgba(212,154,31,0.75)', marginTop: 6 }}>
+                    ({moolNiwas})
+                  </div>
+                )}
+                <div style={{ height: 1, background: 'linear-gradient(90deg,transparent,rgba(212,154,31,0.45),transparent)', margin: '16px 0 12px' }} />
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+                  {gotra && <span className="ds-pill" style={{ background: 'rgba(212,154,31,0.1)', borderColor: 'rgba(212,154,31,0.35)', color: 'var(--ds-gold-light)', fontSize: 10 }}>{gotra} गोत्र</span>}
+                  {familyRank && <span className="ds-pill" style={{ background: 'rgba(122,219,160,0.08)', borderColor: 'rgba(122,219,160,0.25)', color: '#7adba0', fontSize: 10 }}>#{familyRank.city_rank} {familyRank.city ?? ''}</span>}
+                </div>
+                <button onClick={() => navigate('/settings')} className="ds-btn ds-btn-sm" style={{ marginTop: 16, alignSelf: 'flex-start', background: 'rgba(212,154,31,0.12)', color: 'var(--ds-gold-light)', border: '1px solid rgba(212,154,31,0.3)', fontSize: 11 }}>
+                  {fatherName ? 'Edit details →' : 'Complete your nameplate →'}
+                </button>
               </div>
-            </div>
-            {/* Impact this week — pride in contributions, not comparison */}
-            <div style={{ marginTop: 14, padding: '11px 14px', borderRadius: 8, background: 'rgba(122,219,160,0.06)', border: '1px solid rgba(122,219,160,0.15)' }}>
-              <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.45)', fontFamily: 'var(--ds-mono)', letterSpacing: '0.1em', textTransform: 'uppercase' }}>Your impact · this week</div>
-              <div style={{ display: 'flex', gap: 14, marginTop: 6, flexWrap: 'wrap' }}>
-                <span style={{ fontSize: 13, color: '#7adba0' }}>🌱 — eco-actions</span>
-                <span style={{ fontSize: 13, color: 'var(--ds-gold-light)' }}>🤝 — Sewa hrs</span>
-                <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.6)' }}>📲 — invited</span>
-              </div>
-            </div>
-            <div style={{ marginTop: 14, height: 6, borderRadius: 3, background: 'rgba(255,255,255,0.1)', overflow: 'hidden' }}>
-              <div style={{ width: `${displayScore}%`, height: '100%', background: 'linear-gradient(90deg,var(--ds-saffron),var(--ds-gold))' }} />
-            </div>
-            <div style={{ marginTop: 5, display: 'flex', justifyContent: 'space-between', fontSize: 10, color: 'rgba(255,255,255,0.3)', fontFamily: 'var(--ds-mono)' }}>
-              <span>Beej</span><span>Ankur</span><span>Vriksh</span><span>Vansh</span>
-            </div>
-            <button onClick={() => navigate('/tree')} className="ds-btn ds-btn-sm" style={{ marginTop: 16, width: '100%', justifyContent: 'center', background: 'rgba(212,154,31,0.14)', color: 'var(--ds-gold-light)', border: '1px solid rgba(212,154,31,0.3)' }}>
-              What raised your score this week →
-            </button>
-          </div>
+            );
+          })()}
 
           {/* Today card — live tithi */}
           <div className="ds-card" style={{ padding: 24, background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', color: 'var(--ds-paper)' }}>
@@ -507,7 +512,7 @@ const InviteLoop = ({ treeSize }: { treeSize: number }) => {
           <div style={{ flex: '2 1 260px' }}>
             <span className="ds-eyebrow" style={{ color: 'var(--ds-gold-deep)' }}>Your tree has {treeSize} member{treeSize !== 1 ? 's' : ''} — keep growing</span>
             <h3 style={{ fontFamily: 'var(--ds-serif)', fontSize: 22, marginTop: 6, color: 'var(--ds-ink)', lineHeight: 1.2 }}>
-              Every invite = <span style={{ color: 'var(--ds-gold-deep)' }}>+12 Prakriti</span> for both of you.
+              Apna kutumb badhao — <span style={{ fontStyle: 'italic', color: 'var(--ds-gold-deep)' }}>milke aage badhein.</span>
             </h3>
             <div style={{ marginTop: 12 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, fontFamily: 'var(--ds-mono)', color: 'var(--ds-ink-mute)', marginBottom: 5 }}>
@@ -842,8 +847,8 @@ const OnThisDay = () => {
         ) : items.length > 0 ? (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14 }} className="dash-otd-grid">
             {items.map((it, i) => (
-              <div key={i} className="ds-card" style={{ padding: 22, position: 'relative', overflow: 'hidden' }}>
-                <div style={{ position: 'absolute', top: -6, right: 8, fontSize: 11, fontFamily: 'var(--ds-mono)', fontWeight: 700, color: it.tone, opacity: 0.7, letterSpacing: '0.05em' }}>{it.yr}</div>
+              <div key={i} className="ds-card" style={{ padding: 22, position: 'relative' }}>
+                <div style={{ position: 'absolute', top: 10, right: 14, fontSize: 11, fontFamily: 'var(--ds-mono)', fontWeight: 700, color: it.tone, opacity: 0.8, letterSpacing: '0.05em' }}>{it.yr}</div>
                 <div style={{ fontSize: 32, marginBottom: 10 }}>{it.icon}</div>
                 <div className="ds-eyebrow" style={{ color: it.tone }}>{it.who}</div>
                 <div style={{ fontFamily: 'var(--ds-serif)', fontSize: 13, fontWeight: 600, color: 'var(--ds-plum)', marginTop: 3 }}>{it.tithi}</div>
@@ -930,26 +935,61 @@ const Sanskaras = () => {
 ───────────────────────────────────────────────────────────── */
 const PrideWall = () => {
   const [dismissed, setDismissed] = useState<number[]>([]);
+  const [shareOpen, setShareOpen] = useState(false);
+  const [shareText, setShareText] = useState('');
+  const todayMD = `${String(new Date().getMonth() + 1).padStart(2,'0')}-${String(new Date().getDate()).padStart(2,'0')}`;
   const cards = [
-    { who: 'Aanya · your tree', kind: 'Achievement', title: 'AIR 412 in JEE Main · first in 3 generations', img: '🏆', when: '2 weeks ago', tributes: 23, tone: 'var(--ds-saffron)', highlight: true },
-    { who: 'Chacha ji · your tree', kind: 'Service', title: 'Built a primary school in Etawah village', img: '🏫', when: '2024', tributes: 18, tone: '#a64a8e', highlight: false },
-    { who: 'Meena Devi · Kashyap gotra', kind: 'Ecology', title: 'Planted 200 saplings across 3 villages in UP', img: '🌳', when: '1 month ago', tributes: 41, tone: '#2a8068', highlight: false },
-    { who: 'Pt. Ramesh ji · community', kind: 'Wisdom', title: '47 years of Vedic teaching · 1,200+ students', img: '🪔', when: 'Ongoing', tributes: 67, tone: 'var(--ds-plum-rose)', highlight: false },
-    { who: 'Bhabhi · your tree', kind: 'Craft', title: 'Rangoli book published · Rajpal & Sons', img: '📕', when: '3 months ago', tributes: 7, tone: '#a64a8e', highlight: false },
-    { who: 'Verma parivar · Lucknow', kind: 'Community', title: 'Organized free health camp for 300 people', img: '🩺', when: 'Last month', tributes: 55, tone: 'var(--ds-saffron)', highlight: false },
+    { who: 'Aanya · your tree', kind: 'Achievement', title: 'AIR 412 in JEE Main · first in 3 generations', img: '🏆', when: '2 weeks ago', when_date: '05-03', tributes: 23, tone: 'var(--ds-saffron)', highlight: true },
+    { who: 'Chacha ji · your tree', kind: 'Service', title: 'Built a primary school in Etawah village', img: '🏫', when: '2024', when_date: '04-15', tributes: 18, tone: '#a64a8e', highlight: false },
+    { who: 'Meena Devi · Kashyap gotra', kind: 'Ecology', title: 'Planted 200 saplings across 3 villages in UP', img: '🌳', when: '1 month ago', when_date: '04-02', tributes: 41, tone: '#2a8068', highlight: false },
+    { who: 'Pt. Ramesh ji · community', kind: 'Wisdom', title: '47 years of Vedic teaching · 1,200+ students', img: '🪔', when: 'Ongoing', when_date: '01-14', tributes: 67, tone: 'var(--ds-plum-rose)', highlight: false },
+    { who: 'Bhabhi · your tree', kind: 'Craft', title: 'Rangoli book published · Rajpal & Sons', img: '📕', when: '3 months ago', when_date: '02-20', tributes: 7, tone: '#a64a8e', highlight: false },
+    { who: 'Verma parivar · Lucknow', kind: 'Community', title: 'Organized free health camp for 300 people', img: '🩺', when: 'Last month', when_date: '04-10', tributes: 55, tone: 'var(--ds-saffron)', highlight: false },
   ];
+  const todayCards = cards.filter(c => c.when_date === todayMD);
   const visible = cards.filter((_, i) => !dismissed.includes(i));
   return (
-    <section style={{ padding: '72px 0', background: 'var(--ds-ivory)' }}>
+    <section style={{ padding: '40px 0 56px', background: 'var(--ds-ivory)' }}>
       <div style={{ maxWidth: 1240, margin: '0 auto', padding: '0 24px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 24, flexWrap: 'wrap', gap: 12 }}>
           <div>
-            <span className="ds-eyebrow">Garv · Pride Wall</span>
+            <span className="ds-eyebrow">Garv · Kutumb Gaurav Gatha</span>
             <h2 style={{ fontFamily: 'var(--ds-serif)', fontSize: 32, marginTop: 6, color: 'var(--ds-ink)' }}>Your kutumb's <span style={{ fontStyle: 'italic', color: 'var(--ds-gold-deep)' }}>gauravgaatha</span></h2>
-            <p style={{ fontSize: 14, color: 'var(--ds-ink-soft)', marginTop: 6, maxWidth: 580 }}>Achievements from your tree, your gotra, your community. Tribute — don't 'like'.</p>
+            <p style={{ fontSize: 14, color: 'var(--ds-ink-soft)', marginTop: 6, maxWidth: 580 }}>Permanent achievements — not status updates. Every year, on this date.</p>
           </div>
-          <button className="ds-btn ds-btn-sm ds-btn-plum">+ Share yours</button>
+          <button onClick={() => setShareOpen(true)} className="ds-btn ds-btn-sm ds-btn-plum">+ Share yours</button>
         </div>
+        {/* Share modal */}
+        {shareOpen && (
+          <div onClick={() => setShareOpen(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(28,13,46,0.55)', backdropFilter: 'blur(8px)', zIndex: 200, display: 'grid', placeItems: 'center', padding: 24 }}>
+            <div onClick={e => e.stopPropagation()} style={{ width: 'min(520px,100%)', background: 'var(--ds-paper)', borderRadius: 16, padding: 28, boxShadow: '0 24px 64px -12px rgba(28,13,46,0.28)' }}>
+              <div style={{ fontFamily: 'var(--ds-serif)', fontSize: 22, color: 'var(--ds-plum)', marginBottom: 4 }}>Share a Gaurav Gatha</div>
+              <p style={{ fontSize: 13, color: 'var(--ds-ink-soft)', marginBottom: 16 }}>What has your kutumb achieved? It will appear every year on this date.</p>
+              <textarea value={shareText} onChange={e => setShareText(e.target.value)} placeholder="e.g. Badi Dadi ji taught 200 children to read — Meerpur village, 1978." rows={4} style={{ width: '100%', borderRadius: 8, border: '1px solid var(--ds-hairline)', padding: '10px 12px', fontFamily: 'inherit', fontSize: 13, resize: 'vertical', background: 'var(--ds-ivory-warm)', boxSizing: 'border-box' }} />
+              <div style={{ display: 'flex', gap: 10, marginTop: 14, justifyContent: 'flex-end' }}>
+                <button onClick={() => setShareOpen(false)} style={{ padding: '8px 16px', borderRadius: 8, border: '1px solid var(--ds-hairline)', background: 'transparent', cursor: 'pointer', fontSize: 13 }}>Cancel</button>
+                <button onClick={() => { setShareOpen(false); setShareText(''); }} style={{ padding: '8px 20px', borderRadius: 8, background: 'var(--ds-plum)', color: '#fff', border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 600 }}>Submit →</button>
+              </div>
+            </div>
+          </div>
+        )}
+        {/* Today in history */}
+        {todayCards.length > 0 && (
+          <div style={{ marginBottom: 28, padding: '18px 22px', borderRadius: 12, background: 'linear-gradient(135deg,rgba(212,154,31,0.08),rgba(74,33,104,0.04))', border: '1px solid rgba(212,154,31,0.25)' }}>
+            <div className="ds-eyebrow" style={{ color: 'var(--ds-gold-deep)', marginBottom: 12 }}>आज की गौरवगाथा · इसी तारीख को हर साल</div>
+            <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
+              {todayCards.map((c, i) => (
+                <div key={i} style={{ display: 'flex', gap: 12, alignItems: 'center', padding: '10px 14px', borderRadius: 8, background: 'var(--ds-paper)', border: `1px solid ${c.tone}33` }}>
+                  <div style={{ fontSize: 28 }}>{c.img}</div>
+                  <div>
+                    <div style={{ fontFamily: 'var(--ds-serif)', fontSize: 14, fontWeight: 600, color: 'var(--ds-ink)' }}>{c.title}</div>
+                    <div style={{ fontSize: 11, color: 'var(--ds-ink-mute)', marginTop: 2 }}>by {c.who}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }} className="dash-pw-grid">
           {visible.map((c, i) => (
             <div key={i} className="ds-card" style={{ padding: 0, overflow: 'hidden', position: 'relative', border: c.highlight ? '1.5px solid var(--ds-gold)' : '1px solid var(--ds-hairline)' }}>
@@ -1018,10 +1058,14 @@ const Dashboard = () => {
   const [treeSize, setTreeSize] = useState(0);
   const [dashboardTasks, setDashboardTasks] = useState<DashboardTask[]>([]);
   const [openSewa, setOpenSewa] = useState<SamayRequest | null>(null);
+  const [userPersonNode, setUserPersonNode] = useState<Record<string, unknown> | null>(null);
 
   const streak = (() => {
     try { return parseInt(localStorage.getItem('prakriti_streak') ?? '0', 10) || 0; } catch { return 0; }
   })();
+  const [kidsEnabled, setKidsEnabled] = useState(() => {
+    try { return localStorage.getItem('prakriti_kids_section') === '1'; } catch { return false; }
+  });
   const panchang = useLivePanchang();
 
   useEffect(() => {
@@ -1035,7 +1079,12 @@ const Dashboard = () => {
     fetchDashboardTasks().then(setDashboardTasks).catch(() => {});
     fetchRadarNearby(vid, 10).then(setNearby).catch(() => {});
     fetchGreenLegacyTimeline(vid, 5).then(setTimeline).catch(() => {});
-    fetchVanshaTree(vid).then(d => setTreeSize(d.persons?.length ?? 0)).catch(() => {});
+    fetchVanshaTree(vid).then(d => {
+      const persons = d.persons as Record<string, unknown>[];
+      setTreeSize(persons.length ?? 0);
+      const root = persons.find(p => (p.relative_gen_index as number) === 0) ?? persons[0] ?? null;
+      setUserPersonNode(root);
+    }).catch(() => {});
   }, [appUser?.vansha_id]);
 
   useEffect(() => {
@@ -1045,22 +1094,57 @@ const Dashboard = () => {
     }
   }, [searchParams, setSearchParams]);
 
-  // Suppress unused-var warnings for now; tr and plan used by other parts of app
-  void tr; void plan;
+  void tr; void plan; void streak;
 
   return (
     <AppShell>
       <div style={{ background: 'var(--ds-ivory)', minHeight: '100vh' }}>
-        <CommunityPulseBar streak={streak} />
         {panchang?.isSpecial && <RightNowMoment panchang={panchang} />}
-        <CommunityHero appUser={appUser} score={prakritiScore} familyRank={familyRank} panchang={panchang} />
+        <CommunityHero appUser={appUser} score={prakritiScore} familyRank={familyRank} panchang={panchang} userPersonNode={userPersonNode} />
+        <PrideWall />
         <SewaEngine samayProfile={samayProfile} samayRequests={samayRequests} />
         <KutumbRadar nearby={nearby} />
         <InviteLoop treeSize={treeSize} />
         <CommunityFeed familyRank={familyRank} timeline={timeline} panchang={panchang} dashboardTasks={dashboardTasks} openSewa={openSewa} />
         <OnThisDay />
         <Sanskaras />
-        <PrideWall />
+
+        {/* Kids section toggle */}
+        <section style={{ padding: '24px 0', background: 'var(--ds-ivory)', borderTop: '1px solid var(--ds-hairline)' }}>
+          <div style={{ maxWidth: 1240, margin: '0 auto', padding: '0 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 16 }}>
+            <div>
+              <span className="ds-eyebrow">Chote Sheron Ke Liye</span>
+              <div style={{ fontFamily: 'var(--ds-serif)', fontSize: 18, color: 'var(--ds-ink)', marginTop: 4 }}>
+                Apne bachon ka apna corner — <span style={{ fontStyle: 'italic', color: 'var(--ds-plum-rose)' }}>activate karein</span>
+              </div>
+            </div>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
+              <span style={{ fontSize: 13, color: 'var(--ds-ink-soft)' }}>{kidsEnabled ? 'On' : 'Off'}</span>
+              <div onClick={() => {
+                const next = !kidsEnabled;
+                setKidsEnabled(next);
+                try { localStorage.setItem('prakriti_kids_section', next ? '1' : '0'); } catch {}
+              }} style={{ width: 44, height: 24, borderRadius: 12, background: kidsEnabled ? 'var(--ds-plum-rose)' : 'var(--ds-hairline-strong)', position: 'relative', transition: 'background 0.25s', cursor: 'pointer', flexShrink: 0 }}>
+                <div style={{ position: 'absolute', top: 3, left: kidsEnabled ? 23 : 3, width: 18, height: 18, borderRadius: '50%', background: '#fff', transition: 'left 0.25s', boxShadow: '0 1px 4px rgba(0,0,0,0.2)' }} />
+              </div>
+            </label>
+          </div>
+          {kidsEnabled && (
+            <div style={{ maxWidth: 1240, margin: '16px auto 0', padding: '0 24px' }}>
+              <div className="ds-card" style={{ padding: 28, background: 'linear-gradient(135deg,rgba(255,182,193,0.12),rgba(255,220,150,0.08))', border: '1px solid rgba(255,150,150,0.25)' }}>
+                <div style={{ display: 'flex', gap: 20, alignItems: 'center', flexWrap: 'wrap' }}>
+                  <div style={{ fontSize: 48 }}>🦁</div>
+                  <div>
+                    <div style={{ fontFamily: 'var(--ds-serif)', fontSize: 22, color: 'var(--ds-plum)', fontWeight: 700 }}>Chote Sheron Ki Duniya</div>
+                    <p style={{ fontSize: 14, color: 'var(--ds-ink-soft)', marginTop: 6, lineHeight: 1.5 }}>Your children's space — stories, milestones, heritage passed forward. <em>Wiring in progress — add a child to your tree to activate.</em></p>
+                    <button onClick={() => {}} className="ds-btn ds-btn-sm ds-btn-plum" style={{ marginTop: 12 }}>Add child to tree →</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </section>
+
         <NotifStack />
 
         {isSalesMember && (

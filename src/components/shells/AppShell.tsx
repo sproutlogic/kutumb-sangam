@@ -129,7 +129,7 @@ const AppShell: React.FC<AppShellProps> = ({ children }) => {
     if (!broadcastMsg.trim()) return;
     if (!canAnnounce) { toast({ title: 'Upgrade to broadcast', description: 'Broadcast requires a higher plan.' }); return; }
     setBcSending(true);
-    pushActivity('activityTreeBroadcast', { message: broadcastMsg.trim().slice(0, 500) });
+    pushActivity('activityTreeBroadcast', { message: broadcastMsg.trim().slice(0, 500), audience, channel });
     setTimeout(() => {
       setBcSending(false);
       setBcSent(true);

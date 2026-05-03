@@ -33,7 +33,6 @@ const KutumbFooter: React.FC = () => {
             <ul style={{ listStyle: 'none', display: 'flex', flexDirection: 'column', gap: 10 }}>
               <li><button onClick={() => navigate('/margdarshak-kyc')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.55)', fontSize: 14 }}>Become a Margdarshak</button></li>
               <li><button onClick={() => navigate('/kutumb-pro')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.55)', fontSize: 14 }}>Kutumb Pro</button></li>
-              <li><button onClick={() => navigate('/harit-circle')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.55)', fontSize: 14 }}>Harit Circle</button></li>
               <li><button onClick={() => navigate('/eco-panchang')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.55)', fontSize: 14 }}>Eco Panchang</button></li>
               <li><button onClick={() => navigate('/dashboard?join-team=1')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.55)', fontSize: 14 }}>Join our team</button></li>
             </ul>
