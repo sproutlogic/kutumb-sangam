@@ -110,20 +110,31 @@ def get_day_panchang(for_date: date, lat: float, lon: float) -> dict[str, Any]:
     data = resp.json().get("data", {})
 
     # ── Tithi ─────────────────────────────────────────────────────────────
+    # /v2/astrology/panchang returns tithi as a list directly (not {"details":[...]}).
     # Prokerala: id 1-15 per paksha. We store 1-30 (krishna += 15).
-    tithi_details = (data.get("tithi") or {}).get("details") or []
-    t_rec    = tithi_details[0] if tithi_details else {}
-    pk_id    = int(t_rec.get("id") or 1)
-    paksha   = (t_rec.get("paksha") or "shukla").lower()
-    tithi_id = pk_id if paksha == "shukla" else pk_id + 15
+    tithi_raw = data.get("tithi") or []
+    if isinstance(tithi_raw, dict):          # future-proof if shape changes back
+        tithi_raw = tithi_raw.get("details") or []
+    t_rec  = tithi_raw[0] if tithi_raw else {}
+    pk_id  = int(t_rec.get("id") or 1)
+    # paksha may be a plain string ("shukla"/"krishna") or a nested dict
+    paksha_val = t_rec.get("paksha") or "shukla"
+    if isinstance(paksha_val, dict):
+        paksha_val = paksha_val.get("name") or "shukla"
+    paksha   = paksha_val.lower()
+    tithi_id = pk_id if "shukla" in paksha else pk_id + 15
 
     # ── Nakshatra — name only ─────────────────────────────────────────────
-    nak_list = (data.get("nakshatra") or {}).get("details") or []
-    nakshatra = nak_list[0].get("name") if nak_list else None
+    nak_raw = data.get("nakshatra") or []
+    if isinstance(nak_raw, dict):
+        nak_raw = nak_raw.get("details") or []
+    nakshatra = nak_raw[0].get("name") if nak_raw else None
 
     # ── Yoga — name only ──────────────────────────────────────────────────
-    yoga_list = (data.get("yoga") or {}).get("details") or []
-    yoga = yoga_list[0].get("name") if yoga_list else None
+    yoga_raw = data.get("yoga") or []
+    if isinstance(yoga_raw, dict):
+        yoga_raw = yoga_raw.get("details") or []
+    yoga = yoga_raw[0].get("name") if yoga_raw else None
 
     # ── Sunrise ───────────────────────────────────────────────────────────
     sunrise_ts = data.get("sunrise")
