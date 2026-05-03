@@ -50,6 +50,27 @@ def _get_token() -> str:
     return _token
 
 
+# Tithi name → number within paksha (1-15). Used instead of Prokerala's id
+# field whose numbering differs from our 1-30 DB scheme.
+_TITHI_NAME_NUM: dict[str, int] = {
+    "pratipada": 1, "prathama": 1,
+    "dwitiya": 2,   "dvitiya": 2,
+    "tritiya": 3,
+    "chaturthi": 4,
+    "panchami": 5,
+    "shashthi": 6,  "shashti": 6,
+    "saptami": 7,
+    "ashtami": 8,
+    "navami": 9,
+    "dashami": 10,
+    "ekadashi": 11, "ekadasi": 11,
+    "dwadashi": 12, "dvadashi": 12,
+    "trayodashi": 13,
+    "chaturdashi": 14,
+    "purnima": 15,  "poornima": 15, "pournami": 15,
+    "amavasya": 15, "amavasai": 15,
+}
+
 # Festival name keywords → our special_flag values
 _FESTIVAL_FLAG: dict[str, str] = {
     "ekadashi": "ekadashi", "ekadasi": "ekadashi",
@@ -111,19 +132,27 @@ def get_day_panchang(for_date: date, lat: float, lon: float) -> dict[str, Any]:
     logger.info("Prokerala raw keys for %s: %s", for_date.isoformat(), list(data.keys()))
 
     # ── Tithi ─────────────────────────────────────────────────────────────
-    # /v2/astrology/panchang returns tithi as a list directly (not {"details":[...]}).
-    # Prokerala: id 1-15 per paksha. We store 1-30 (krishna += 15).
+    # Prokerala's tithi id uses their own internal numbering (not 1-15).
+    # Derive tithi_number (1-15) from the tithi NAME for reliable 1-30 mapping.
     tithi_raw = data.get("tithi") or []
-    if isinstance(tithi_raw, dict):          # future-proof if shape changes back
+    if isinstance(tithi_raw, dict):
         tithi_raw = tithi_raw.get("details") or []
-    t_rec  = tithi_raw[0] if tithi_raw else {}
-    pk_id  = int(t_rec.get("id") or 1)
-    # paksha may be a plain string ("shukla"/"krishna paksha") or a nested dict
+    t_rec = tithi_raw[0] if tithi_raw else {}
+
+    # paksha: plain string or nested dict
     paksha_val = t_rec.get("paksha") or "shukla"
     if isinstance(paksha_val, dict):
         paksha_val = paksha_val.get("name") or "shukla"
-    # Normalise to bare "shukla" / "krishna" regardless of API wording
-    paksha   = "shukla" if "shukla" in paksha_val.lower() else "krishna"
+    paksha = "shukla" if "shukla" in paksha_val.lower() else "krishna"
+
+    # tithi number from name (1-15), fallback 1
+    tithi_name_raw = (t_rec.get("name") or "").lower()
+    pk_id = 1
+    for key, num in _TITHI_NAME_NUM.items():
+        if key in tithi_name_raw:
+            pk_id = num
+            break
+
     tithi_id = pk_id if paksha == "shukla" else pk_id + 15
 
     # ── Nakshatra — name only ─────────────────────────────────────────────
