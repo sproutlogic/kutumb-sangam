@@ -185,21 +185,22 @@ const RightNowMoment = ({ panchang }: { panchang: LivePanchang | null }) => {
    3. Community Hero — score + gotra comparison + rank + todo
    CRO: social comparison drives action + aspiration
 ───────────────────────────────────────────────────────────── */
-const GG_HERO_CARDS = [
-  { who: 'Aanya · your tree', kind: 'Achievement', title: 'AIR 412 in JEE Main · first in 3 generations', img: '🏆', when: '2 weeks ago', tone: 'var(--ds-saffron)' },
-  { who: 'Chacha ji · your tree', kind: 'Service', title: 'Built a primary school in Etawah village', img: '🏫', when: '2024', tone: '#a64a8e' },
-  { who: 'Meena Devi · Kashyap gotra', kind: 'Ecology', title: 'Planted 200 saplings across 3 villages in UP', img: '🌳', when: '1 month ago', tone: '#2a8068' },
-  { who: 'Pt. Ramesh ji · community', kind: 'Wisdom', title: '47 years of Vedic teaching · 1,200+ students', img: '🪔', when: 'Ongoing', tone: 'var(--ds-plum-rose)' },
-  { who: 'Bhabhi · your tree', kind: 'Craft', title: 'Rangoli book published · Rajpal & Sons', img: '📕', when: '3 months ago', tone: '#a64a8e' },
-  { who: 'Verma parivar · Lucknow', kind: 'Community', title: 'Organized free health camp for 300 people', img: '🩺', when: 'Last month', tone: 'var(--ds-saffron)' },
+const GG_FEATURE_CARDS = [
+  { who: 'Kutumb Map', kind: 'वंश वृक्ष', title: 'अपने परिवार का डिजिटल वंश वृक्ष बनाएं — पीढ़ियों की विरासत एक जगह सुरक्षित', img: '🌳', when: 'Feature', tone: '#2a8068' },
+  { who: 'Time Bank', kind: 'सेवा चक्र', title: 'समय दें, समय पाएं — समुदाय की मदद करें और अपना सेवा खाता बनाएं', img: '🤝', when: 'Feature', tone: 'var(--ds-plum-rose)' },
+  { who: 'Eco Actions', kind: 'प्राकृति स्कोर', title: 'हर पर्यावरण कार्य पर अंक अर्जित करें — पंचांग के अनुसार दोगुना पुण्य', img: '🌿', when: 'Feature', tone: '#2a8068' },
+  { who: 'Family Calendar', kind: 'कुटुम्ब पंचांग', title: 'परिवार के जन्मदिन, वर्षगांठ और पुण्य तिथियां — पंचांग से जुड़ी एक जगह', img: '📅', when: 'Feature', tone: 'var(--ds-saffron)' },
+  { who: 'Nearby Kin', kind: 'कुटुम्ब राडार', title: 'आस-पास के परिवारजन खोजें — एक ही शहर में बिछड़े रिश्तेदार मिलाएं', img: '📡', when: 'Feature', tone: '#a64a8e' },
+  { who: 'Heritage Wall', kind: 'गौरव गाथा', title: 'परिवार की उपलब्धियां हमेशा के लिए — हर साल इसी तारीख को स्मरण करें', img: '🪔', when: 'Feature', tone: 'var(--ds-gold-deep)' },
 ];
 
-const CommunityHero = ({ appUser, score, familyRank, panchang, userPersonNode }: {
+const CommunityHero = ({ appUser, score, familyRank, panchang, userPersonNode, timeline }: {
   appUser: { full_name?: string | null } | null;
   score: PrakritiScore | null;
   familyRank: FamilyRank | null;
   panchang: LivePanchang | null;
   userPersonNode: Record<string, unknown> | null;
+  timeline: GreenLegacyEvent[];
 }) => {
   const navigate = useNavigate();
   void score; void panchang;
@@ -208,18 +209,30 @@ const CommunityHero = ({ appUser, score, familyRank, panchang, userPersonNode }:
   const gotra = str('gotra');
   const moolNiwas = str('mool_niwas') || str('ancestral_place');
 
-  const totalPages = Math.ceil(GG_HERO_CARDS.length / 3);
+  // Map live feed events to card shape; fall back to Hindi feature cards
+  const srcIcon: Record<string, string> = { eco_sewa: '🤝', verified: '🪔', ceremony: '🌾' };
+  const liveCards = timeline.slice(0, 6).map(e => ({
+    img: srcIcon[e.source] ?? '🌱',
+    kind: e.action_type.replace(/_/g, ' '),
+    title: e.notes ?? e.action_type.replace(/_/g, ' '),
+    who: 'Your tree',
+    when: new Date(e.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }),
+    tone: '#2a8068',
+  }));
+  const ggCards = liveCards.length >= 3 ? liveCards : GG_FEATURE_CARDS;
+
+  const totalPages = Math.ceil(ggCards.length / 3);
   const [ggPage, setGgPage] = useState(0);
 
   useEffect(() => {
-    if (GG_HERO_CARDS.length <= 3) return;
+    if (ggCards.length <= 3) return;
     const timer = setInterval(() => setGgPage(p => (p + 1) % totalPages), 5000);
     return () => clearInterval(timer);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [ggCards.length]);
 
   const startIdx = ggPage * 3;
-  const visibleGG = [0, 1, 2].map(i => GG_HERO_CARDS[(startIdx + i) % GG_HERO_CARDS.length]);
+  const visibleGG = [0, 1, 2].map(i => ggCards[(startIdx + i) % ggCards.length]);
 
   return (
     <section style={{ background: 'linear-gradient(180deg,var(--ds-plum-deep),var(--ds-plum) 80%)', color: 'var(--ds-paper)', padding: '40px 0 48px', position: 'relative', overflow: 'hidden' }}>
@@ -655,11 +668,8 @@ const CommunityFeed = ({ timeline }: {
               </div>
             </div>
           )) : (
-            <div style={{ padding: '32px 22px', textAlign: 'center', color: 'var(--ds-ink-mute)', fontSize: 13, fontStyle: 'italic' }}>
-              Log your first eco-action to start your feed.
-              <div style={{ marginTop: 12 }}>
-                <button onClick={() => navigate('/eco-panchang')} className="ds-btn ds-btn-sm ds-btn-plum">Log an action →</button>
-              </div>
+            <div style={{ padding: '32px 22px', textAlign: 'center' }}>
+              <button onClick={() => navigate('/eco-panchang')} className="ds-btn ds-btn-sm ds-btn-plum">Log an action →</button>
             </div>
           )}
         </div>
@@ -1006,7 +1016,7 @@ const Dashboard = () => {
     <AppShell>
       <div style={{ background: 'var(--ds-ivory)', minHeight: '100vh' }}>
         {panchang?.isSpecial && <RightNowMoment panchang={panchang} />}
-        <CommunityHero appUser={appUser} score={prakritiScore} familyRank={familyRank} panchang={panchang} userPersonNode={userPersonNode} />
+        <CommunityHero appUser={appUser} score={prakritiScore} familyRank={familyRank} panchang={panchang} userPersonNode={userPersonNode} timeline={timeline} />
         <DashboardInfoRow persons={vanshaPersons} panchang={panchang} />
         <SewaEngine samayProfile={samayProfile} samayRequests={samayRequests} />
         <PrideWall />
