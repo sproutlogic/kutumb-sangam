@@ -1,10 +1,11 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import AppShell from '@/components/shells/AppShell';
 import { useAuth } from '@/contexts/AuthContext';
 import {
-  Palette, User, Bell, Lock, Languages, UserCheck,
-  Wallet, Database, Check, Download, ArrowRightLeft, Trash2,
+  Palette, User, Bell, Lock, UserCheck,
+  Database, Check, Download, ArrowRightLeft, Trash2, Loader2,
 } from 'lucide-react';
+import { fetchVanshaTree, getApiBaseUrl, isValidVanshaUuid } from '@/services/api';
 
 // ── Toggle ──────────────────────────────────────────────────────────────────
 function Toggle({ defaultOn }: { defaultOn: boolean }) {
@@ -69,6 +70,18 @@ function Section({ id, label, title, children }: { id: string; label: string; ti
   );
 }
 
+interface TreeProfile {
+  fullName: string;
+  gotra: string;
+  moolNiwas: string;
+}
+
+interface FamilyMargdarshak {
+  id: string;
+  full_name: string | null;
+  status: string;
+}
+
 // ── SettingsPage ─────────────────────────────────────────────────────────────
 const SettingsPage = () => {
   const { appUser } = useAuth();
@@ -76,6 +89,55 @@ const SettingsPage = () => {
     try { return localStorage.getItem('ks_palette') || 'emerald'; } catch { return 'emerald'; }
   });
   const [density, setDensity] = useState<string>('comfortable');
+  const [treeProfile, setTreeProfile] = useState<TreeProfile | null>(null);
+  const [margdarshaks, setMargdarshaks] = useState<FamilyMargdarshak[] | null>(null);
+  const [margdarshakLoading, setMargdarshakLoading] = useState(false);
+
+  useEffect(() => {
+    const vid = appUser?.vansha_id;
+    if (!vid || !isValidVanshaUuid(vid)) return;
+    fetchVanshaTree(vid)
+      .then(payload => {
+        const persons = payload.persons as Record<string, unknown>[];
+        const root = persons.find(p => (p.relative_gen_index as number) === 0) ?? persons[0];
+        if (!root) return;
+        const first = String(root.first_name ?? '').trim();
+        const mid   = String(root.middle_name ?? '').trim();
+        const last  = String(root.last_name ?? '').trim();
+        const parts = [first, mid, last].filter(Boolean);
+        setTreeProfile({
+          fullName:  parts.join(' ') || appUser?.full_name || 'Not set',
+          gotra:     String(root.gotra ?? '').trim() || '—',
+          moolNiwas: String(root.mool_niwas ?? '').trim() || '—',
+        });
+      })
+      .catch(() => { /* tree fetch is best-effort */ });
+  }, [appUser?.vansha_id]);
+
+  useEffect(() => {
+    const vid = appUser?.vansha_id;
+    if (!vid) return;
+    setMargdarshakLoading(true);
+    const token = (() => {
+      try {
+        const keys = Object.keys(localStorage).filter(k => k.includes('supabase') && k.includes('auth'));
+        for (const key of keys) {
+          const raw = localStorage.getItem(key);
+          if (!raw) continue;
+          const parsed = JSON.parse(raw) as { access_token?: string };
+          if (parsed?.access_token) return parsed.access_token;
+        }
+      } catch { /* ignore */ }
+      return '';
+    })();
+    fetch(`${getApiBaseUrl()}/api/margdarshak/family`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    })
+      .then(r => r.ok ? r.json() as Promise<FamilyMargdarshak[]> : Promise.resolve([]))
+      .then(data => setMargdarshaks(data))
+      .catch(() => setMargdarshaks([]))
+      .finally(() => setMargdarshakLoading(false));
+  }, [appUser?.vansha_id]);
 
   const applyPalette = (p: string) => {
     setPaletteState(p);
@@ -89,13 +151,11 @@ const SettingsPage = () => {
   };
 
   const SECTIONS = [
-    { id: 'appearance',   label: 'Appearance' },
+    { id: 'appearance',   label: 'Theme' },
     { id: 'account',      label: 'Account & profile' },
     { id: 'notifs',       label: 'Notifications' },
     { id: 'privacy',      label: 'Privacy & sharing' },
-    { id: 'language',     label: 'Language' },
     { id: 'margdarshaks', label: 'Connected Margdarshaks' },
-    { id: 'wallet',       label: 'Wallet & billing' },
     { id: 'data',         label: 'Data & export' },
   ];
 
@@ -117,17 +177,13 @@ const SettingsPage = () => {
     ['Vanshavali in temple registers',            'Mandir Mitra integration · Temple Trusts',            true ],
   ] as [string, string, boolean][];
 
-  const LANGUAGES = [
-    ['English','EN',true], ['हिन्दी','HI',false], ['मराठी','MR',false], ['বাংলা','BN',false],
-    ['தமிழ்','TA',false],  ['తెలుగు','TE',false],  ['ગુજરાતી','GU',false], ['ਪੰਜਾਬੀ','PA',false],
-  ] as [string, string, boolean][];
-
   const DATA_ACTIONS = [
-    { label: 'Download full vanshavali (PDF)',  sub: 'A2 print-ready · margdarshak-stamped · ₹149', cta: 'Generate', icon: Download,         destructive: false },
-    { label: 'Export Smriti audio archive',     sub: 'All recordings · ZIP · free',                  cta: 'Download', icon: Download,         destructive: false },
-    { label: 'Hand over Karta role',            sub: 'Transfer admin to another family member',       cta: 'Transfer', icon: ArrowRightLeft,  destructive: false },
-    { label: 'Delete my account',              sub: 'Tree remains; your node becomes a placeholder', cta: 'Delete',   icon: Trash2,          destructive: true  },
+    { label: 'Export', sub: 'Download full vanshavali (PDF) · A2 print-ready · margdarshak-stamped · ₹149', icon: Download },
+    { label: 'Archive', sub: 'Export all Smriti recordings as ZIP', icon: Database },
+    { label: 'Leave', sub: 'Transfer Karta role or delete account', icon: ArrowRightLeft },
   ];
+
+  const displayName = treeProfile?.fullName ?? appUser?.full_name ?? 'Not set';
 
   return (
     <AppShell>
@@ -138,7 +194,7 @@ const SettingsPage = () => {
           <h1 className="font-heading text-3xl md:text-4xl font-bold">
             Tune your <em>parivar</em> experience
           </h1>
-          <p className="mt-2 text-sm opacity-65">Theme, language, notifications, privacy. Saved across all your devices.</p>
+          <p className="mt-2 text-sm opacity-65">Theme, notifications, privacy. Saved across all your devices.</p>
         </div>
       </div>
 
@@ -163,7 +219,7 @@ const SettingsPage = () => {
           <div className="flex-1 min-w-0 flex flex-col gap-14">
 
             {/* ── Appearance ── */}
-            <Section id="appearance" label="Appearance" title='Choose your varna'>
+            <Section id="appearance" label="Appearance" title="Choose your theme">
               <p className="text-sm text-muted-foreground mb-5">
                 The whole platform takes on this palette. Emerald is our default — chosen for prosperity and the tulsi leaf.
               </p>
@@ -202,12 +258,12 @@ const SettingsPage = () => {
               <div className="bg-card rounded-xl border border-border/50 shadow-card p-6">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
                   {[
-                    ['Display name',   appUser?.full_name  || 'Not set'],
-                    ['Gotra',          'Kashyapa'],
-                    ['Vansh ID',       appUser?.kutumb_id  || appUser?.vansha_id || 'KS-XXXX-XXXX'],
-                    ['Role in parivar', appUser?.role       || 'Member'],
-                    ['Phone',          appUser?.phone      || 'Not linked'],
-                    ['Native place',   'India'],
+                    ['Full name',       displayName],
+                    ['Gotra',           treeProfile?.gotra     ?? '—'],
+                    ['Vansh ID',        appUser?.kutumb_id     || appUser?.vansha_id || 'KS-XXXX-XXXX'],
+                    ['Role in parivar', appUser?.role          || 'Member'],
+                    ['Phone',           appUser?.phone         || 'Not linked'],
+                    ['Native place',    treeProfile?.moolNiwas ?? '—'],
                   ].map(([label, val]) => (
                     <div key={label}>
                       <p className="font-mono text-[10px] tracking-[0.14em] uppercase text-muted-foreground mb-1">{label}</p>
@@ -222,10 +278,10 @@ const SettingsPage = () => {
             <Section id="notifs" label="Notifications" title="What pings you, when">
               <div className="bg-card rounded-xl border border-border/50 shadow-card overflow-hidden">
                 {NOTIFS.map(([label, sub, defaultOn], i) => (
-                  <div key={i} className={`flex items-center justify-between gap-4 px-5 py-4 ${i < NOTIFS.length - 1 ? 'border-b border-border/40' : ''}`}>
+                  <div key={i} className={`flex items-center gap-3 px-4 py-2.5 ${i < NOTIFS.length - 1 ? 'border-b border-border/40' : ''}`}>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold">{label}</p>
-                      <p className="text-xs text-muted-foreground mt-0.5">{sub}</p>
+                      <p className="text-xs font-semibold leading-tight">{label}</p>
+                      <p className="text-[11px] text-muted-foreground leading-tight">{sub}</p>
                     </div>
                     <Toggle defaultOn={defaultOn} />
                   </div>
@@ -248,90 +304,58 @@ const SettingsPage = () => {
               </div>
             </Section>
 
-            {/* ── Language ── */}
-            <Section id="language" label="Bhasha · Language" title="Speak in your tongue">
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                {LANGUAGES.map(([lang, code, active]) => (
-                  <button
-                    key={code}
-                    className="bg-card rounded-xl p-4 text-left border transition-colors hover:border-primary"
-                    style={{ border: active ? '2px solid rgb(46,19,70)' : '1px solid #e6dcc4' }}
-                  >
-                    <p className="font-heading text-base">{lang}</p>
-                    <p className="font-mono text-[10px] tracking-[0.16em] text-muted-foreground mt-0.5">{code}</p>
-                  </button>
-                ))}
-              </div>
-            </Section>
-
             {/* ── Connected Margdarshaks ── */}
             <Section id="margdarshaks" label="Connected Margdarshaks" title="Your verified guides">
               <div className="bg-card rounded-xl border border-border/50 shadow-card p-6">
-                <div className="flex items-center gap-4 mb-5">
-                  <div className="w-11 h-11 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
-                    <UserCheck className="w-5 h-5 text-primary" />
+                {margdarshakLoading ? (
+                  <div className="flex items-center gap-2 text-muted-foreground py-2">
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span className="text-sm">Loading…</span>
                   </div>
-                  <div className="flex-1">
-                    <p className="text-sm font-semibold">Pandit Ramesh Sharma</p>
-                    <p className="text-xs text-muted-foreground mt-0.5">Verified · Kashyapa gotra specialist · Kanpur</p>
+                ) : margdarshaks && margdarshaks.length > 0 ? (
+                  <div className="flex flex-col gap-3 mb-5">
+                    {margdarshaks.map(m => (
+                      <div key={m.id} className="flex items-center gap-4">
+                        <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+                          <UserCheck className="w-4 h-4 text-primary" />
+                        </div>
+                        <div className="flex-1">
+                          <p className="text-sm font-semibold">{m.full_name ?? 'Margdarshak'}</p>
+                          <p className="text-xs text-muted-foreground capitalize">{m.status}</p>
+                        </div>
+                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 font-semibold tracking-wide uppercase">
+                          {m.status === 'active' ? 'Active' : 'Verifying'}
+                        </span>
+                      </div>
+                    ))}
                   </div>
-                  <span className="text-[10px] px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-700 font-semibold tracking-wide uppercase">Active</span>
-                </div>
+                ) : (
+                  <div className="flex items-center gap-3 mb-5 text-muted-foreground">
+                    <User className="w-5 h-5 flex-shrink-0" />
+                    <p className="text-sm">No Margdarshak linked yet. Connect one to verify your family tree.</p>
+                  </div>
+                )}
                 <button className="w-full py-2.5 rounded-lg border border-dashed border-border text-sm text-muted-foreground hover:border-primary hover:text-primary transition-colors font-body">
                   + Connect a new Margdarshak
                 </button>
               </div>
             </Section>
 
-            {/* ── Wallet ── */}
-            <Section id="wallet" label="Wallet & billing" title="Family kosh">
-              <div
-                className="rounded-xl p-6 text-white"
-                style={{ background: 'linear-gradient(135deg, #2e1346, #1c0d2e)' }}
-              >
-                <div className="flex justify-between items-start mb-5">
-                  <div>
-                    <p className="font-mono text-[10px] tracking-[0.2em] uppercase opacity-70 mb-2">Family Wallet</p>
-                    <p className="font-heading text-5xl font-bold" style={{ color: '#e9c267' }}>₹247</p>
-                    <p className="text-xs opacity-60 mt-1">Shared across 6 contributors</p>
-                  </div>
-                  <div className="flex gap-2">
-                    <button className="px-4 py-2 rounded-lg text-sm font-semibold" style={{ background: 'linear-gradient(180deg, #e9c267, #d49a1f)', color: '#1c0d2e' }}>
-                      Top up
-                    </button>
-                    <button className="px-4 py-2 rounded-lg text-sm font-semibold border border-white/20 text-white hover:bg-white/10 transition-colors">
-                      History
-                    </button>
-                  </div>
-                </div>
-                <div className="pt-5 border-t border-white/10 grid grid-cols-3 gap-4 text-xs opacity-70">
-                  <div><p className="font-heading text-lg font-semibold" style={{ color: '#e9c267' }}>₹412</p>this month spent</div>
-                  <div><p className="font-heading text-lg font-semibold" style={{ color: '#e9c267' }}>₹2,840</p>lifetime</div>
-                  <div><p className="font-heading text-lg font-semibold" style={{ color: '#e9c267' }}>22 pts</p>to Vriksh tier</div>
-                </div>
-              </div>
-            </Section>
-
             {/* ── Data ── */}
             <Section id="data" label="Your data" title="Export, archive, leave">
               <div className="bg-card rounded-xl border border-border/50 shadow-card p-6 flex flex-col gap-4">
-                {DATA_ACTIONS.map(({ label, sub, cta, icon: Icon, destructive }) => (
+                {DATA_ACTIONS.map(({ label, sub, icon: Icon }) => (
                   <div key={label} className="flex items-center justify-between gap-4 py-1">
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold">{label}</p>
-                      <p className="text-xs text-muted-foreground mt-0.5">{sub}</p>
+                    <div className="flex items-center gap-3 flex-1 min-w-0">
+                      <Icon className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                      <div>
+                        <p className="text-sm font-semibold">{label}</p>
+                        <p className="text-xs text-muted-foreground mt-0.5">{sub}</p>
+                      </div>
                     </div>
-                    <button
-                      className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold border flex-shrink-0 transition-colors"
-                      style={
-                        destructive
-                          ? { background: 'rgba(209,45,45,0.06)', color: '#d12d2d', borderColor: 'rgba(209,45,45,0.25)' }
-                          : { background: '#f4ecdb', color: '#4a3d52', borderColor: '#c9b88a' }
-                      }
-                    >
-                      <Icon className="w-3.5 h-3.5" />
-                      {cta}
-                    </button>
+                    <span className="flex-shrink-0 text-[11px] px-2.5 py-1 rounded-full bg-secondary text-muted-foreground font-medium border border-border/50">
+                      Coming soon
+                    </span>
                   </div>
                 ))}
               </div>

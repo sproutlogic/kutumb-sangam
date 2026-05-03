@@ -24,7 +24,7 @@ from constants import (
     VANSHA_ID_COLUMN,
 )
 from db import get_supabase
-from middleware.auth import MargdarshakUser
+from middleware.auth import CurrentUser, MargdarshakUser
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/margdarshak", tags=["margdarshak"])
@@ -34,6 +34,51 @@ class ReviewBody(BaseModel):
     request_id: str
     action: str          # "approved" | "rejected"
     notes: str | None = None
+
+
+@router.get("/family")
+def get_family_margdarshaks(user: CurrentUser) -> list[dict[str, Any]]:
+    """Return margdarshaks linked to the current user's family tree."""
+    sb = get_supabase()
+    vid = user.get("vansha_id")
+    if not vid:
+        return []
+
+    reqs = (
+        sb.table(VERIFICATION_REQUESTS_TABLE)
+        .select("id")
+        .eq(VANSHA_ID_COLUMN, vid)
+        .execute()
+    )
+    if not reqs.data:
+        return []
+
+    req_ids = [r["id"] for r in reqs.data]
+    audits = (
+        sb.table(VERIFICATION_AUDIT_TABLE)
+        .select("pandit_user_id,action")
+        .in_("verification_request_id", req_ids)
+        .execute()
+    )
+    if not audits.data:
+        return []
+
+    pandit_ids = list({a["pandit_user_id"] for a in audits.data})
+    status_map: dict[str, str] = {}
+    for a in audits.data:
+        pid = a["pandit_user_id"]
+        status_map[pid] = "active" if a["action"] == "approved" else "verifying"
+
+    users_res = (
+        sb.table(USERS_TABLE)
+        .select("id,full_name,role")
+        .in_("id", pandit_ids)
+        .execute()
+    )
+    return [
+        {"id": u["id"], "full_name": u["full_name"], "status": status_map.get(u["id"], "verifying")}
+        for u in (users_res.data or [])
+    ]
 
 
 @router.get("/queue")
