@@ -21,11 +21,14 @@ function firstDayOfWeek(year: number, month: number) { return new Date(year, mon
 function monthDateStr(y: number, m: number, d: number) { return `${y}-${pad2(m + 1)}-${pad2(d)}`; }
 function capitalize(s: string | null | undefined) { return s ? s.charAt(0).toUpperCase() + s.slice(1) : '—'; }
 
-function parseTsToHHMM(ts: string | null | undefined): string {
-  if (!ts) return '—';
+function parseTsToHHMM(ts: string | number | null | undefined): string {
+  if (ts == null || ts === '') return '—';
   try {
-    // ISO string e.g. "2025-05-03T05:42:00+05:30" or unix seconds
-    const d = new Date(ts);
+    const num = Number(ts);
+    // Prokerala returns Unix epoch seconds (e.g. 1746329160); ISO strings have NaN here
+    const d = !isNaN(num) && num > 1_000_000_000
+      ? new Date(num * 1000)   // seconds → milliseconds
+      : new Date(String(ts));  // ISO string fallback
     if (isNaN(d.getTime())) return '—';
     return `${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
   } catch { return '—'; }
