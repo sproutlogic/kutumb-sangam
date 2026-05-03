@@ -108,6 +108,7 @@ def get_day_panchang(for_date: date, lat: float, lon: float) -> dict[str, Any]:
     )
     resp.raise_for_status()
     data = resp.json().get("data", {})
+    logger.info("Prokerala raw keys for %s: %s", for_date.isoformat(), list(data.keys()))
 
     # ── Tithi ─────────────────────────────────────────────────────────────
     # /v2/astrology/panchang returns tithi as a list directly (not {"details":[...]}).
@@ -117,12 +118,13 @@ def get_day_panchang(for_date: date, lat: float, lon: float) -> dict[str, Any]:
         tithi_raw = tithi_raw.get("details") or []
     t_rec  = tithi_raw[0] if tithi_raw else {}
     pk_id  = int(t_rec.get("id") or 1)
-    # paksha may be a plain string ("shukla"/"krishna") or a nested dict
+    # paksha may be a plain string ("shukla"/"krishna paksha") or a nested dict
     paksha_val = t_rec.get("paksha") or "shukla"
     if isinstance(paksha_val, dict):
         paksha_val = paksha_val.get("name") or "shukla"
-    paksha   = paksha_val.lower()
-    tithi_id = pk_id if "shukla" in paksha else pk_id + 15
+    # Normalise to bare "shukla" / "krishna" regardless of API wording
+    paksha   = "shukla" if "shukla" in paksha_val.lower() else "krishna"
+    tithi_id = pk_id if paksha == "shukla" else pk_id + 15
 
     # ── Nakshatra — name only ─────────────────────────────────────────────
     nak_raw = data.get("nakshatra") or []
