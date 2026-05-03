@@ -300,18 +300,16 @@ interface ConnectLinkPanelProps {
   sourceNodeName: string;
   allNodes: Array<{ id: string; name: string }>;
   vanshaId: string;
-  onRefresh: () => void;
+  onRefresh: () => Promise<void>;
 }
 
-const RELATION_OPTIONS = [
-  'father', 'mother', 'son', 'daughter',
-  'brother', 'sister', 'husband', 'wife',
-  'paternal-grandfather', 'paternal-grandmother',
-  'maternal-grandfather', 'maternal-grandmother',
-  'uncle', 'aunt', 'nephew', 'niece', 'cousin',
-];
+// Same options as NodePage "Add member" flow — keeps UX consistent
+const CONNECT_RELATION_OPTIONS = [
+  'Son', 'Daughter', 'Father', 'Mother', 'Spouse',
+  'Adopted Son', 'Adopted Daughter',
+] as const;
 
-const SPOUSE_RELATIONS = new Set(['husband', 'wife']);
+const SPOUSE_RELATIONS = new Set(['Spouse', 'husband', 'wife', 'Wife', 'Husband']);
 
 const ConnectLinkPanel: React.FC<ConnectLinkPanelProps> = ({
   sourceNodeId, sourceNodeName, allNodes, vanshaId, onRefresh,
@@ -331,15 +329,19 @@ const ConnectLinkPanel: React.FC<ConnectLinkPanelProps> = ({
     setResult(null);
     try {
       if (SPOUSE_RELATIONS.has(relation)) {
+        // Link as spouses — creates a union
         await linkExistingSpouses({ vansha_id: vanshaId, anchor_node_id: sourceNodeId, spouse_node_id: targetId });
       } else {
-        // For parent-child: update the child node's relation/parent reference
-        const isChildOfSource = ['son', 'daughter'].includes(relation);
-        const childId = isChildOfSource ? targetId : sourceNodeId;
-        await updatePerson(childId, { relation });
+        // Parent-child: determine who is the child and update their relation label.
+        // "Son"/"Daughter"/"Adopted Son"/"Adopted Daughter" → targetId is the child of sourceNodeId
+        // "Father"/"Mother" → sourceNodeId is the child of targetId
+        const targetIsChild = ['Son', 'Daughter', 'Adopted Son', 'Adopted Daughter'].includes(relation);
+        const childId   = targetIsChild ? targetId   : sourceNodeId;
+        const parentRel = targetIsChild ? relation   : (relation === 'Father' ? 'Son' : 'Daughter');
+        await updatePerson(childId, { relation: parentRel });
       }
+      await onRefresh(); // await so tree updates before showing success
       setResult('success');
-      onRefresh();
     } catch {
       setResult('error');
     } finally {
@@ -371,9 +373,9 @@ const ConnectLinkPanel: React.FC<ConnectLinkPanelProps> = ({
                 <option value="">Select member…</option>
                 {others.map(n => <option key={n.id} value={n.id}>{n.name}</option>)}
               </select>
-              <select value={relation} onChange={e => setRelation(e.target.value)} className="ds-input w-full" style={{ fontSize: 12, textTransform: 'capitalize' }}>
+              <select value={relation} onChange={e => setRelation(e.target.value)} className="ds-input w-full" style={{ fontSize: 12 }}>
                 <option value="">Select relation…</option>
-                {RELATION_OPTIONS.map(r => <option key={r} value={r}>{r}</option>)}
+                {CONNECT_RELATION_OPTIONS.map(r => <option key={r} value={r}>{r}</option>)}
               </select>
               {result === 'error' && (
                 <div style={{ fontSize: 11, color: '#dc2626' }}>Could not link — please try again.</div>
@@ -764,12 +766,18 @@ const TreePage = () => {
               const ordered = [...children].sort(
                 (a, b) => (nodeMap[a.id]?.x ?? 0) - (nodeMap[b.id]?.x ?? 0),
               );
-              // Connect to the TOP edge of each child container
-              const childTopY = (childId: string) => frameTopY(childId);
+              // Connect to the TOP edge of each child container — with a 6px standoff
+              // so drops never visually enter shapes or dotted couple frames.
+              const DROP_STANDOFF = 6;
+              const childTopY = (childId: string) => frameTopY(childId) + DROP_STANDOFF;
               const tops = ordered.map((c) => childTopY(c.id)).filter((y) => y > 0);
               if (tops.length === 0) return null;
-              // Bar sits halfway between parent frame bottom and the closest child top
-              const yBar = yTrunkStart + (Math.min(...tops) - yTrunkStart) / 2;
+              // Bar sits ⅓ of the way down from parent bottom → keep it well above child frames.
+              // Enforce a minimum 16px gap above the highest child frame so the bar
+              // is clearly a trunk element, not a line "between" the child couple shapes.
+              const minGap = 16;
+              const yBarIdeal = yTrunkStart + (Math.min(...tops) - yTrunkStart) / 3;
+              const yBar = Math.min(yBarIdeal, Math.min(...tops) - minGap);
 
               if (ordered.length === 1) {
                 const c = ordered[0];
@@ -779,7 +787,7 @@ const TreePage = () => {
                   <g key={`trunk-${u.id}`}>
                     <line x1={cx} y1={yTrunkStart} x2={cx} y2={yBar} stroke={trunkStroke} strokeWidth={trunkW} strokeOpacity={0.5} strokeLinecap="round" />
                     <line x1={cx} y1={yBar} x2={xc} y2={yBar} stroke={trunkStroke} strokeWidth={trunkW} strokeOpacity={0.5} strokeLinecap="round" />
-                    <line x1={xc} y1={yBar} x2={xc} y2={yAttach} stroke={dropStroke(c.relation)} strokeWidth={2.5} strokeOpacity={0.9} strokeLinecap="round" />
+                    <line x1={xc} y1={yBar} x2={xc} y2={yAttach} stroke={dropStroke(c.relation)} strokeWidth={2} strokeOpacity={0.8} strokeLinecap="round" />
                   </g>
                 );
               }
@@ -799,7 +807,7 @@ const TreePage = () => {
                     const xc = nodeMap[c.id]?.x ?? cx;
                     const yAttach = childTopY(c.id);
                     return (
-                      <line key={`drop-${u.id}-${c.id}`} x1={xc} y1={yBar} x2={xc} y2={yAttach} stroke={dropStroke(c.relation)} strokeWidth={2.5} strokeOpacity={0.9} strokeLinecap="round" />
+                      <line key={`drop-${u.id}-${c.id}`} x1={xc} y1={yBar} x2={xc} y2={yAttach} stroke={dropStroke(c.relation)} strokeWidth={2} strokeOpacity={0.8} strokeLinecap="round" />
                     );
                   })}
                 </g>
@@ -1024,10 +1032,6 @@ const TreePage = () => {
                 </div>
                 <div style={{ flex: 1 }}>
                   <div className="font-heading" style={{ fontSize: 18, color: 'var(--ds-plum,#2e1346)', fontWeight: 700 }}>{selectedNode.name}</div>
-                  <div style={{ fontSize: 12, color: 'var(--ds-muted,#6b6b8a)', marginTop: 2 }}>{selectedNode.relation}</div>
-                  {selectedNode.verificationTier && selectedNode.verificationTier !== 'none' && (
-                    <span className="ds-tag-gold" style={{ marginTop: 6, display: 'inline-block' }}>✓ {selectedNode.verificationTier}-verified</span>
-                  )}
                 </div>
                 <button
                   onClick={() => setSelectedNodeId(null)}
@@ -1158,47 +1162,24 @@ const TreePage = () => {
                 <div className="ds-eyebrow" style={{ color: 'var(--ds-muted)', marginBottom: 8, fontSize: 9 }}>अर्पित करें · In their name</div>
                 <div style={{ display: 'grid', gap: 7 }}>
                   {[
-                    { icon: '🌳', label: 'Plant a tree', sub: '100 kg O₂/yr · 200+ species', cta: '₹199', color: '#1a6b32', path: '/eco-sewa' },
-                    { icon: '💧', label: 'Water station for animals', sub: 'Earn punya this summer', cta: '₹499', color: '#1a4a8a', path: '/eco-sewa' },
-                    { icon: '🫗', label: 'Jal seva · Water drive', sub: 'Quench thirst, earn punya', cta: '₹99', color: '#1a5a6a', path: '/eco-sewa' },
-                    { icon: '🧹', label: 'Swachchhata drive', sub: 'Lead a cleanliness drive', cta: 'Free', color: '#5a2a8a', path: '/eco-sewa' },
-                    { icon: '🙌', label: 'Do it yourself', sub: 'Log your own seva', cta: 'Log', color: '#8a3a00', path: '/eco-sewa' },
-                  ].map(({ icon, label, sub, cta, color, path }) => (
-                    <button
+                    { icon: '🌳', label: 'Plant a tree', sub: '100 kg O₂/yr · 200+ species', color: '#1a6b32' },
+                    { icon: '💧', label: 'Water station for animals', sub: 'Earn punya this summer', color: '#1a4a8a' },
+                    { icon: '🫗', label: 'Jal seva · Water drive', sub: 'Quench thirst, earn punya', color: '#1a5a6a' },
+                    { icon: '🧹', label: 'Swachchhata drive', sub: 'Lead a cleanliness drive', color: '#5a2a8a' },
+                    { icon: '🙌', label: 'Do it yourself', sub: 'Log your own seva', color: '#8a3a00' },
+                  ].map(({ icon, label, sub, color }) => (
+                    <div
                       key={label}
-                      onClick={() => navigate(path)}
-                      style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px', borderRadius: 8, border: `1px solid ${color}22`, background: `${color}08`, cursor: 'pointer', textAlign: 'left' }}
+                      style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px', borderRadius: 8, border: `1px solid ${color}22`, background: `${color}08` }}
                     >
                       <span style={{ fontSize: 20, lineHeight: 1, flexShrink: 0 }}>{icon}</span>
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--ds-plum,#2e1346)' }}>{label}</div>
                         <div style={{ fontSize: 10, color: 'rgba(74,33,104,0.5)', marginTop: 1 }}>{sub}</div>
                       </div>
-                      <span style={{ fontSize: 11, fontWeight: 700, color, flexShrink: 0 }}>{cta} →</span>
-                    </button>
+                      <span style={{ fontSize: 10, fontWeight: 600, color: 'var(--ds-muted,#6b6b8a)', flexShrink: 0, whiteSpace: 'nowrap' }}>Coming Soon</span>
+                    </div>
                   ))}
-                </div>
-              </div>
-
-              {/* Smriti upsell */}
-              <div style={{ padding: 14, borderRadius: 8, background: 'linear-gradient(135deg, rgba(232,116,34,0.08), rgba(212,154,31,0.06))', border: '1px solid rgba(232,116,34,0.25)', marginBottom: 16 }}>
-                <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
-                  <div style={{ fontSize: 22 }}>🎙️</div>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontFamily: 'var(--ds-serif)', fontSize: 15, color: 'var(--ds-plum,#2e1346)', fontWeight: 600 }}>{selectedNode.name} · No Smriti yet.</div>
-                    <div style={{ fontSize: 12, color: 'var(--ds-ink-soft)', marginTop: 4, lineHeight: 1.5 }}>Record their voice — recipes, blessings, stories — for grandkids not yet born.</div>
-                    <button onClick={() => navigate('/legacy-box')} className="ds-btn ds-btn-sm" style={{ marginTop: 10, background: 'var(--ds-saffron,#e87422)', color: '#fff', fontWeight: 600 }}>Start recording · ₹9/min →</button>
-                  </div>
-                </div>
-              </div>
-
-              {/* Smriti library */}
-              <div style={{ padding: '14px 0', borderBottom: '1px solid var(--ds-border,rgba(74,33,104,0.1))', marginBottom: 14 }}>
-                <div className="ds-eyebrow" style={{ color: 'var(--ds-muted)', marginBottom: 10, fontSize: 9 }}>Smriti library</div>
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, padding: '16px 0' }}>
-                  <div style={{ fontSize: 22, opacity: 0.4 }}>🎙️</div>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--ds-muted,#6b6b8a)' }}>Coming Soon</div>
-                  <div style={{ fontSize: 11, color: 'rgba(74,33,104,0.4)', textAlign: 'center', lineHeight: 1.5 }}>Recordings will appear here once added.</div>
                 </div>
               </div>
 
@@ -1233,23 +1214,29 @@ const TreePage = () => {
                 </div>
               )}
 
-              {/* Sachet actions */}
+              {/* Node actions */}
               <div style={{ marginBottom: 14 }}>
-                <div className="ds-eyebrow" style={{ color: 'var(--ds-muted)', marginBottom: 10, fontSize: 9 }}>Node actions</div>
+                <div className="ds-eyebrow" style={{ color: 'var(--ds-muted)', marginBottom: 10, fontSize: 9 }}>Actions</div>
                 <div style={{ display: 'grid', gap: 8 }}>
+                  {/* Active action */}
+                  <button
+                    onClick={() => navigate(`/node/${selectedNode.id}`)}
+                    style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px', borderRadius: 8, border: '1px solid var(--ds-border,rgba(74,33,104,0.12))', background: 'var(--ds-ivory,#faf8f2)', cursor: 'pointer', fontSize: 13 }}
+                  >
+                    <span>✏️ Edit member</span>
+                  </button>
+                  {/* Coming soon actions */}
                   {[
-                    { icon: '📜', label: 'Generate vanshavali', price: '₹149', path: '/upgrade' },
-                    { icon: '🪷', label: 'Log a ceremony', price: '₹19', path: '/margdarshak-kyc' },
-                    { icon: '✏️', label: 'Edit member', price: 'free', path: `/node/${selectedNode.id}` },
-                  ].map(({ icon, label, price, path }) => (
-                    <button
+                    { icon: '📜', label: 'Generate vanshavali' },
+                    { icon: '🪷', label: 'Log a ceremony' },
+                  ].map(({ icon, label }) => (
+                    <div
                       key={label}
-                      onClick={() => navigate(path)}
-                      style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px', borderRadius: 8, border: '1px solid var(--ds-border,rgba(74,33,104,0.12))', background: 'var(--ds-ivory,#faf8f2)', cursor: 'pointer', fontSize: 13 }}
+                      style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px', borderRadius: 8, border: '1px solid var(--ds-border,rgba(74,33,104,0.08))', background: 'rgba(74,33,104,0.02)', fontSize: 13, opacity: 0.65 }}
                     >
-                      <span>{icon} {label}</span>
-                      <span className="font-heading" style={{ fontWeight: 700, color: 'var(--ds-gold,#d49a1f)' }}>{price}</span>
-                    </button>
+                      <span style={{ color: 'var(--ds-muted,#6b6b8a)' }}>{icon} {label}</span>
+                      <span style={{ fontSize: 10, fontWeight: 600, color: 'var(--ds-muted,#6b6b8a)' }}>Coming Soon</span>
+                    </div>
                   ))}
                 </div>
               </div>
@@ -1266,6 +1253,7 @@ const TreePage = () => {
                   const data = await fetchVanshaTree(vid);
                   loadTreeState(backendPayloadToTreeState(data));
                 }}
+
               />
             </div>
           ) : (
