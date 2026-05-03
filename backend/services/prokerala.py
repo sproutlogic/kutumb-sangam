@@ -128,6 +128,23 @@ def get_day_panchang(for_date: date, lat: float, lon: float) -> dict[str, Any]:
     # ── Sunrise ───────────────────────────────────────────────────────────
     sunrise_ts = data.get("sunrise")
 
+    # ── Masa (lunar month) ────────────────────────────────────────────────
+    # Prokerala returns hindu_maah with purnimanta (North India) + amanta (South India)
+    hindu_maah = data.get("hindu_maah") or {}
+    # Prefer purnimanta for North India; fall back to amanta
+    masa_obj  = hindu_maah.get("purnimanta") or hindu_maah.get("amanta") or {}
+    masa_name = masa_obj.get("name") or None
+
+    # ── Vikram Samvat ─────────────────────────────────────────────────────
+    # Prokerala may return vikram_samvat directly; compute as fallback.
+    # VS new year = Chaitra Shukla Pratipada (late March / early April).
+    # Formula: +57 after April 14, +56 before (accurate to ±1 month).
+    samvat_raw  = data.get("vikram_samvat")
+    samvat_year = int(samvat_raw) if samvat_raw else (
+        for_date.year + 57 if (for_date.month > 4 or (for_date.month == 4 and for_date.day >= 14))
+        else for_date.year + 56
+    )
+
     # ── Festivals / vrats ─────────────────────────────────────────────────
     festivals: list[dict] = data.get("festival") or []
     special_flag = _flag_from_festivals(festivals) or _TITHI_FLAG.get(tithi_id)
@@ -141,8 +158,8 @@ def get_day_panchang(for_date: date, lat: float, lon: float) -> dict[str, Any]:
         "nakshatra":      nakshatra,
         "yoga":           yoga,
         "sunrise_ts":     sunrise_ts,
-        "masa_name":      None,     # not in basic endpoint
-        "samvat_year":    None,
+        "masa_name":      masa_name,
+        "samvat_year":    samvat_year,
         "is_kshaya":      False,
         "is_adhika":      False,
         "ref_lat":        lat,
