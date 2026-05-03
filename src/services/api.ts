@@ -121,6 +121,10 @@ export interface VanshaTreePayload {
   vansha_id: string;
   unions: Record<string, unknown>[];
   persons: Record<string, unknown>[];
+  /** Kul devi (female deity) — vansha-level; returned by backend when set. */
+  kuldevi?: string;
+  /** Kul devta (male deity) — vansha-level; returned by backend when set. */
+  kuldevta?: string;
 }
 
 async function parseJsonOrThrow(res: Response): Promise<unknown> {
@@ -196,6 +200,10 @@ export async function fetchVanshaTreePage(
 export interface BootstrapTreePayload {
   tree_name: string;
   gotra?: string;
+  /** Kul devi — family's female deity. Free during onboarding; becomes tree default. */
+  kuldevi?: string;
+  /** Kul devta — family's male deity. Free during onboarding; becomes tree default. */
+  kuldevta?: string;
   father_name?: string;
   mother_name?: string;
   spouse_name?: string;
@@ -227,6 +235,25 @@ export async function bootstrapOnboardingTree(payload: BootstrapTreePayload): Pr
   }
   setPersistedVanshaId(data.vansha_id);
   return data;
+}
+
+/**
+ * Update vansha-level metadata post-onboarding.
+ * Requires `culturalFields` entitlement (Ankur plan+) — enforced server-side.
+ */
+export async function updateVanshaMetadata(
+  vansha_id: string,
+  meta: { kuldevi?: string; kuldevta?: string; tree_name?: string },
+): Promise<{ ok: boolean }> {
+  const vid = resolveVanshaIdForApi(vansha_id);
+  if (!vid) throw new Error("Missing vansha_id.");
+  requireValidVanshaUuid(vid);
+  const res = await fetchApi(`${getApiBaseUrl()}/api/tree/${encodeURIComponent(vid)}/meta`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify(meta),
+  });
+  return (await parseJsonOrThrow(res)) as { ok: boolean };
 }
 
 /**

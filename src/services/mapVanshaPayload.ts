@@ -254,6 +254,10 @@ export function backendPayloadToTreeState(data: VanshaTreePayload): TreeState {
 
   const treeName = str(persons[0] ?? {}, "tree_name", "family_name") || `Vansha ${data.vansha_id.slice(0, 8)}…`;
 
+  // Kuldevi / Kuldevta come from the vansha-level payload fields (set during bootstrap or PATCH /meta)
+  const kuldevi  = typeof data.kuldevi  === "string" && data.kuldevi.trim()  ? data.kuldevi.trim()  : undefined;
+  const kuldevta = typeof data.kuldevta === "string" && data.kuldevta.trim() ? data.kuldevta.trim() : undefined;
+
   return {
     nodes,
     edges,
@@ -264,6 +268,8 @@ export function backendPayloadToTreeState(data: VanshaTreePayload): TreeState {
     activityLog: [],
     currentUserId: pickCurrentUserId(nodes),
     treeName,
+    kuldevi,
+    kuldevta,
     matrimonyProfile: null,
   };
 }

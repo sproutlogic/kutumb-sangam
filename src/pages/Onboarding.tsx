@@ -95,6 +95,8 @@ const defaultForm = () => ({
   middleName: '',
   surname: '',
   gotra: '',
+  kuldevi: '',
+  kuldevta: '',
   dateOfBirth: '',
   ancestralPlace: '',
   birthPlace: '',
@@ -233,6 +235,8 @@ const Onboarding = () => {
       const payload = await bootstrapOnboardingTree({
         tree_name: treeName,
         gotra: form.gotra.trim(),
+        kuldevi:  form.kuldevi.trim()  || undefined,
+        kuldevta: form.kuldevta.trim() || undefined,
         father_name: form.fatherName.trim(),
         mother_name: form.motherName.trim(),
         spouse_name: form.spouseName.trim(),
@@ -431,6 +435,39 @@ const Onboarding = () => {
                 <p className="text-xs text-muted-foreground font-body mb-1.5">Where your family's roots go deepest — the village or town your elders called home</p>
                 <CityAutocomplete value={form.ancestralPlace} onChange={v => set('ancestralPlace', v)} className={inputClass} placeholder="e.g. Bhadohi, Varanasi, Mathura" required />
               </div>
+
+              {/* ── Kul Devata — free only during onboarding ── */}
+              <div className="rounded-xl border border-amber-200/60 bg-amber-50/40 p-4 space-y-3">
+                <div>
+                  <p className="text-xs font-semibold font-body text-amber-800 mb-0.5">🪔 Kul Devata — set once, free forever</p>
+                  <p className="text-[11px] text-amber-700/80 font-body leading-relaxed">
+                    These become the default for your entire tree. Changing them later requires a paid plan — so ask an elder now if unsure.
+                  </p>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium font-body mb-1">
+                    कुलदेवी / Kuldevi <span className="text-muted-foreground font-normal">(female deity of your lineage)</span>
+                  </label>
+                  <input
+                    value={form.kuldevi}
+                    onChange={e => set('kuldevi', e.target.value)}
+                    className={inputClass}
+                    placeholder="e.g. Sheetala Mata, Vaishno Devi, Hinglaj Mata"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium font-body mb-1">
+                    कुलदेवता / Kuldevta <span className="text-muted-foreground font-normal">(male deity of your lineage)</span>
+                  </label>
+                  <input
+                    value={form.kuldevta}
+                    onChange={e => set('kuldevta', e.target.value)}
+                    className={inputClass}
+                    placeholder="e.g. Shiva, Ganesh, Khandoba"
+                  />
+                </div>
+              </div>
+
               <div>
                 <label className="block text-sm font-medium font-body mb-1.5">Birth Place</label>
                 <p className="text-xs text-muted-foreground font-body mb-1.5">Where you were born — every family is rooted in a place</p>

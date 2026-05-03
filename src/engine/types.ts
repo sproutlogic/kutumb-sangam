@@ -189,6 +189,10 @@ export interface TreeState {
   activityLog: ActivityLogEntry[];
   currentUserId: string;
   treeName: string;
+  /** Kul devi — the family's female deity; set free during onboarding, paid edit thereafter. */
+  kuldevi?: string;
+  /** Kul devta — the family's male deity; set free during onboarding, paid edit thereafter. */
+  kuldevta?: string;
   matrimonyProfile: MatrimonyProfile | null;
 }
 
