@@ -668,6 +668,7 @@ export interface TodayPanchang {
   is_kshaya: boolean;
   is_adhika: boolean;
   sunrise_ts: string | null;
+  sunset_ts: string | null;
   ref_lat: number;
   ref_lon: number;
   eco_recommendation: EcoRecommendation;
@@ -687,6 +688,7 @@ export interface PanchangCalendarRow {
   is_kshaya: boolean;
   is_adhika: boolean;
   sunrise_ts: string | null;
+  sunset_ts: string | null;
   ref_lat: number;
   ref_lon: number;
 }

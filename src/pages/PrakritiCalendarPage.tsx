@@ -1,17 +1,17 @@
 /**
  * /eco-panchang — Eco-Panchang Calendar + Prakriti Insights
  * Visual design: Heritage editorial (design bundle)
- * Data: GET /api/panchang/calendar (backend + pyswisseph)
+ * Data: GET /api/panchang/today + /api/panchang/calendar (Prokerala live)
  */
 
 import { useEffect, useState } from 'react';
 import AppShell from '@/components/shells/AppShell';
-import { useAuth } from '@/contexts/AuthContext';
 import {
-  fetchPanchangCalendar, type PanchangCalendarRow,
-  resolveVanshaIdForApi,
+  fetchTodayPanchang,
+  fetchPanchangCalendar,
+  type TodayPanchang,
+  type PanchangCalendarRow,
 } from '@/services/api';
-import { mergeTithiWithFallback } from '@/lib/tithiFallback';
 
 /* ── helpers ─────────────────────────────────────────────────── */
 function todayStr() { return new Date().toISOString().slice(0, 10); }
@@ -19,70 +19,135 @@ function pad2(n: number) { return String(n).padStart(2, '0'); }
 function daysInMonth(year: number, month: number) { return new Date(year, month + 1, 0).getDate(); }
 function firstDayOfWeek(year: number, month: number) { return new Date(year, month, 1).getDay(); }
 function monthDateStr(y: number, m: number, d: number) { return `${y}-${pad2(m + 1)}-${pad2(d)}`; }
+function capitalize(s: string | null | undefined) { return s ? s.charAt(0).toUpperCase() + s.slice(1) : '—'; }
 
-/* ── Upcoming eco-events (static guide data) ──────────────────── */
-const UPCOMING = [
-  { date: 'May 04', name: 'Vat Savitri',     glyph: '🌳', kind: 'Tree',  note: 'Vow under a banyan; women tie threads to old trees.' },
-  { date: 'May 12', name: 'Ganga Dussehra',  glyph: '🌊', kind: 'Water', note: 'Clean a water body. Released sin = released litter.' },
-  { date: 'May 22', name: 'Nirjala Ekadashi',glyph: '☀️', kind: 'Fast',  note: 'Provide water to others, set up matkas.' },
-  { date: 'Jun 02', name: 'Vata Pournami',   glyph: '🌳', kind: 'Tree',  note: 'Circumambulate a banyan 108 times. Photo it; it counts.' },
-  { date: 'Jun 18', name: 'Yogini Ekadashi', glyph: '🥣', kind: 'Anna',  note: 'Feed at least 5 by hand — your kitchen, your hands.' },
-  { date: 'Jul 04', name: 'Ashadhi Purnima', glyph: '🌕', kind: 'Honor', note: 'Honor your guru; teach a child one skill.' },
+function parseTsToHHMM(ts: string | null | undefined): string {
+  if (!ts) return '—';
+  try {
+    // ISO string e.g. "2025-05-03T05:42:00+05:30" or unix seconds
+    const d = new Date(ts);
+    if (isNaN(d.getTime())) return '—';
+    return `${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+  } catch { return '—'; }
+}
+
+interface Deed { icon: string; what: string; score: string; done: boolean; }
+
+const DEFAULT_DEEDS: Deed[] = [
+  { icon: '🌱', what: 'Plant a native tree',      score: '+12', done: false },
+  { icon: '💧', what: 'Restore one water source', score: '+10', done: false },
+  { icon: '🪔', what: 'Light a single ghee diya', score: '+3',  done: true  },
+  { icon: '🥣', what: 'Donate grain — anna daan', score: '+6',  done: false },
 ];
 
 const ECO_ALERTS = [
-  { c: 'var(--ds-saffron)', t: 'AQI Kanpur 168', s: "Unhealthy · don't burn waste today" },
-  { c: '#2aa86b',           t: 'Light rain forecast', s: 'Good day for sapling transplant' },
-  { c: 'var(--ds-gold-deep)', t: 'Solar peak 11:40', s: 'Run pump / heater off-grid window' },
+  { c: 'var(--ds-saffron)', t: 'AQI Kanpur 168',      s: "Unhealthy · don't burn waste today" },
+  { c: '#2aa86b',           t: 'Light rain forecast',  s: 'Good day for sapling transplant' },
+  { c: 'var(--ds-gold-deep)', t: 'Solar peak 11:40',   s: 'Run pump / heater off-grid window' },
 ];
 
+const GLYPH_MAP: Record<string, string> = {
+  ekadashi: '🌿', purnima: '🌕', amavasya: '🌑', pradosh: '🌙',
+  chaturthi: '🐘', navami: '⚔️', sankranti: '☀️', ashtami: '⚔️',
+};
+const KIND_MAP: Record<string, string> = {
+  ekadashi: 'Fast', purnima: 'Full Moon', amavasya: 'New Moon',
+  pradosh: 'Shiva', chaturthi: 'Ganesh', navami: 'Devi',
+  sankranti: 'Solar', ashtami: 'Devi',
+};
+
 const EcoPanchangPage = () => {
-  const { appUser } = useAuth();
-  const [rows, setRows] = useState<PanchangCalendarRow[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [panchang, setPanchang] = useState<TodayPanchang | null>(null);
+  const [rows, setRows]         = useState<PanchangCalendarRow[]>([]);
+  const [upcoming, setUpcoming] = useState<PanchangCalendarRow[]>([]);
+  const [loading, setLoading]   = useState(true);
   const [selected, setSelected] = useState<string>(todayStr());
-  const [deeds, setDeeds] = useState([
-    { icon: '🌱', what: 'Plant a native tree',        score: '+12', done: false },
-    { icon: '💧', what: 'Restore one water source',   score: '+10', done: false },
-    { icon: '🪔', what: 'Light a single ghee diya',   score: '+3',  done: true  },
-    { icon: '🥣', what: 'Donate grain — anna daan',   score: '+6',  done: false },
-  ]);
+  const [deeds, setDeeds]       = useState<Deed[]>(DEFAULT_DEEDS);
 
   const now = new Date();
-  const [year, setYear] = useState(now.getFullYear());
+  const [year, setYear]   = useState(now.getFullYear());
   const [month, setMonth] = useState(now.getMonth());
 
+  /* ── Fetch today's panchang once ─────────────────────────── */
   useEffect(() => {
-    const vid = resolveVanshaIdForApi(null);
+    fetchTodayPanchang().then(data => {
+      if (data) {
+        setPanchang(data);
+        const rec = data.eco_recommendation;
+        if (rec) {
+          setDeeds([
+            { icon: '🌱', what: rec.plant     || 'Plant a native tree',      score: '+12', done: false },
+            { icon: '💧', what: rec.water     || 'Restore one water source', score: '+10', done: false },
+            { icon: '🌿', what: rec.observe   || 'Observe nature today',     score: '+5',  done: false },
+            { icon: '🤝', what: rec.community || 'Community eco-action',     score: '+6',  done: false },
+          ]);
+        }
+      }
+    }).finally(() => setLoading(false));
+  }, []);
+
+  /* ── Fetch calendar for current month ───────────────────── */
+  useEffect(() => {
     const startDate = `${year}-${pad2(month + 1)}-01`;
-    const endDate = `${year}-${pad2(month + 1)}-${pad2(daysInMonth(year, month))}`;
-    setLoading(true);
-    fetchPanchangCalendar(vid, startDate, endDate)
-      .then(data => {
-        const merged = mergeTithiWithFallback(data, startDate, endDate);
-        setRows(merged as PanchangCalendarRow[]);
-      })
-      .catch(() => setRows([]))
-      .finally(() => setLoading(false));
-  }, [year, month, appUser?.vansha_id]);
+    const endDate   = `${year}-${pad2(month + 1)}-${pad2(daysInMonth(year, month))}`;
+    fetchPanchangCalendar(startDate, endDate)
+      .then(data => setRows(data))
+      .catch(() => setRows([]));
+  }, [year, month]);
 
-  const rowMap = Object.fromEntries(rows.map(r => [r.date, r]));
-  const today = rowMap[todayStr()];
+  /* ── Fetch upcoming special days (next 30 days) ─────────── */
+  useEffect(() => {
+    const start = new Date();
+    const end   = new Date(); end.setDate(end.getDate() + 30);
+    fetchPanchangCalendar(start.toISOString().slice(0, 10), end.toISOString().slice(0, 10))
+      .then(data => setUpcoming(data.filter(r => r.special_flag != null)))
+      .catch(() => setUpcoming([]));
+  }, []);
 
-  const dayCount = daysInMonth(year, month);
-  const firstDay = firstDayOfWeek(year, month);
-  const monthName = new Date(year, month, 1).toLocaleDateString('en-IN', { month: 'long', year: 'numeric' });
-
-  const selectedRow = rowMap[selected];
+  /* ── Derived display values ──────────────────────────────── */
+  const rowMap       = Object.fromEntries(rows.map(r => [r.gregorian_date, r]));
+  const dayCount     = daysInMonth(year, month);
+  const firstDay     = firstDayOfWeek(year, month);
+  const monthName    = new Date(year, month, 1).toLocaleDateString('en-IN', { month: 'long', year: 'numeric' });
+  const selectedRow  = rowMap[selected];
 
   const prevMonth = () => { if (month === 0) { setYear(y => y - 1); setMonth(11); } else setMonth(m => m - 1); };
   const nextMonth = () => { if (month === 11) { setYear(y => y + 1); setMonth(0); } else setMonth(m => m + 1); };
 
-  const todayTithi = today?.tithi_name ?? 'Akshaya Tritiya';
-  const todayNakshatra = today?.nakshatra ?? 'Rohini';
-  const todayPaksha = today?.paksha ?? 'Shukla';
-  const todaySunrise = today?.sunrise_time ?? '05:42';
-  const todaySunset = today?.sunset_time ?? '18:51';
+  const todayTithi    = panchang?.tithi?.name_common ?? '—';
+  const todayNakshatra = panchang?.nakshatra ?? '—';
+  const todayPaksha   = capitalize(panchang?.paksha);
+  const todaySunrise  = parseTsToHHMM(panchang?.sunrise_ts);
+  const todaySunset   = parseTsToHHMM(panchang?.sunset_ts);
+  const todayMasa     = panchang?.masa ?? '';
+  const todaySamvat   = panchang?.samvat_year;
+
+  const avoidItems: string[] = panchang?.eco_recommendation?.avoid
+    ? panchang.eco_recommendation.avoid.split(/[,;]/).map(s => s.trim()).filter(Boolean)
+    : ['Felling trees', 'Buying single-use plastic', 'Wasting cooked food'];
+
+  /* ── Upcoming events ─────────────────────────────────────── */
+  const upcomingCards = upcoming.slice(0, 6).map(r => {
+    const d = new Date(r.gregorian_date);
+    const dateLabel = d.toLocaleDateString('en-IN', { month: 'short', day: 'numeric' });
+    const flag = r.special_flag ?? '';
+    return {
+      date:  dateLabel,
+      name:  r.tithis?.name_common ?? capitalize(flag),
+      glyph: GLYPH_MAP[flag] ?? '🌿',
+      kind:  KIND_MAP[flag]  ?? 'Eco',
+      note:  r.tithis?.eco_significance ?? `Auspicious ${r.tithis?.name_common ?? flag} day`,
+    };
+  });
+
+  const upcomingFinal = upcomingCards.length > 0 ? upcomingCards : [
+    { date: 'May 04', name: 'Vat Savitri',      glyph: '🌳', kind: 'Tree',  note: 'Vow under a banyan; women tie threads to old trees.' },
+    { date: 'May 12', name: 'Ganga Dussehra',   glyph: '🌊', kind: 'Water', note: 'Clean a water body. Released sin = released litter.' },
+    { date: 'May 22', name: 'Nirjala Ekadashi', glyph: '☀️', kind: 'Fast',  note: 'Provide water to others, set up matkas.' },
+    { date: 'Jun 02', name: 'Vata Pournami',    glyph: '🌳', kind: 'Tree',  note: 'Circumambulate a banyan 108 times. Photo it; it counts.' },
+    { date: 'Jun 18', name: 'Yogini Ekadashi',  glyph: '🥣', kind: 'Anna',  note: 'Feed at least 5 by hand — your kitchen, your hands.' },
+    { date: 'Jul 04', name: 'Ashadhi Purnima',  glyph: '🌕', kind: 'Honor', note: 'Honor your guru; teach a child one skill.' },
+  ];
 
   return (
     <AppShell>
@@ -104,25 +169,28 @@ const EcoPanchangPage = () => {
               ) : (
                 <>
                   <div className="ds-sanskrit" style={{ fontSize: 22, color: 'var(--ds-gold-light)', marginTop: 2 }}>
-                    {today?.tithi_number ? `${todayPaksha} पक्ष · तिथि ${today.tithi_number}` : 'अक्षय तृतीया'}
+                    {panchang?.tithi?.tithi_number
+                      ? `${todayPaksha} पक्ष · तिथि ${panchang.tithi.tithi_number}${todayMasa ? ` · ${todayMasa}` : ''}`
+                      : 'अक्षय तृतीया'}
                   </div>
                   <h1 style={{ fontFamily: 'var(--ds-serif)', fontSize: 52, fontWeight: 700, letterSpacing: '-0.02em', color: 'var(--ds-paper)', marginTop: 6 }}>{todayTithi}</h1>
                   <p style={{ marginTop: 14, fontSize: 15, color: 'rgba(255,255,255,0.72)', maxWidth: 520, lineHeight: 1.6 }}>
-                    Anything begun today is said never to diminish. Plant the soil that feeds your grandchildren.
+                    {panchang?.eco_recommendation?.primary || 'Anything begun today is said never to diminish. Plant the soil that feeds your grandchildren.'}
                   </p>
                   <div style={{ marginTop: 22, display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-                    <span className="ds-tag" style={{ background: 'rgba(212,154,31,0.18)', color: 'var(--ds-gold-light)', borderColor: 'rgba(212,154,31,0.4)' }}>2× Prakriti</span>
+                    {todaySamvat && <span className="ds-tag" style={{ background: 'rgba(212,154,31,0.18)', color: 'var(--ds-gold-light)', borderColor: 'rgba(212,154,31,0.4)' }}>VS {todaySamvat}</span>}
                     <span className="ds-tag" style={{ background: 'rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.85)', borderColor: 'rgba(255,255,255,0.12)' }}>Nakshatra · {todayNakshatra}</span>
                     <span className="ds-tag" style={{ background: 'rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.85)', borderColor: 'rgba(255,255,255,0.12)' }}>{todayPaksha} Paksha</span>
+                    {panchang?.yoga && <span className="ds-tag" style={{ background: 'rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.85)', borderColor: 'rgba(255,255,255,0.12)' }}>Yoga · {panchang.yoga}</span>}
                   </div>
                 </>
               )}
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, alignContent: 'center' }}>
               {[
-                { l: 'Sunrise', v: todaySunrise, s: 'IST golden hour' },
-                { l: 'Sunset', v: todaySunset, s: 'orange hour' },
-                { l: 'Paksha', v: todayPaksha, s: 'lunar phase' },
+                { l: 'Sunrise',   v: todaySunrise,   s: 'IST golden hour' },
+                { l: 'Sunset',    v: todaySunset,    s: 'orange hour' },
+                { l: 'Paksha',    v: todayPaksha,    s: 'lunar phase' },
                 { l: 'Nakshatra', v: todayNakshatra.slice(0, 8), s: 'moon station' },
               ].map(s => (
                 <div key={s.l} style={{ padding: '14px 16px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 10 }}>
@@ -166,7 +234,7 @@ const EcoPanchangPage = () => {
             <div style={{ padding: '14px 18px', borderRadius: 10, background: 'var(--ds-ivory-warm)', border: '1px solid var(--ds-hairline)' }}>
               <div className="ds-eyebrow">Today's to-avoid</div>
               <ul style={{ marginTop: 10, listStyle: 'none', display: 'flex', flexDirection: 'column', gap: 6 }}>
-                {['Felling trees', 'Buying single-use plastic', 'Wasting cooked food'].map(a => (
+                {avoidItems.map(a => (
                   <li key={a} style={{ fontSize: 13, color: 'var(--ds-ink-soft)', display: 'flex', alignItems: 'center', gap: 8 }}>
                     <span style={{ color: '#d12d2d', fontWeight: 700 }}>✗</span> {a}
                   </li>
@@ -200,18 +268,19 @@ const EcoPanchangPage = () => {
               {Array.from({ length: firstDay }).map((_, i) => <div key={`empty-${i}`} />)}
               {Array.from({ length: dayCount }, (_, i) => {
                 const day = i + 1;
-                const dateStr = monthDateStr(year, month, day);
-                const row = rowMap[dateStr];
-                const isToday = dateStr === todayStr();
+                const dateStr  = monthDateStr(year, month, day);
+                const row      = rowMap[dateStr];
+                const isToday  = dateStr === todayStr();
                 const isSelected = dateStr === selected;
-                const isSpecial = row && (row.tithi_name?.toLowerCase().includes('ekadashi') || row.tithi_name?.toLowerCase().includes('purnima') || row.tithi_name?.toLowerCase().includes('amavasya'));
+                const tithiName  = row?.tithis?.name_common ?? '';
+                const isSpecial  = row?.special_flag != null || tithiName.toLowerCase().includes('ekadashi') || tithiName.toLowerCase().includes('purnima') || tithiName.toLowerCase().includes('amavasya');
 
                 return (
                   <button key={day} onClick={() => setSelected(dateStr)} style={{ aspectRatio: '1', borderRadius: 8, border: isSelected ? '2px solid var(--ds-plum)' : isToday ? '2px solid var(--ds-gold)' : '1px solid var(--ds-hairline)', background: isSelected ? 'var(--ds-plum)' : isToday ? 'rgba(212,154,31,0.1)' : isSpecial ? 'rgba(42,168,107,0.08)' : 'transparent', color: isSelected ? 'var(--ds-paper)' : 'var(--ds-ink)', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '6px 2px', gap: 2, minHeight: 52 }}>
                     <span style={{ fontSize: 15, fontWeight: isToday || isSelected ? 700 : 500, fontFamily: 'var(--ds-serif)' }}>{day}</span>
-                    {row?.tithi_name && (
+                    {tithiName && (
                       <span style={{ fontSize: 8, fontFamily: 'var(--ds-mono)', color: isSelected ? 'rgba(255,255,255,0.7)' : isSpecial ? '#2aa86b' : 'var(--ds-ink-mute)', textAlign: 'center', lineHeight: 1.2, letterSpacing: '0.04em', textTransform: 'uppercase' }}>
-                        {row.tithi_name.slice(0, 6)}
+                        {tithiName.slice(0, 6)}
                       </span>
                     )}
                     {isSpecial && !isSelected && <span style={{ fontSize: 10 }}>🌿</span>}
@@ -227,11 +296,12 @@ const EcoPanchangPage = () => {
               <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap' }}>
                 <div>
                   <div className="ds-eyebrow">{selected}</div>
-                  <div style={{ fontFamily: 'var(--ds-serif)', fontSize: 20, color: 'var(--ds-plum)', marginTop: 4 }}>{selectedRow.tithi_name ?? '—'}</div>
+                  <div style={{ fontFamily: 'var(--ds-serif)', fontSize: 20, color: 'var(--ds-plum)', marginTop: 4 }}>{selectedRow.tithis?.name_common ?? '—'}</div>
                 </div>
                 {selectedRow.nakshatra && <div><div className="ds-eyebrow">Nakshatra</div><div style={{ fontSize: 16, marginTop: 4, fontWeight: 600 }}>{selectedRow.nakshatra}</div></div>}
-                {selectedRow.sunrise_time && <div><div className="ds-eyebrow">Sunrise</div><div style={{ fontSize: 16, marginTop: 4, fontWeight: 600 }}>{selectedRow.sunrise_time}</div></div>}
-                {selectedRow.paksha && <div><div className="ds-eyebrow">Paksha</div><div style={{ fontSize: 16, marginTop: 4, fontWeight: 600 }}>{selectedRow.paksha}</div></div>}
+                {selectedRow.sunrise_ts && <div><div className="ds-eyebrow">Sunrise</div><div style={{ fontSize: 16, marginTop: 4, fontWeight: 600 }}>{parseTsToHHMM(selectedRow.sunrise_ts)}</div></div>}
+                {selectedRow.paksha && <div><div className="ds-eyebrow">Paksha</div><div style={{ fontSize: 16, marginTop: 4, fontWeight: 600 }}>{capitalize(selectedRow.paksha)}</div></div>}
+                {selectedRow.masa_name && <div><div className="ds-eyebrow">Masa</div><div style={{ fontSize: 16, marginTop: 4, fontWeight: 600 }}>{selectedRow.masa_name}</div></div>}
               </div>
             </div>
           )}
@@ -246,7 +316,7 @@ const EcoPanchangPage = () => {
             </div>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14 }} className="ep-upcoming-grid">
-            {UPCOMING.map((e, i) => (
+            {upcomingFinal.map((e, i) => (
               <div key={i} className="ds-card" style={{ padding: 20 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                   <span style={{ fontSize: 36 }}>{e.glyph}</span>
@@ -262,8 +332,8 @@ const EcoPanchangPage = () => {
 
       <style>{`
         @media (max-width: 880px) {
-          .ep-hero-grid   { grid-template-columns: 1fr !important; }
-          .ep-deeds-grid  { grid-template-columns: 1fr !important; }
+          .ep-hero-grid    { grid-template-columns: 1fr !important; }
+          .ep-deeds-grid   { grid-template-columns: 1fr !important; }
           .ep-upcoming-grid { grid-template-columns: 1fr 1fr !important; }
         }
         @media (max-width: 560px) {

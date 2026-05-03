@@ -47,7 +47,7 @@ import ParyavaranMitraEarnings from "@/pages/ParyavaranMitraEarnings";
 import NotFound from "@/pages/NotFound";
 
 // ── Eco-Panchang & Green Legacy ──────────────────────────────────────────────
-import EcoPanchangPage from "@/pages/EcoPanchangPage";
+import EcoPanchangPage from "@/pages/PrakritiCalendarPage";
 import EcoSewaPage from "@/pages/EcoSewaPage";
 import EcoServicesPage from "@/pages/EcoServicesPage";
 import ServiceOrderDetailPage from "@/pages/ServiceOrderDetailPage";

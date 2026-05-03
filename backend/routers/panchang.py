@@ -243,6 +243,7 @@ def _build_response(row: dict, tithi: dict) -> dict[str, Any]:
         "is_kshaya":        row.get("is_kshaya", False),
         "is_adhika":        row.get("is_adhika", False),
         "sunrise_ts":       row.get("sunrise_ts"),
+        "sunset_ts":        row.get("sunset_ts"),
         "ref_lat":          row.get("ref_lat", UJJAIN_LAT),
         "ref_lon":          row.get("ref_lon", UJJAIN_LON),
         "eco_recommendation": _eco_recommendation(tithi),
