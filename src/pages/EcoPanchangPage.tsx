@@ -10,12 +10,13 @@ import { useNavigate } from "react-router-dom";
 import {
   ChevronLeft, ChevronRight, Leaf, Droplets, Users, Eye, AlertCircle,
   TreePine, Loader2, BookOpen, Instagram, Youtube, Hash, Plus, X,
-  Megaphone, Bell, Trash2, CalendarDays,
+  Megaphone, Bell, Trash2, CalendarDays, Sunrise,
 } from "lucide-react";
 import AppShell from "@/components/shells/AppShell";
 import { useAuth } from "@/contexts/AuthContext";
 import {
   fetchPanchangCalendar, type PanchangCalendarRow,
+  fetchTodayPanchang, type TodayPanchang,
   fetchPanchangArticles, createPanchangArticle, updatePanchangArticle, deletePanchangArticle,
   type PanchangArticle, getApiBaseUrl, resolveVanshaIdForApi,
 } from "@/services/api";
@@ -203,6 +204,40 @@ export default function EcoPanchangPage() {
   const vanshaId = resolveVanshaIdForApi(null);
   const token = getAuthToken();
   const authHeaders = { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) };
+
+  // ── Today's live panchang (pyswisseph via API) ────────────────────────────
+  const [todayPanchang, setTodayPanchang] = useState<TodayPanchang | null>(null);
+
+  // Sunset countdown (approximate: 18:30 IST daily)
+  const [secsLeft, setSecsLeft] = useState(() => {
+    const now = new Date();
+    const sunset = new Date(now);
+    sunset.setHours(18, 30, 0, 0);
+    return Math.max(0, Math.floor((sunset.getTime() - now.getTime()) / 1000));
+  });
+
+  useEffect(() => {
+    fetchTodayPanchang().then(setTodayPanchang);
+  }, []);
+
+  useEffect(() => {
+    const id = setInterval(() => setSecsLeft(s => Math.max(0, s - 1)), 1000);
+    return () => clearInterval(id);
+  }, []);
+
+  // Derived live-panchang helpers
+  const PAKSHA: Record<string, string> = { shukla: "शुक्ल पक्ष", krishna: "कृष्ण पक्ष" };
+  const pakshaLabel = todayPanchang ? (PAKSHA[todayPanchang.paksha] ?? todayPanchang.paksha) : null;
+  const sunriseStr  = todayPanchang?.sunrise_ts
+    ? new Date(todayPanchang.sunrise_ts).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: false })
+    : null;
+  const pad2sec = (n: number) => String(n).padStart(2, "0");
+  const ctH = Math.floor(secsLeft / 3600);
+  const ctM = Math.floor((secsLeft % 3600) / 60);
+  const ctS = secsLeft % 60;
+  const eco  = todayPanchang?.eco_recommendation ?? null;
+  const specialLabel = todayPanchang?.special_flag ? (SPECIAL_LABELS[todayPanchang.special_flag] ?? todayPanchang.special_flag) : null;
+  const specialColor = todayPanchang?.special_flag ? (SPECIAL_COLORS[todayPanchang.special_flag] ?? SPECIAL_COLORS.default) : null;
 
   // View mode — default to week
   const [viewMode, setViewMode] = useState<"week" | "month">("week");
@@ -419,46 +454,141 @@ export default function EcoPanchangPage() {
 
   return (
     <AppShell>
-      {/* Hero */}
-      <div className="relative gradient-hero text-primary-foreground py-8 overflow-hidden">
-        <div className="container">
-          <div className="flex items-center justify-between gap-4 flex-wrap">
+      {/* ── Hero ─────────────────────────────────────────────────────────────── */}
+      <div className="relative gradient-hero text-primary-foreground overflow-hidden">
+        <div style={{ maxWidth: 1240, margin: "0 auto", padding: "28px 24px 32px" }}>
+
+          {/* Top row: brand + CTA buttons */}
+          <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16, flexWrap: "wrap", marginBottom: 20 }}>
             <div>
-              <div className="flex items-center gap-2 mb-1">
-                <TreePine className="w-6 h-6" />
-                <h1 className="font-heading text-2xl font-bold">Prakriti Calendar</h1>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+                <TreePine className="w-5 h-5 opacity-80" />
+                <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", opacity: 0.65 }}>Eco-Panchang · Prakriti Calendar</span>
               </div>
-              <p className="text-sm opacity-70">हर तिथि पर प्रकृति और परिवार के लिए शुभ कार्य जानें</p>
+              <h1 className="font-heading" style={{ fontSize: "clamp(24px,3vw,36px)", fontWeight: 700, lineHeight: 1.1 }}>
+                {todayPanchang
+                  ? (todayPanchang.tithi?.name_sanskrit ?? "Prakriti Calendar")
+                  : "Prakriti Calendar"}
+              </h1>
+              <p style={{ fontSize: 13, opacity: 0.7, marginTop: 4 }}>
+                {todayPanchang
+                  ? [pakshaLabel, todayPanchang.masa ? `${todayPanchang.masa} मास` : null, todayPanchang.samvat_year ? `सम्वत ${todayPanchang.samvat_year}` : null].filter(Boolean).join(" · ")
+                  : "हर तिथि पर प्रकृति और समाज के लिए शुभ कार्य जानें"}
+              </p>
             </div>
-            <div className="flex items-center gap-2 flex-wrap">
-              <button
-                onClick={() => navigate("/services")}
-                className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-green-500/20 hover:bg-green-500/30 border border-primary-foreground/20 text-primary-foreground text-sm font-semibold transition-colors"
-              >
-                🌿 पर्यावरण सेवा बुक करें →
+            <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+              <button onClick={() => navigate("/services")}
+                className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-green-500/20 hover:bg-green-500/30 border border-primary-foreground/20 text-primary-foreground text-sm font-semibold transition-colors">
+                🌿 सेवा बुक करें →
               </button>
               {appUser && (
                 <>
-                  <button
-                    onClick={() => { setIsAnnouncement(true); setShowEventModal(true); }}
-                    className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-primary-foreground/15 text-primary-foreground text-sm font-semibold hover:bg-primary-foreground/25 transition-colors"
-                  >
+                  <button onClick={() => { setIsAnnouncement(true); setShowEventModal(true); }}
+                    className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-primary-foreground/15 text-primary-foreground text-sm font-semibold hover:bg-primary-foreground/25 transition-colors">
                     <Megaphone className="w-4 h-4" /> घोषणा
                   </button>
-                  <button
-                    onClick={() => { setIsAnnouncement(false); setShowEventModal(true); }}
-                    className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-primary-foreground/15 text-primary-foreground text-sm font-semibold hover:bg-primary-foreground/25 transition-colors"
-                  >
-                    <Plus className="w-4 h-4" /> इवेंट जोड़ें
+                  <button onClick={() => { setIsAnnouncement(false); setShowEventModal(true); }}
+                    className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-primary-foreground/15 text-primary-foreground text-sm font-semibold hover:bg-primary-foreground/25 transition-colors">
+                    <Plus className="w-4 h-4" /> इवेंट
                   </button>
                 </>
               )}
             </div>
           </div>
+
+          {/* Live panchang data strip */}
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 16 }}>
+            {/* Tithi pill */}
+            {todayPanchang ? (
+              <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 12px", borderRadius: 8, background: "rgba(255,255,255,0.10)", border: "1px solid rgba(255,255,255,0.18)", fontSize: 12 }}>
+                <span style={{ fontSize: 14 }}>🌒</span>
+                <span style={{ fontWeight: 600 }}>{todayPanchang.tithi?.name_common ?? "—"}</span>
+                {specialLabel && (
+                  <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold ml-1 ${specialColor}`}>{specialLabel}</span>
+                )}
+                {todayPanchang.is_kshaya && <span style={{ fontSize: 10, opacity: 0.7 }}>(क्षय)</span>}
+                {todayPanchang.is_adhika && <span style={{ fontSize: 10, opacity: 0.7 }}>(अधिक)</span>}
+              </div>
+            ) : (
+              <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 12px", borderRadius: 8, background: "rgba(255,255,255,0.08)", fontSize: 12, opacity: 0.5 }}>
+                <Loader2 className="w-3 h-3 animate-spin" /> लोड हो रहा है…
+              </div>
+            )}
+
+            {/* Nakshatra */}
+            {todayPanchang?.nakshatra && (
+              <div style={{ display: "flex", alignItems: "center", gap: 5, padding: "6px 12px", borderRadius: 8, background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.12)", fontSize: 12 }}>
+                <span>✦</span>
+                <span>नक्षत्र: <strong>{todayPanchang.nakshatra}</strong></span>
+              </div>
+            )}
+
+            {/* Yoga */}
+            {todayPanchang?.yoga && (
+              <div style={{ display: "flex", alignItems: "center", gap: 5, padding: "6px 12px", borderRadius: 8, background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.12)", fontSize: 12 }}>
+                <span>☯</span>
+                <span>योग: <strong>{todayPanchang.yoga}</strong></span>
+              </div>
+            )}
+
+            {/* Sunrise */}
+            {sunriseStr && (
+              <div style={{ display: "flex", alignItems: "center", gap: 5, padding: "6px 12px", borderRadius: 8, background: "rgba(255,200,50,0.12)", border: "1px solid rgba(255,200,50,0.25)", fontSize: 12 }}>
+                <Sunrise className="w-3.5 h-3.5 opacity-80" />
+                <span>सूर्योदय: <strong>{sunriseStr}</strong></span>
+              </div>
+            )}
+
+            {/* Eco window countdown */}
+            <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 8, padding: "6px 14px", borderRadius: 8, background: secsLeft > 3600 ? "rgba(34,197,94,0.15)" : "rgba(249,115,22,0.18)", border: `1px solid ${secsLeft > 3600 ? "rgba(34,197,94,0.3)" : "rgba(249,115,22,0.35)"}` }}>
+              <span style={{ fontSize: 10, opacity: 0.7, textTransform: "uppercase", letterSpacing: "0.08em" }}>Eco window</span>
+              <span style={{ fontFamily: "var(--ds-mono, monospace)", fontSize: 15, fontWeight: 700, color: secsLeft > 3600 ? "#86efac" : "#fb923c" }}>
+                {pad2sec(ctH)}:{pad2sec(ctM)}:{pad2sec(ctS)}
+              </span>
+              {todayPanchang?.special_flag && <span style={{ fontSize: 10, opacity: 0.8 }}>2× आज</span>}
+            </div>
+          </div>
+
+          {/* Eco recommendation mini-cards — from live pyswisseph API */}
+          {eco && (eco.plant || eco.water || eco.community) && (
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8 }} className="ep-eco-grid">
+              {eco.plant && (
+                <div style={{ padding: "10px 12px", borderRadius: 8, background: "rgba(34,197,94,0.10)", border: "1px solid rgba(34,197,94,0.22)", display: "flex", gap: 8, alignItems: "flex-start" }}>
+                  <span style={{ fontSize: 14, flexShrink: 0, marginTop: 1 }}>🌱</span>
+                  <div>
+                    <div style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", opacity: 0.6, marginBottom: 2 }}>वृक्षारोपण</div>
+                    <div style={{ fontSize: 11, lineHeight: 1.4, opacity: 0.9 }}>{eco.plant}</div>
+                  </div>
+                </div>
+              )}
+              {eco.water && (
+                <div style={{ padding: "10px 12px", borderRadius: 8, background: "rgba(56,189,248,0.10)", border: "1px solid rgba(56,189,248,0.22)", display: "flex", gap: 8, alignItems: "flex-start" }}>
+                  <span style={{ fontSize: 14, flexShrink: 0, marginTop: 1 }}>💧</span>
+                  <div>
+                    <div style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", opacity: 0.6, marginBottom: 2 }}>जल सेवा</div>
+                    <div style={{ fontSize: 11, lineHeight: 1.4, opacity: 0.9 }}>{eco.water}</div>
+                  </div>
+                </div>
+              )}
+              {eco.community && (
+                <div style={{ padding: "10px 12px", borderRadius: 8, background: "rgba(168,85,247,0.10)", border: "1px solid rgba(168,85,247,0.22)", display: "flex", gap: 8, alignItems: "flex-start" }}>
+                  <span style={{ fontSize: 14, flexShrink: 0, marginTop: 1 }}>🤝</span>
+                  <div>
+                    <div style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", opacity: 0.6, marginBottom: 2 }}>सामुदायिक कार्य</div>
+                    <div style={{ fontSize: 11, lineHeight: 1.4, opacity: 0.9 }}>{eco.community}</div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
 
-      <div className="container py-6 space-y-6">
+      <style>{`
+        @media (max-width: 700px) { .ep-eco-grid { grid-template-columns: 1fr !important; } }
+        @media (max-width: 900px) { .ep-eco-grid { grid-template-columns: 1fr 1fr !important; } }
+      `}</style>
+      <div style={{ maxWidth: 1240, margin: "0 auto", padding: "24px 24px 80px" }} className="space-y-6">
         {/* Upcoming Events + Announcements */}
         {(announcements.length > 0 || upcomingEvents.filter(e => !e.is_announcement).length > 0 || !eventsLoading) && (
           <div className="space-y-2">
