@@ -294,6 +294,89 @@ const PersonalLabelEditor: React.FC<{
   );
 };
 
+// ── Connect missing link panel ─────────────────────────────────────────────
+interface ConnectLinkPanelProps {
+  sourceNodeId: string;
+  sourceNodeName: string;
+  allNodes: Array<{ id: string; name: string }>;
+  vanshaId: string;
+  onNavigate: (path: string) => void;
+}
+
+const RELATION_OPTIONS = [
+  'father', 'mother', 'son', 'daughter',
+  'brother', 'sister', 'husband', 'wife',
+  'paternal-grandfather', 'paternal-grandmother',
+  'maternal-grandfather', 'maternal-grandmother',
+  'uncle', 'aunt', 'nephew', 'niece', 'cousin',
+];
+
+const ConnectLinkPanel: React.FC<ConnectLinkPanelProps> = ({
+  sourceNodeId, sourceNodeName, allNodes, vanshaId, onNavigate,
+}) => {
+  const [open, setOpen] = useState(false);
+  const [targetId, setTargetId] = useState('');
+  const [relation, setRelation] = useState('');
+
+  const others = allNodes.filter(n => n.id !== sourceNodeId && n.name && n.name !== '—');
+
+  const handleConnect = () => {
+    if (!targetId || !relation) return;
+    const base = vanshaId
+      ? `/node?vansha_id=${encodeURIComponent(vanshaId)}&anchor_node_id=${encodeURIComponent(sourceNodeId)}&link_to=${encodeURIComponent(targetId)}&relation=${encodeURIComponent(relation)}`
+      : `/node?anchor_node_id=${encodeURIComponent(sourceNodeId)}&link_to=${encodeURIComponent(targetId)}&relation=${encodeURIComponent(relation)}`;
+    onNavigate(base);
+  };
+
+  return (
+    <div style={{ marginTop: 14 }}>
+      <button
+        onClick={() => setOpen(o => !o)}
+        style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '9px 12px', borderRadius: 8, border: '1px dashed rgba(74,33,104,0.3)', background: 'transparent', cursor: 'pointer', fontSize: 12, color: 'var(--ds-plum,#2e1346)', fontWeight: 600 }}
+      >
+        <span>🔗 Connect missing link</span>
+        <span style={{ opacity: 0.5 }}>{open ? '▲' : '▼'}</span>
+      </button>
+      {open && (
+        <div style={{ marginTop: 8, display: 'grid', gap: 8 }}>
+          <div style={{ fontSize: 11, color: 'rgba(74,33,104,0.5)' }}>
+            Connect <strong>{sourceNodeName}</strong> to another existing member
+          </div>
+          <select
+            value={targetId}
+            onChange={e => setTargetId(e.target.value)}
+            className="ds-input w-full"
+            style={{ fontSize: 12 }}
+          >
+            <option value="">Select member…</option>
+            {others.map(n => (
+              <option key={n.id} value={n.id}>{n.name}</option>
+            ))}
+          </select>
+          <select
+            value={relation}
+            onChange={e => setRelation(e.target.value)}
+            className="ds-input w-full"
+            style={{ fontSize: 12, textTransform: 'capitalize' }}
+          >
+            <option value="">Select relation…</option>
+            {RELATION_OPTIONS.map(r => (
+              <option key={r} value={r}>{r}</option>
+            ))}
+          </select>
+          <button
+            onClick={handleConnect}
+            disabled={!targetId || !relation}
+            style={{ padding: '9px 14px', borderRadius: 8, border: 'none', background: targetId && relation ? 'var(--ds-plum,#2e1346)' : 'rgba(74,33,104,0.2)', color: '#fff', fontSize: 12, fontWeight: 700, cursor: targetId && relation ? 'pointer' : 'not-allowed' }}
+          >
+            Connect →
+          </button>
+        </div>
+      )}
+    </div>
+  );
+};
+
 const TreePage = () => {
   const { tr } = useLang();
   const { plan, membersUsed, generationsUsed } = usePlan();
@@ -414,6 +497,28 @@ const TreePage = () => {
 
     return raw.filter((e) => !edgeDuplicatesUnionTrunk(e));
   }, [edges, state.nodes, state.unionRows]);
+
+  const coupleNodeIds = useMemo(() => {
+    const s = new Set<string>();
+    spouseEdges.forEach(e => { s.add(e.from); s.add(e.to); });
+    return s;
+  }, [spouseEdges]);
+
+  // Y of the bottom edge of a node's container (frame bottom for couples, nameplate bottom for singles).
+  // R=26, FRAME_MARGIN_Y_BOTTOM=50, nameplate = R+8+NP_H=64
+  const frameBottomY = (id: string): number => {
+    const n = nodeMap[id];
+    if (!n) return 0;
+    return coupleNodeIds.has(id) ? n.y + 76 : n.y + 64;
+  };
+
+  // Y of the top edge of a node's container (frame top for couples, shape top for singles).
+  // R=26, FRAME_MARGIN_Y_TOP=10
+  const frameTopY = (id: string): number => {
+    const n = nodeMap[id];
+    if (!n) return 0;
+    return coupleNodeIds.has(id) ? n.y - 36 : n.y - 26;
+  };
 
   const openBirthVanshaIfPresent = (node: PositionedTreeNode): boolean => {
     const m = node.maidenVanshaId != null && String(node.maidenVanshaId).trim() !== "";
@@ -583,11 +688,13 @@ const TreePage = () => {
                 : pu
                   ? unionStrokeColor(pu)
                   : "hsl(var(--primary))";
-              const midY = (from.y + 20 + to.y) / 2;
+              const fromY = frameBottomY(e.from);
+              const toY   = frameTopY(e.to);
+              const midY  = (fromY + toY) / 2;
               return (
                 <path
                   key={`ln-${i}`}
-                  d={`M${from.x},${from.y + 20} C${from.x},${midY} ${to.x},${midY} ${to.x},${to.y}`}
+                  d={`M${from.x},${fromY} C${from.x},${midY} ${to.x},${midY} ${to.x},${toY}`}
                   stroke={adopted ? stroke : "url(#branch-grad)"}
                   strokeWidth={adopted ? 2 : 2.5}
                   strokeOpacity={adopted ? 0.55 : 1}
@@ -598,7 +705,7 @@ const TreePage = () => {
               );
             })}
 
-            {/* Trunk: one riser from above the +, then optional horizontal bar; drops to each child (orange bio / green adopted). */}
+            {/* Trunk: from parent frame bottom → horizontal bar → child frame tops */}
             {(state.unionRows ?? []).map((u) => {
               const children = nodesForParentalUnionRow(state.nodes, u);
               if (children.length === 0) return null;
@@ -607,9 +714,10 @@ const TreePage = () => {
               if (!m || !f) return null;
               const cx = (m.x + f.x) / 2;
               const coupleY = (m.y + f.y) / 2;
-              const yTrunkStart = spousePlusCenterY(coupleY) - 10;
+              // Start from the bottom edge of the parent couple frame (R=26 + FRAME_MARGIN_Y_BOTTOM=50)
+              const yTrunkStart = coupleY + 76;
               const trunkStroke = "hsl(var(--primary))";
-              const trunkW = 3;
+              const trunkW = 2.5;
               const dropBio = "#ea580c";
               const dropAdopted = "#16a34a";
               const dropStroke = (rel: string) =>
@@ -618,75 +726,42 @@ const TreePage = () => {
               const ordered = [...children].sort(
                 (a, b) => (nodeMap[a.id]?.x ?? 0) - (nodeMap[b.id]?.x ?? 0),
               );
-              const attachY = (childId: string) => {
-                const p = nodeMap[childId];
-                return p ? p.y + 18 : 0;
-              };
-              const bottoms = ordered.map((c) => attachY(c.id)).filter((y) => y > 0);
-              if (bottoms.length === 0) return null;
-              const yBar = Math.max(...bottoms) + 28;
+              // Connect to the TOP edge of each child container
+              const childTopY = (childId: string) => frameTopY(childId);
+              const tops = ordered.map((c) => childTopY(c.id)).filter((y) => y > 0);
+              if (tops.length === 0) return null;
+              // Bar sits halfway between parent frame bottom and the closest child top
+              const yBar = yTrunkStart + (Math.min(...tops) - yTrunkStart) / 2;
 
               if (ordered.length === 1) {
                 const c = ordered[0];
                 const xc = nodeMap[c.id]?.x ?? cx;
-                const yAttach = attachY(c.id);
+                const yAttach = childTopY(c.id);
                 return (
                   <g key={`trunk-${u.id}`}>
-                    <line
-                      x1={cx}
-                      y1={yTrunkStart}
-                      x2={xc}
-                      y2={yAttach}
-                      stroke={dropStroke(c.relation)}
-                      strokeWidth={3.25}
-                      strokeOpacity={0.92}
-                      strokeLinecap="round"
-                    />
+                    <line x1={cx} y1={yTrunkStart} x2={cx} y2={yBar} stroke={trunkStroke} strokeWidth={trunkW} strokeOpacity={0.5} strokeLinecap="round" />
+                    <line x1={cx} y1={yBar} x2={xc} y2={yBar} stroke={trunkStroke} strokeWidth={trunkW} strokeOpacity={0.5} strokeLinecap="round" />
+                    <line x1={xc} y1={yBar} x2={xc} y2={yAttach} stroke={dropStroke(c.relation)} strokeWidth={2.5} strokeOpacity={0.9} strokeLinecap="round" />
                   </g>
                 );
               }
 
               const xs = ordered.map((c) => nodeMap[c.id]?.x ?? cx);
-              const left = Math.min(...xs);
-              const right = Math.max(...xs);
+              const leftX = Math.min(...xs);
+              const rightX = Math.max(...xs);
 
               return (
                 <g key={`trunk-${u.id}`}>
-                  <line
-                    x1={cx}
-                    y1={yTrunkStart}
-                    x2={cx}
-                    y2={yBar}
-                    stroke={trunkStroke}
-                    strokeWidth={trunkW}
-                    strokeOpacity={0.5}
-                    strokeLinecap="round"
-                  />
-                  <line
-                    x1={left}
-                    y1={yBar}
-                    x2={right}
-                    y2={yBar}
-                    stroke={trunkStroke}
-                    strokeWidth={trunkW}
-                    strokeOpacity={0.5}
-                    strokeLinecap="round"
-                  />
+                  {/* Vertical trunk from parent frame bottom to bar */}
+                  <line x1={cx} y1={yTrunkStart} x2={cx} y2={yBar} stroke={trunkStroke} strokeWidth={trunkW} strokeOpacity={0.5} strokeLinecap="round" />
+                  {/* Horizontal bar spanning all children */}
+                  <line x1={leftX} y1={yBar} x2={rightX} y2={yBar} stroke={trunkStroke} strokeWidth={trunkW} strokeOpacity={0.5} strokeLinecap="round" />
+                  {/* Drops from bar to each child's top frame edge */}
                   {ordered.map((c) => {
                     const xc = nodeMap[c.id]?.x ?? cx;
-                    const yAttach = attachY(c.id);
+                    const yAttach = childTopY(c.id);
                     return (
-                      <line
-                        key={`drop-${u.id}-${c.id}`}
-                        x1={xc}
-                        y1={yBar}
-                        x2={xc}
-                        y2={yAttach}
-                        stroke={dropStroke(c.relation)}
-                        strokeWidth={3}
-                        strokeOpacity={0.92}
-                        strokeLinecap="round"
-                      />
+                      <line key={`drop-${u.id}-${c.id}`} x1={xc} y1={yBar} x2={xc} y2={yAttach} stroke={dropStroke(c.relation)} strokeWidth={2.5} strokeOpacity={0.9} strokeLinecap="round" />
                     );
                   })}
                 </g>
@@ -1140,6 +1215,15 @@ const TreePage = () => {
                   ))}
                 </div>
               </div>
+
+              {/* Connect missing link */}
+              <ConnectLinkPanel
+                sourceNodeId={selectedNode.id}
+                sourceNodeName={selectedNode.name}
+                allNodes={state.nodes}
+                vanshaId={vanshaId || defaultVanshaFromEnv}
+                onNavigate={(path) => navigate(path)}
+              />
             </div>
           ) : (
             <div style={{ padding: 20 }}>
