@@ -227,10 +227,9 @@ const TimeBankPage = () => {
 
   return (
     <AppShell>
-      <div style={{ maxWidth: 1240, margin: '0 auto', padding: '48px 24px 80px', fontFamily: 'var(--ds-sans)', color: 'var(--ds-ink)' }}>
-
-        {/* ── Hero ─────────────────────────────────────────────────────────── */}
-        <div style={{ background: 'linear-gradient(135deg, var(--ds-plum) 0%, var(--ds-plum-mid) 100%)', color: 'var(--ds-ivory)', padding: '40px 36px', borderRadius: 16, position: 'relative', overflow: 'hidden', marginBottom: 24 }}>
+      {/* ── Hero — full width ─────────────────────────────────────────────── */}
+      <div style={{ background: 'linear-gradient(135deg, var(--ds-plum) 0%, var(--ds-plum-mid) 100%)', color: 'var(--ds-ivory)', position: 'relative', overflow: 'hidden' }}>
+        <div style={{ maxWidth: 1240, margin: '0 auto', padding: '40px 36px', fontFamily: 'var(--ds-sans)', color: 'var(--ds-ivory)' }}>
           <div style={{ position: 'absolute', top: -60, right: -40, width: 300, height: 300, background: 'radial-gradient(circle, rgba(122,219,160,0.12) 0%, transparent 70%)', pointerEvents: 'none' }} />
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 6 }}>
             <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="var(--ds-gold-light)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><path d="M12 6v6l4 2" /></svg>
@@ -370,6 +369,10 @@ const TimeBankPage = () => {
             </div>
           </div>
         </div>
+      </div>
+
+      {/* ── Rest of page ─────────────────────────────────────────────────── */}
+      <div style={{ maxWidth: 1240, margin: '0 auto', padding: '24px 24px 80px', fontFamily: 'var(--ds-sans)', color: 'var(--ds-ink)' }}>
 
         {/* ── Tab bar ──────────────────────────────────────────────────────── */}
         <div style={{ display: 'flex', gap: 6, marginBottom: 18, flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -416,8 +419,9 @@ const TimeBankPage = () => {
                         {kind === 'earned' ? '→' : kind === 'spent' ? '←' : kind === 'disputed' ? '⚠' : '⋯'}
                       </div>
                       <div style={{ minWidth: 0 }}>
-                        <div style={{ fontSize: 14, color: 'var(--ds-ink)' }}>
-                          <strong style={{ color: 'var(--ds-plum)' }}>{otherName}</strong> · {what}
+                        <div style={{ fontSize: 14, color: 'var(--ds-ink)' }}>{what}</div>
+                        <div style={{ fontSize: 12, color: 'var(--ds-plum)', fontWeight: 600, marginTop: 2 }}>
+                          {isHelper ? '↗ to' : '↙ from'} {otherName}
                         </div>
                         <div style={{ fontSize: 11, color: 'var(--ds-ink-mute)', marginTop: 3, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                           <span>{when}</span>

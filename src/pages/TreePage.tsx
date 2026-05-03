@@ -9,7 +9,7 @@ import { useTree } from '@/contexts/TreeContext';
 import AppShell from '@/components/shells/AppShell';
 import TreeCompletionScore from '@/components/ui/TreeCompletionScore';
 import TrustBadge from '@/components/ui/TrustBadge';
-import { fetchMatrimonyProfile, fetchVanshaTree, fetchVanshaTreePage, getApiBaseUrl, getPersistedVanshaId, updatePerson } from '@/services/api';
+import { fetchMatrimonyProfile, fetchVanshaTree, fetchVanshaTreePage, getApiBaseUrl, getPersistedVanshaId, updatePerson, linkExistingSpouses, updateVanshaMetadata } from '@/services/api';
 import { backendPayloadToTreeState } from '@/services/mapVanshaPayload';
 import { mergeMatrimonyProfile } from '@/engine/matrimonyDefaults';
 import { canViewerSeeNodeDetails } from '@/engine/privacy';
@@ -300,7 +300,7 @@ interface ConnectLinkPanelProps {
   sourceNodeName: string;
   allNodes: Array<{ id: string; name: string }>;
   vanshaId: string;
-  onNavigate: (path: string) => void;
+  onRefresh: () => void;
 }
 
 const RELATION_OPTIONS = [
@@ -311,21 +311,40 @@ const RELATION_OPTIONS = [
   'uncle', 'aunt', 'nephew', 'niece', 'cousin',
 ];
 
+const SPOUSE_RELATIONS = new Set(['husband', 'wife']);
+
 const ConnectLinkPanel: React.FC<ConnectLinkPanelProps> = ({
-  sourceNodeId, sourceNodeName, allNodes, vanshaId, onNavigate,
+  sourceNodeId, sourceNodeName, allNodes, vanshaId, onRefresh,
 }) => {
   const [open, setOpen] = useState(false);
   const [targetId, setTargetId] = useState('');
   const [relation, setRelation] = useState('');
+  const [linking, setLinking] = useState(false);
+  const [result, setResult] = useState<'success' | 'error' | null>(null);
 
   const others = allNodes.filter(n => n.id !== sourceNodeId && n.name && n.name !== '—');
+  const targetName = others.find(n => n.id === targetId)?.name ?? '';
 
-  const handleConnect = () => {
-    if (!targetId || !relation) return;
-    const base = vanshaId
-      ? `/node?vansha_id=${encodeURIComponent(vanshaId)}&anchor_node_id=${encodeURIComponent(sourceNodeId)}&link_to=${encodeURIComponent(targetId)}&relation=${encodeURIComponent(relation)}`
-      : `/node?anchor_node_id=${encodeURIComponent(sourceNodeId)}&link_to=${encodeURIComponent(targetId)}&relation=${encodeURIComponent(relation)}`;
-    onNavigate(base);
+  const handleConnect = async () => {
+    if (!targetId || !relation || !vanshaId) return;
+    setLinking(true);
+    setResult(null);
+    try {
+      if (SPOUSE_RELATIONS.has(relation)) {
+        await linkExistingSpouses({ vansha_id: vanshaId, anchor_node_id: sourceNodeId, spouse_node_id: targetId });
+      } else {
+        // For parent-child: update the child node's relation/parent reference
+        const isChildOfSource = ['son', 'daughter'].includes(relation);
+        const childId = isChildOfSource ? targetId : sourceNodeId;
+        await updatePerson(childId, { relation });
+      }
+      setResult('success');
+      onRefresh();
+    } catch {
+      setResult('error');
+    } finally {
+      setLinking(false);
+    }
   };
 
   return (
@@ -339,38 +358,35 @@ const ConnectLinkPanel: React.FC<ConnectLinkPanelProps> = ({
       </button>
       {open && (
         <div style={{ marginTop: 8, display: 'grid', gap: 8 }}>
-          <div style={{ fontSize: 11, color: 'rgba(74,33,104,0.5)' }}>
-            Connect <strong>{sourceNodeName}</strong> to another existing member
-          </div>
-          <select
-            value={targetId}
-            onChange={e => setTargetId(e.target.value)}
-            className="ds-input w-full"
-            style={{ fontSize: 12 }}
-          >
-            <option value="">Select member…</option>
-            {others.map(n => (
-              <option key={n.id} value={n.id}>{n.name}</option>
-            ))}
-          </select>
-          <select
-            value={relation}
-            onChange={e => setRelation(e.target.value)}
-            className="ds-input w-full"
-            style={{ fontSize: 12, textTransform: 'capitalize' }}
-          >
-            <option value="">Select relation…</option>
-            {RELATION_OPTIONS.map(r => (
-              <option key={r} value={r}>{r}</option>
-            ))}
-          </select>
-          <button
-            onClick={handleConnect}
-            disabled={!targetId || !relation}
-            style={{ padding: '9px 14px', borderRadius: 8, border: 'none', background: targetId && relation ? 'var(--ds-plum,#2e1346)' : 'rgba(74,33,104,0.2)', color: '#fff', fontSize: 12, fontWeight: 700, cursor: targetId && relation ? 'pointer' : 'not-allowed' }}
-          >
-            Connect →
-          </button>
+          {result === 'success' ? (
+            <div style={{ padding: '10px 12px', borderRadius: 8, background: 'rgba(122,219,160,0.08)', border: '1px solid rgba(122,219,160,0.3)', fontSize: 12, color: '#2a8068', fontWeight: 600 }}>
+              ✓ {sourceNodeName} linked to {targetName} as {relation}.
+            </div>
+          ) : (
+            <>
+              <div style={{ fontSize: 11, color: 'rgba(74,33,104,0.5)' }}>
+                Connect <strong>{sourceNodeName}</strong> to another existing member — no re-entry needed.
+              </div>
+              <select value={targetId} onChange={e => setTargetId(e.target.value)} className="ds-input w-full" style={{ fontSize: 12 }}>
+                <option value="">Select member…</option>
+                {others.map(n => <option key={n.id} value={n.id}>{n.name}</option>)}
+              </select>
+              <select value={relation} onChange={e => setRelation(e.target.value)} className="ds-input w-full" style={{ fontSize: 12, textTransform: 'capitalize' }}>
+                <option value="">Select relation…</option>
+                {RELATION_OPTIONS.map(r => <option key={r} value={r}>{r}</option>)}
+              </select>
+              {result === 'error' && (
+                <div style={{ fontSize: 11, color: '#dc2626' }}>Could not link — please try again.</div>
+              )}
+              <button
+                onClick={() => void handleConnect()}
+                disabled={!targetId || !relation || linking}
+                style={{ padding: '9px 14px', borderRadius: 8, border: 'none', background: targetId && relation && !linking ? 'var(--ds-plum,#2e1346)' : 'rgba(74,33,104,0.2)', color: '#fff', fontSize: 12, fontWeight: 700, cursor: targetId && relation && !linking ? 'pointer' : 'not-allowed' }}
+              >
+                {linking ? 'Linking…' : 'Connect →'}
+              </button>
+            </>
+          )}
         </div>
       )}
     </div>
@@ -379,7 +395,7 @@ const ConnectLinkPanel: React.FC<ConnectLinkPanelProps> = ({
 
 const TreePage = () => {
   const { tr } = useLang();
-  const { plan, membersUsed, generationsUsed } = usePlan();
+  const { plan, membersUsed, generationsUsed, hasEntitlement } = usePlan();
   const { state, isTreeInitialized, loadTreeState, setMatrimonyProfile } = useTree();
   const { appUser } = useAuth();
   const { getLabel, setLabel } = usePersonalLabels(appUser?.id, appUser?.vansha_id);
@@ -404,6 +420,11 @@ const TreePage = () => {
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
   const [linkParentUnionId, setLinkParentUnionId] = useState('');
+  // Kul Devata inline edit state (tree overview panel)
+  const [kuldeviEdit, setKuldeviEdit] = useState('');
+  const [kuldevtaEdit, setKuldevtaEdit] = useState('');
+  const [kulDevEditing, setKulDevEditing] = useState(false);
+  const [kulDevSaving, setKulDevSaving] = useState(false);
   const [isSavingParentLink, setIsSavingParentLink] = useState(false);
   const [isPaginated, setIsPaginated] = useState(false);
   const [genMin, setGenMin] = useState(-3);
@@ -505,19 +526,36 @@ const TreePage = () => {
   }, [spouseEdges]);
 
   // Y of the bottom edge of a node's container (frame bottom for couples, nameplate bottom for singles).
-  // R=26, FRAME_MARGIN_Y_BOTTOM=50, nameplate = R+8+NP_H=64
+  // SpouseCoupleFrame: R=26, FRAME_MARGIN_Y_BOTTOM=48 → frame bottom = leftSpouse.y + 74 (+2px buffer = +76)
+  // Single nodes: nameplate = R(26)+stem(8)+NP_H(30) = y+64
   const frameBottomY = (id: string): number => {
     const n = nodeMap[id];
     if (!n) return 0;
-    return coupleNodeIds.has(id) ? n.y + 76 : n.y + 64;
+    // For couple nodes, prefer the leftmost-by-x spouse's y to match SpouseCoupleFrame reference
+    if (coupleNodeIds.has(id)) {
+      const se = spouseEdges.find(e => e.from === id || e.to === id);
+      const partnerId = se ? (se.from === id ? se.to : se.from) : null;
+      const partner = partnerId ? nodeMap[partnerId] : null;
+      const leftY = partner && partner.x < n.x ? partner.y : n.y;
+      return leftY + 76; // SpouseCoupleFrame bottom (leftNode.y + 74) + 2px gap
+    }
+    return n.y + 64;
   };
 
   // Y of the top edge of a node's container (frame top for couples, shape top for singles).
-  // R=26, FRAME_MARGIN_Y_TOP=10
+  // SpouseCoupleFrame: R=26, FRAME_MARGIN_Y_TOP=8 → frame top = leftSpouse.y - 34 (-2px buffer = -36)
+  // Single nodes: shape top = y - R(26)
   const frameTopY = (id: string): number => {
     const n = nodeMap[id];
     if (!n) return 0;
-    return coupleNodeIds.has(id) ? n.y - 36 : n.y - 26;
+    if (coupleNodeIds.has(id)) {
+      const se = spouseEdges.find(e => e.from === id || e.to === id);
+      const partnerId = se ? (se.from === id ? se.to : se.from) : null;
+      const partner = partnerId ? nodeMap[partnerId] : null;
+      const leftY = partner && partner.x < n.x ? partner.y : n.y;
+      return leftY - 36; // SpouseCoupleFrame top (leftNode.y - 34) - 2px gap
+    }
+    return n.y - 26;
   };
 
   const openBirthVanshaIfPresent = (node: PositionedTreeNode): boolean => {
@@ -713,9 +751,9 @@ const TreePage = () => {
               const f = nodeMap[u.femaleNodeId];
               if (!m || !f) return null;
               const cx = (m.x + f.x) / 2;
-              const coupleY = (m.y + f.y) / 2;
-              // Start from the bottom edge of the parent couple frame (R=26 + FRAME_MARGIN_Y_BOTTOM=50)
-              const yTrunkStart = coupleY + 76;
+              // Use the leftmost spouse's y to match SpouseCoupleFrame reference (frame bottom = leftNode.y + 74)
+              const leftParent = m.x <= f.x ? m : f;
+              const yTrunkStart = leftParent.y + 76; // = SpouseCoupleFrame bottom + 2px gap
               const trunkStroke = "hsl(var(--primary))";
               const trunkW = 2.5;
               const dropBio = "#ea580c";
@@ -1222,7 +1260,12 @@ const TreePage = () => {
                 sourceNodeName={selectedNode.name}
                 allNodes={state.nodes}
                 vanshaId={vanshaId || defaultVanshaFromEnv}
-                onNavigate={(path) => navigate(path)}
+                onRefresh={async () => {
+                  const vid = vanshaId || defaultVanshaFromEnv;
+                  if (!vid) return;
+                  const data = await fetchVanshaTree(vid);
+                  loadTreeState(backendPayloadToTreeState(data));
+                }}
               />
             </div>
           ) : (
@@ -1240,6 +1283,107 @@ const TreePage = () => {
                   <div className="ds-eyebrow" style={{ color: 'var(--ds-muted)', fontSize: 9 }}>Generations</div>
                   <div className="font-heading" style={{ fontSize: 22, fontWeight: 700, color: 'var(--ds-text)' }}>{generationsUsed} <span style={{ fontSize: 13, fontWeight: 400, color: 'var(--ds-muted)' }}>/ {plan.generationCap}</span></div>
                 </div>
+              </div>
+
+              {/* ── Kul Devata card ── */}
+              <div className="ds-card" style={{ padding: '14px', marginBottom: 16 }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                  <div className="ds-eyebrow" style={{ color: 'var(--ds-muted)', fontSize: 9 }}>🪔 Kul Devata</div>
+                  {hasEntitlement('culturalFields') ? (
+                    kulDevEditing ? (
+                      <div style={{ display: 'flex', gap: 6 }}>
+                        <button
+                          onClick={async () => {
+                            const vid = vanshaId || defaultVanshaFromEnv;
+                            if (!vid) return;
+                            setKulDevSaving(true);
+                            try {
+                              await updateVanshaMetadata(vid, {
+                                kuldevi: kuldeviEdit.trim() || undefined,
+                                kuldevta: kuldevtaEdit.trim() || undefined,
+                              });
+                              // Refresh tree state to pick up new values
+                              const data = await fetchVanshaTree(vid);
+                              loadTreeState(backendPayloadToTreeState(data));
+                              toast({ title: 'Kul Devata updated' });
+                              setKulDevEditing(false);
+                            } catch {
+                              toast({ title: 'Could not save', variant: 'destructive' });
+                            } finally {
+                              setKulDevSaving(false);
+                            }
+                          }}
+                          disabled={kulDevSaving}
+                          style={{ fontSize: 11, color: 'var(--ds-gold)', fontWeight: 600, background: 'none', border: 'none', cursor: 'pointer' }}
+                        >
+                          {kulDevSaving ? '…' : 'Save'}
+                        </button>
+                        <button
+                          onClick={() => setKulDevEditing(false)}
+                          style={{ fontSize: 11, color: 'var(--ds-muted)', background: 'none', border: 'none', cursor: 'pointer' }}
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => {
+                          setKuldeviEdit(state.kuldevi ?? '');
+                          setKuldevtaEdit(state.kuldevta ?? '');
+                          setKulDevEditing(true);
+                        }}
+                        style={{ fontSize: 10, color: 'var(--ds-plum)', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 600 }}
+                      >
+                        Edit
+                      </button>
+                    )
+                  ) : (
+                    <span title="Requires Ankur plan or above" style={{ fontSize: 10, color: 'var(--ds-gold)', cursor: 'default' }}>🔒 Paid</span>
+                  )}
+                </div>
+
+                {kulDevEditing && hasEntitlement('culturalFields') ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    <div>
+                      <div style={{ fontSize: 10, color: 'var(--ds-muted)', marginBottom: 3 }}>कुलदेवी / Kuldevi</div>
+                      <input
+                        value={kuldeviEdit}
+                        onChange={e => setKuldeviEdit(e.target.value)}
+                        placeholder="e.g. Sheetala Mata"
+                        style={{ width: '100%', fontSize: 12, padding: '5px 8px', borderRadius: 6, border: '1px solid var(--ds-border)', background: 'var(--ds-card)', color: 'var(--ds-text)' }}
+                      />
+                    </div>
+                    <div>
+                      <div style={{ fontSize: 10, color: 'var(--ds-muted)', marginBottom: 3 }}>कुलदेवता / Kuldevta</div>
+                      <input
+                        value={kuldevtaEdit}
+                        onChange={e => setKuldevtaEdit(e.target.value)}
+                        placeholder="e.g. Shiva, Ganesh"
+                        style={{ width: '100%', fontSize: 12, padding: '5px 8px', borderRadius: 6, border: '1px solid var(--ds-border)', background: 'var(--ds-card)', color: 'var(--ds-text)' }}
+                      />
+                    </div>
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <span style={{ fontSize: 10, color: 'var(--ds-muted)', width: 56, flexShrink: 0 }}>कुलदेवी</span>
+                      <span style={{ fontSize: 13, fontWeight: 600, color: state.kuldevi ? 'var(--ds-plum)' : 'var(--ds-muted)' }}>
+                        {state.kuldevi || (hasEntitlement('culturalFields') ? '— not set' : '—')}
+                      </span>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <span style={{ fontSize: 10, color: 'var(--ds-muted)', width: 56, flexShrink: 0 }}>कुलदेवता</span>
+                      <span style={{ fontSize: 13, fontWeight: 600, color: state.kuldevta ? 'var(--ds-plum)' : 'var(--ds-muted)' }}>
+                        {state.kuldevta || (hasEntitlement('culturalFields') ? '— not set' : '—')}
+                      </span>
+                    </div>
+                    {!hasEntitlement('culturalFields') && (
+                      <p style={{ fontSize: 10, color: 'var(--ds-muted)', marginTop: 4, lineHeight: 1.4 }}>
+                        Upgrade to Ankur to update Kul Devata for your tree.
+                      </p>
+                    )}
+                  </div>
+                )}
               </div>
 
               <div style={{ fontSize: 12, color: 'var(--ds-muted)', textAlign: 'center', padding: '20px 0' }}>

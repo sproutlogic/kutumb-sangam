@@ -155,6 +155,9 @@ const NodePage = () => {
     fatherName: '',
     motherName: '',
     personalLabel: '',
+    marriageAnniversary: '',
+    swargwasDate: '',
+    importantDatesPrivacy: 'private',
   });
 
   // currentResidence is optional — deceased members may not have one
@@ -198,6 +201,9 @@ const NodePage = () => {
         parentId: '',
         fatherName: '',
         motherName: '',
+        marriageAnniversary: (existingNode as Record<string, unknown>).marriage_anniversary as string ?? '',
+        swargwasDate: (existingNode as Record<string, unknown>).swargwas_date as string ?? '',
+        importantDatesPrivacy: 'private',
       });
     }
   }, [existingNode]);
@@ -228,7 +234,7 @@ const NodePage = () => {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [form.relation, anchorNode?.id]);
 
-  // Auto-fill gotra + moolNiwas from anchor/tree for non-spouse new members
+  // Auto-fill gotra + moolNiwas + surname from anchor/tree for non-spouse new members
   useEffect(() => {
     if (isEdit) return;
     if (isSpouseRelation(form.relation)) return; // spouse comes from a different family
@@ -239,6 +245,7 @@ const NodePage = () => {
     if (!ref) return;
     if (!form.gotra.trim() && ref.gotra) set('gotra', ref.gotra);
     if (!form.moolNiwas.trim() && ref.moolNiwas) set('moolNiwas', ref.moolNiwas);
+    if (!form.surname.trim() && ref.surname) set('surname', ref.surname);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [form.relation, anchorNode?.id]);
 
@@ -373,6 +380,8 @@ const NodePage = () => {
             gotra: form.gotra || undefined,
             mool_niwas: form.moolNiwas || undefined,
             title: form.title.trim() || undefined,
+            marriage_anniversary: form.marriageAnniversary || undefined,
+            swargwas_date: form.swargwasDate || undefined,
           });
           const data = await fetchVanshaTree(effectiveVanshaId);
           loadTreeState(backendPayloadToTreeState(data));
@@ -677,7 +686,12 @@ const NodePage = () => {
             <input value={form.middleName} onChange={(e) => set('middleName', e.target.value)} className={inputClass} />
           </div>
           <div>
-            <label className="block text-sm font-medium font-body mb-1.5">{tr('surname')}</label>
+            <label className="block text-sm font-medium font-body mb-1.5">
+              {tr('surname')}
+              {!isEdit && form.surname && (
+                <span className="ml-2 text-[10px] text-emerald-600 font-normal">auto-filled · edit to override</span>
+              )}
+            </label>
             <input value={form.surname} onChange={(e) => set('surname', e.target.value)} className={inputClass} />
           </div>
           <div>
@@ -887,6 +901,7 @@ const NodePage = () => {
                 <ConsentToggle fieldLabel={tr('moolNiwas')} />
                 <div>
                   <label className="block text-sm font-medium font-body mb-1.5">{tr('moolNiwas')}</label>
+                  <p className="text-xs text-muted-foreground font-body mb-1.5">Enter village / town / city of ancestral origin</p>
                   <input value={form.moolNiwas} onChange={e => set('moolNiwas', e.target.value)} className={inputClass} />
                 </div>
               </div>
@@ -997,6 +1012,46 @@ const NodePage = () => {
                   </div>
                 )}
               <p className="text-xs text-muted-foreground font-body">{tr('nodePrivacyDesc')}</p>
+            </div>
+          )}
+
+          {/* Important Dates — edit mode only, private by default */}
+          {isEdit && (
+            <div className="border-t border-border pt-5 space-y-4">
+              <div>
+                <p className="text-sm font-semibold font-body mb-1">Important Dates</p>
+                <p className="text-xs text-muted-foreground font-body leading-relaxed">
+                  These dates do not appear in the tree but show on the family's Date in History tile on the anniversary each year. They will link to Pandit ji's CRM when available.
+                </p>
+              </div>
+              <div>
+                <label className="block text-sm font-medium font-body mb-1.5">
+                  विवाह वर्षगांठ / Marriage Anniversary
+                  <span className="ml-2 text-[10px] text-muted-foreground font-normal">optional</span>
+                </label>
+                <DOBInput value={form.marriageAnniversary} onChange={v => set('marriageAnniversary', v)} className="w-full" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium font-body mb-1.5">
+                  स्वर्गवास तिथि / Punya Tithi
+                  <span className="ml-2 text-[10px] text-muted-foreground font-normal">optional</span>
+                </label>
+                <DOBInput value={form.swargwasDate} onChange={v => set('swargwasDate', v)} className="w-full" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium font-body mb-1.5">Privacy for Important Dates</label>
+                <select
+                  value={form.importantDatesPrivacy}
+                  onChange={e => set('importantDatesPrivacy', e.target.value)}
+                  className={inputClass}
+                >
+                  <option value="private">Private (only me)</option>
+                  <option value="parents">Immediate family</option>
+                  <option value="tree_all_generations">All tree members</option>
+                  <option value="public">Public</option>
+                </select>
+                <p className="text-xs text-muted-foreground font-body mt-1">You control who sees these dates.</p>
+              </div>
             </div>
           )}
 

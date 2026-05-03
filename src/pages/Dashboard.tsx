@@ -16,7 +16,6 @@ import {
   fetchRadarNearby, type RadarMember,
   fetchGreenLegacyTimeline, type GreenLegacyEvent,
   fetchVanshaTree,
-  fetchDashboardTasks, createDashboardTask, type DashboardTask,
 } from '@/services/api';
 import { computeTithiIdToday, getPaksha } from '@/lib/panchangUtils';
 import { mergeTithiWithFallback } from '@/lib/tithiFallback';
@@ -186,6 +185,15 @@ const RightNowMoment = ({ panchang }: { panchang: LivePanchang | null }) => {
    3. Community Hero — score + gotra comparison + rank + todo
    CRO: social comparison drives action + aspiration
 ───────────────────────────────────────────────────────────── */
+const GG_HERO_CARDS = [
+  { who: 'Aanya · your tree', kind: 'Achievement', title: 'AIR 412 in JEE Main · first in 3 generations', img: '🏆', when: '2 weeks ago', tone: 'var(--ds-saffron)' },
+  { who: 'Chacha ji · your tree', kind: 'Service', title: 'Built a primary school in Etawah village', img: '🏫', when: '2024', tone: '#a64a8e' },
+  { who: 'Meena Devi · Kashyap gotra', kind: 'Ecology', title: 'Planted 200 saplings across 3 villages in UP', img: '🌳', when: '1 month ago', tone: '#2a8068' },
+  { who: 'Pt. Ramesh ji · community', kind: 'Wisdom', title: '47 years of Vedic teaching · 1,200+ students', img: '🪔', when: 'Ongoing', tone: 'var(--ds-plum-rose)' },
+  { who: 'Bhabhi · your tree', kind: 'Craft', title: 'Rangoli book published · Rajpal & Sons', img: '📕', when: '3 months ago', tone: '#a64a8e' },
+  { who: 'Verma parivar · Lucknow', kind: 'Community', title: 'Organized free health camp for 300 people', img: '🩺', when: 'Last month', tone: 'var(--ds-saffron)' },
+];
+
 const CommunityHero = ({ appUser, score, familyRank, panchang, userPersonNode }: {
   appUser: { full_name?: string | null } | null;
   score: PrakritiScore | null;
@@ -194,141 +202,201 @@ const CommunityHero = ({ appUser, score, familyRank, panchang, userPersonNode }:
   userPersonNode: Record<string, unknown> | null;
 }) => {
   const navigate = useNavigate();
-  void score;
+  void score; void panchang;
   const firstName = appUser?.full_name?.split(' ')[0] ?? 'there';
-  const [todos, setTodos] = useState([
-    { icon: '🤝', t: 'Accept 1 Sewa request near you', done: false, src: 'sewa' },
-    { icon: '📲', t: 'Invite 1 member to your tree — both get +12', done: false, src: 'tree' },
-    { icon: '📍', t: 'Scan Kutumb Radar — kin may be nearby', done: false, src: 'radar' },
-  ]);
-  // Inject panchang-based actions once API data arrives
+  const str = (key: string) => String(userPersonNode?.[key] ?? '').trim() || null;
+  const gotra = str('gotra');
+  const moolNiwas = str('mool_niwas') || str('ancestral_place');
+
+  const totalPages = Math.ceil(GG_HERO_CARDS.length / 3);
+  const [ggPage, setGgPage] = useState(0);
+
   useEffect(() => {
-    if (!panchang) return;
-    const panchangTasks: Array<{ icon: string; t: string; done: boolean; src: string }> = [];
-    if (panchang.ecoPlant)     panchangTasks.push({ icon: '🌱', t: panchang.ecoPlant,     done: false, src: 'panchang' });
-    if (panchang.ecoWater)     panchangTasks.push({ icon: '💧', t: panchang.ecoWater,     done: false, src: 'panchang' });
-    if (panchang.ecoCommunity) panchangTasks.push({ icon: '🌿', t: panchang.ecoCommunity, done: false, src: 'panchang' });
-    if (panchang.specialFlag)  panchangTasks.push({ icon: '🪔', t: `${panchang.tithiName} — log your sankalp`, done: false, src: 'panchang' });
-    if (panchangTasks.length > 0) {
-      setTodos(prev => [...panchangTasks, ...prev.filter(t => t.src !== 'panchang')]);
-    }
+    if (GG_HERO_CARDS.length <= 3) return;
+    const timer = setInterval(() => setGgPage(p => (p + 1) % totalPages), 5000);
+    return () => clearInterval(timer);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [panchang]);
-  const [newTask, setNewTask] = useState('');
-  const doneCnt = todos.filter(t => t.done).length;
+  }, []);
+
+  const startIdx = ggPage * 3;
+  const visibleGG = [0, 1, 2].map(i => GG_HERO_CARDS[(startIdx + i) % GG_HERO_CARDS.length]);
+
   return (
-    <section style={{ background: 'linear-gradient(180deg,var(--ds-plum-deep),var(--ds-plum) 80%)', color: 'var(--ds-paper)', padding: '40px 0 72px', position: 'relative', overflow: 'hidden' }}>
+    <section style={{ background: 'linear-gradient(180deg,var(--ds-plum-deep),var(--ds-plum) 80%)', color: 'var(--ds-paper)', padding: '40px 0 48px', position: 'relative', overflow: 'hidden' }}>
       <div style={{ maxWidth: 1240, margin: '0 auto', padding: '0 24px', position: 'relative', zIndex: 1 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 16, marginBottom: 32 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 16, marginBottom: 28 }}>
           <div>
-            <div className="ds-eyebrow" style={{ color: 'var(--ds-gold-light)' }}>Your Prakriti · live</div>
-            <h1 style={{ fontFamily: 'var(--ds-serif)', fontSize: 'clamp(26px,3vw,42px)', marginTop: 6 }}>
+            <div className="ds-eyebrow" style={{ color: 'var(--ds-gold-light)' }}>Kutumb Gaurav Gatha · live</div>
+            <h1 style={{ fontFamily: 'var(--ds-serif)', fontSize: 'clamp(24px,3vw,38px)', marginTop: 6 }}>
               Namaste, <span style={{ fontStyle: 'italic', color: 'var(--ds-gold-light)' }}>{firstName}</span>
             </h1>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 8 }}>
+              {gotra && <span className="ds-pill" style={{ background: 'rgba(212,154,31,0.12)', borderColor: 'rgba(212,154,31,0.35)', color: 'var(--ds-gold-light)', fontSize: 10 }}>{gotra} गोत्र</span>}
+              {moolNiwas && <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.5)', fontStyle: 'italic', alignSelf: 'center' }}>({moolNiwas})</span>}
+              {familyRank && <span className="ds-pill" style={{ background: 'rgba(122,219,160,0.08)', borderColor: 'rgba(122,219,160,0.25)', color: '#7adba0', fontSize: 10 }}>#{familyRank.city_rank} {familyRank.city ?? ''}</span>}
+            </div>
           </div>
           <div style={{ display: 'flex', gap: 10 }}>
             <button onClick={() => navigate('/invite')} className="ds-btn ds-btn-ghost ds-btn-sm" style={{ color: 'var(--ds-paper)', borderColor: 'rgba(255,255,255,0.25)' }}>Invite →</button>
             <button onClick={() => navigate('/tree')} className="ds-btn ds-btn-gold ds-btn-sm">Open tree →</button>
           </div>
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr 1fr', gap: 18, alignItems: 'start' }} className="dash-hero-grid">
 
-          {/* Royal Nameplate */}
-          {(() => {
-            const str = (key: string) => String(userPersonNode?.[key] ?? '').trim() || null;
-            const first = str('first_name'); const mid = str('middle_name'); const last = str('last_name');
-            const fullName = [first, mid, last].filter(Boolean).join(' ') || appUser?.full_name || '—';
-            const fatherName = str('father_name');
-            const moolNiwas = str('mool_niwas') || str('ancestral_place');
-            const gotra = str('gotra');
-            return (
-              <div className="ds-card" style={{ padding: 28, background: 'linear-gradient(145deg,rgba(28,10,45,0.92),rgba(45,18,72,0.88))', border: '2px solid rgba(212,154,31,0.5)', color: 'var(--ds-paper)', display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 0, minHeight: 220, position: 'relative', overflow: 'hidden' }}>
-                <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 3, background: 'linear-gradient(90deg,transparent,rgba(212,154,31,0.7),transparent)' }} />
-                <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 3, background: 'linear-gradient(90deg,transparent,rgba(212,154,31,0.5),transparent)' }} />
-                <div style={{ fontFamily: 'var(--ds-mono)', fontSize: 9, letterSpacing: '0.28em', textTransform: 'uppercase', color: 'rgba(212,154,31,0.6)', marginBottom: 14 }}>कुलनामपट्टिका</div>
-                <div style={{ fontFamily: 'var(--ds-serif)', fontSize: 'clamp(20px,2vw,30px)', fontWeight: 700, color: 'var(--ds-gold-light)', lineHeight: 1.15 }}>
-                  {fullName}
+        {/* Rotating Gaurav Gatha tiles */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14 }} className="dash-hero-grid">
+          {visibleGG.map((c, i) => (
+            <div key={`${ggPage}-${i}`} className="ds-card" style={{ padding: '18px 20px', background: 'rgba(255,255,255,0.06)', border: `1px solid ${c.tone}55`, color: 'var(--ds-paper)', display: 'flex', flexDirection: 'column', gap: 10, minHeight: 160 }}>
+              <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+                <span style={{ fontSize: 26, flexShrink: 0 }}>{c.img}</span>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 9, fontFamily: 'var(--ds-mono)', color: c.tone, textTransform: 'uppercase', letterSpacing: '0.12em' }}>{c.kind}</div>
+                  <div style={{ fontFamily: 'var(--ds-serif)', fontSize: 14, color: 'var(--ds-gold-light)', marginTop: 4, lineHeight: 1.35 }}>{c.title}</div>
+                  <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.55)', marginTop: 4 }}>by {c.who}</div>
                 </div>
-                {fatherName && (
-                  <div style={{ fontFamily: 'var(--ds-serif)', fontSize: 15, color: 'rgba(255,255,255,0.65)', marginTop: 10 }}>
-                    s/o {fatherName}
-                  </div>
-                )}
-                {moolNiwas && (
-                  <div style={{ fontFamily: 'var(--ds-serif)', fontSize: 14, fontStyle: 'italic', color: 'rgba(212,154,31,0.75)', marginTop: 6 }}>
-                    ({moolNiwas})
-                  </div>
-                )}
-                <div style={{ height: 1, background: 'linear-gradient(90deg,transparent,rgba(212,154,31,0.45),transparent)', margin: '16px 0 12px' }} />
-                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-                  {gotra && <span className="ds-pill" style={{ background: 'rgba(212,154,31,0.1)', borderColor: 'rgba(212,154,31,0.35)', color: 'var(--ds-gold-light)', fontSize: 10 }}>{gotra} गोत्र</span>}
-                  {familyRank && <span className="ds-pill" style={{ background: 'rgba(122,219,160,0.08)', borderColor: 'rgba(122,219,160,0.25)', color: '#7adba0', fontSize: 10 }}>#{familyRank.city_rank} {familyRank.city ?? ''}</span>}
-                </div>
-                <button onClick={() => navigate('/settings')} className="ds-btn ds-btn-sm" style={{ marginTop: 16, alignSelf: 'flex-start', background: 'rgba(212,154,31,0.12)', color: 'var(--ds-gold-light)', border: '1px solid rgba(212,154,31,0.3)', fontSize: 11 }}>
-                  {fatherName ? 'Edit details →' : 'Complete your nameplate →'}
-                </button>
               </div>
-            );
-          })()}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 'auto', paddingTop: 10, borderTop: '1px solid rgba(255,255,255,0.08)' }}>
+                <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.3)', fontFamily: 'var(--ds-mono)' }}>{c.when}</span>
+                <button className="ds-btn ds-btn-sm" style={{ fontSize: 10, padding: '3px 8px', background: 'rgba(255,255,255,0.06)', color: 'var(--ds-gold-light)', border: '1px solid rgba(212,154,31,0.25)' }}>🙏 Pranam</button>
+              </div>
+            </div>
+          ))}
+        </div>
 
-          {/* Today card — live tithi */}
-          <div className="ds-card" style={{ padding: 24, background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', color: 'var(--ds-paper)' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span className="ds-eyebrow" style={{ color: 'rgba(255,255,255,0.55)' }}>Today</span>
-              {panchang?.isSpecial && (
-                <span className="ds-pill" style={{ background: 'rgba(122,219,160,0.12)', borderColor: 'rgba(122,219,160,0.3)', color: '#7adba0' }}><span className="ds-pill-dot live" />2× day</span>
-              )}
-            </div>
-            <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, marginTop: 12 }}>
-              <div className="ds-score-num" style={{ fontSize: 72, color: 'var(--ds-gold-light)', lineHeight: 1 }}>{new Date().getDate()}</div>
-              <div>
-                <div style={{ fontFamily: 'var(--ds-serif)', fontSize: 20, color: 'var(--ds-paper)', lineHeight: 1.1 }}>{new Date().toLocaleString('en-IN', { month: 'long' })}</div>
-                <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.45)', marginTop: 3 }}>{new Date().toLocaleString('en-IN', { weekday: 'long' })} · {new Date().getFullYear()}</div>
-              </div>
-            </div>
-            <div style={{ marginTop: 14, paddingTop: 14, borderTop: '1px solid rgba(255,255,255,0.08)', fontSize: 12, color: 'rgba(255,255,255,0.6)', lineHeight: 1.6 }}>
-              <div className="ds-sanskrit" style={{ color: 'var(--ds-gold-light)', fontSize: 13, marginBottom: 6 }}>
-                {panchang ? `${panchang.pakshaLabel} · ${panchang.tithiName}` : '—'}
-              </div>
-              {panchang?.sunriseStr && (
-                <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Sunrise</span><span>{panchang.sunriseStr}</span></div>
-              )}
-              {panchang?.nakshatra && (
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 2 }}><span>Nakshatra</span><span>{panchang.nakshatra}</span></div>
-              )}
-              {!panchang && (
-                <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', fontStyle: 'italic' }}>Computing tithi…</div>
-              )}
-            </div>
-            <button onClick={() => navigate('/eco-panchang')} className="ds-btn ds-btn-sm" style={{ marginTop: 14, background: 'var(--ds-gold)', color: 'var(--ds-plum-deep)', fontWeight: 700, width: '100%', justifyContent: 'center' }}>Open Prakriti panchang →</button>
+        {/* Page dots */}
+        {totalPages > 1 && (
+          <div style={{ display: 'flex', gap: 6, justifyContent: 'center', marginTop: 14 }}>
+            {Array.from({ length: totalPages }).map((_, i) => (
+              <div key={i} onClick={() => setGgPage(i)} style={{ width: 6, height: 6, borderRadius: '50%', background: i === ggPage ? 'var(--ds-gold)' : 'rgba(255,255,255,0.25)', cursor: 'pointer', transition: 'background 0.2s' }} />
+            ))}
           </div>
+        )}
+      </div>
+    </section>
+  );
+};
 
-          {/* Smart todo */}
-          <div className="ds-card" style={{ padding: 24, background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', color: 'var(--ds-paper)', display: 'flex', flexDirection: 'column' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span className="ds-eyebrow" style={{ color: 'rgba(255,255,255,0.55)' }}>Today's actions</span>
-              <span style={{ fontSize: 11, color: doneCnt === todos.length ? '#7adba0' : 'rgba(255,255,255,0.4)', fontFamily: 'var(--ds-mono)' }}>{doneCnt}/{todos.length}</span>
+/* ─────────────────────────────────────────────────────────────
+   4. Dashboard Info Row — Notice · Date in History · Todo Calendar
+───────────────────────────────────────────────────────────── */
+const DashboardInfoRow = ({ persons, panchang }: {
+  persons: Record<string, unknown>[];
+  panchang: LivePanchang | null;
+}) => {
+  const navigate = useNavigate();
+  const today = new Date();
+  const todayMD = `${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+
+  // Date-in-history: birthdays, anniversaries, punya tithis from family
+  const todayEvents: Array<{ name: string; type: string; icon: string }> = [];
+  persons.forEach(p => {
+    const nameStr = [p.first_name, p.last_name].filter(Boolean).join(' ') || String(p.name ?? '—');
+    const dob = String(p.date_of_birth ?? '');
+    if (dob.length >= 10 && dob.slice(5, 7) + '-' + dob.slice(8, 10) === todayMD) {
+      todayEvents.push({ name: nameStr, type: 'Birthday', icon: '🎂' });
+    }
+    const anniv = String(p.marriage_anniversary ?? '');
+    if (anniv.length >= 10 && anniv.slice(5, 7) + '-' + anniv.slice(8, 10) === todayMD) {
+      todayEvents.push({ name: nameStr, type: 'Anniversary', icon: '💐' });
+    }
+    const swarg = String(p.swargwas_date ?? '');
+    if (swarg.length >= 10 && swarg.slice(5, 7) + '-' + swarg.slice(8, 10) === todayMD) {
+      todayEvents.push({ name: nameStr, type: 'Punya Tithi', icon: '🕯️' });
+    }
+  });
+
+  // This-week events for todo calendar
+  const weekEvents: Array<{ name: string; type: string; icon: string; daysAway: number }> = [];
+  for (let d = 1; d <= 7; d++) {
+    const fd = new Date(today); fd.setDate(fd.getDate() + d);
+    const fmd = `${String(fd.getMonth() + 1).padStart(2, '0')}-${String(fd.getDate()).padStart(2, '0')}`;
+    persons.forEach(p => {
+      const nameStr = [p.first_name, p.last_name].filter(Boolean).join(' ') || String(p.name ?? '');
+      if (!nameStr) return;
+      const dob = String(p.date_of_birth ?? '');
+      if (dob.length >= 10 && dob.slice(5, 7) + '-' + dob.slice(8, 10) === fmd) {
+        weekEvents.push({ name: nameStr, type: 'Birthday', icon: '🎂', daysAway: d });
+      }
+      const anniv = String(p.marriage_anniversary ?? '');
+      if (anniv.length >= 10 && anniv.slice(5, 7) + '-' + anniv.slice(8, 10) === fmd) {
+        weekEvents.push({ name: nameStr, type: 'Anniversary', icon: '💐', daysAway: d });
+      }
+    });
+  }
+
+  return (
+    <section style={{ padding: '20px 0', background: 'var(--ds-ivory)', borderBottom: '1px solid var(--ds-hairline)' }}>
+      <div style={{ maxWidth: 1240, margin: '0 auto', padding: '0 24px', display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }} className="dash-info-grid">
+
+        {/* Tile 1: Notice — from broadcast */}
+        <div className="ds-card" style={{ padding: 20 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+            <span className="ds-eyebrow">📢 Notice</span>
+            <span className="ds-pill"><span className="ds-pill-dot live" />Live</span>
+          </div>
+          <div style={{ fontFamily: 'var(--ds-serif)', fontSize: 15, color: 'var(--ds-ink)', lineHeight: 1.4 }}>
+            सामुदायिक सूचना
+          </div>
+          <p style={{ fontSize: 13, color: 'var(--ds-ink-soft)', marginTop: 6, lineHeight: 1.5 }}>
+            Kutumb Sangam वार्षिक उत्सव 15 जून को। अपने परिवार को आमंत्रित करें।
+          </p>
+          <div style={{ fontSize: 11, color: 'var(--ds-ink-mute)', marginTop: 10 }}>2 hours ago · Community</div>
+        </div>
+
+        {/* Tile 2: Date in History */}
+        <div className="ds-card" style={{ padding: 20 }}>
+          <div style={{ marginBottom: 10 }}>
+            <span className="ds-eyebrow">📅 Aaj Ki Tithiyan</span>
+            <div style={{ fontSize: 11, color: 'var(--ds-ink-mute)', marginTop: 2 }}>
+              {today.toLocaleDateString('en-IN', { day: 'numeric', month: 'long' })}
             </div>
-            <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 7, flex: 1 }}>
-              {todos.map((td, i) => (
-                <label key={i} style={{ display: 'flex', gap: 9, alignItems: 'flex-start', cursor: 'pointer' }}>
-                  <input type="checkbox" checked={td.done} onChange={() => setTodos(t => t.map((x, j) => j === i ? { ...x, done: !x.done } : x))} style={{ marginTop: 2, accentColor: 'var(--ds-gold)' }} />
-                  <span style={{ fontSize: 12, color: td.done ? 'rgba(255,255,255,0.3)' : 'rgba(255,255,255,0.85)', textDecoration: td.done ? 'line-through' : 'none', flex: 1, lineHeight: 1.35 }}>
-                    <span style={{ marginRight: 5 }}>{td.icon}</span>{td.t}
-                  </span>
-                  <span style={{ fontSize: 9, fontFamily: 'var(--ds-mono)', textTransform: 'uppercase', color: td.src === 'eco' ? '#7adba0' : td.src === 'sewa' ? 'var(--ds-gold-light)' : td.src === 'panchang' ? 'var(--ds-saffron)' : 'rgba(255,255,255,0.3)', flexShrink: 0, marginTop: 2 }}>{td.src}</span>
-                </label>
+          </div>
+          {todayEvents.length > 0 ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {todayEvents.slice(0, 3).map((e, i) => (
+                <div key={i} style={{ display: 'flex', gap: 10, alignItems: 'center', padding: '8px 10px', borderRadius: 8, background: 'var(--ds-ivory-warm)', border: '1px solid var(--ds-hairline)' }}>
+                  <span style={{ fontSize: 20, flexShrink: 0 }}>{e.icon}</span>
+                  <div>
+                    <div style={{ fontFamily: 'var(--ds-serif)', fontSize: 14, color: 'var(--ds-ink)', fontWeight: 600 }}>{e.name}</div>
+                    <div style={{ fontSize: 11, color: 'var(--ds-ink-mute)' }}>{e.type}</div>
+                  </div>
+                </div>
               ))}
             </div>
-            <div style={{ marginTop: 12, display: 'flex', gap: 6 }}>
-              <input value={newTask} onChange={e => setNewTask(e.target.value)}
-                onKeyDown={e => { if (e.key === 'Enter' && newTask.trim()) { setTodos(t => [...t, { icon: '✅', t: newTask, done: false, src: 'self' }]); setNewTask(''); } }}
-                placeholder="+ Add your own task"
-                style={{ flex: 1, padding: '7px 10px', borderRadius: 6, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', color: 'var(--ds-paper)', fontSize: 12, fontFamily: 'inherit' }} />
-              <button onClick={() => { if (newTask.trim()) { setTodos(t => [...t, { icon: '✅', t: newTask, done: false, src: 'self' }]); setNewTask(''); } }}
-                className="ds-btn ds-btn-sm" style={{ background: 'var(--ds-gold)', color: 'var(--ds-plum-deep)', fontWeight: 700, padding: '7px 12px' }}>+</button>
-            </div>
+          ) : (
+            <p style={{ fontSize: 13, color: 'var(--ds-ink-mute)', fontStyle: 'italic', marginTop: 8, lineHeight: 1.5 }}>
+              No family events today. Add marriage anniversaries and punya tithis in your profile.
+            </p>
+          )}
+        </div>
+
+        {/* Tile 3: This Week — upcoming family events + panchang */}
+        <div className="ds-card" style={{ padding: 20 }}>
+          <div style={{ marginBottom: 10 }}>
+            <span className="ds-eyebrow">📋 This Week</span>
+            <div style={{ fontSize: 11, color: 'var(--ds-ink-mute)', marginTop: 2 }}>Upcoming events &amp; eco-actions</div>
           </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
+            {weekEvents.slice(0, 3).map((e, i) => (
+              <div key={i} style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 12 }}>
+                <span style={{ fontSize: 16, flexShrink: 0 }}>{e.icon}</span>
+                <span style={{ flex: 1, color: 'var(--ds-ink)' }}>{e.name} · {e.type}</span>
+                <span style={{ fontSize: 10, color: 'var(--ds-ink-mute)', fontFamily: 'var(--ds-mono)', flexShrink: 0 }}>
+                  {e.daysAway === 1 ? 'Tomorrow' : `${e.daysAway}d`}
+                </span>
+              </div>
+            ))}
+            {panchang?.ecoPlant && (
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 12, paddingTop: weekEvents.length > 0 ? 6 : 0, borderTop: weekEvents.length > 0 ? '1px solid var(--ds-hairline)' : 'none' }}>
+                <span style={{ fontSize: 16, flexShrink: 0 }}>🌱</span>
+                <span style={{ flex: 1, color: 'var(--ds-ink-soft)' }}>{panchang.ecoPlant}</span>
+                <span style={{ fontSize: 10, color: '#2a8068', fontFamily: 'var(--ds-mono)', flexShrink: 0 }}>Today</span>
+              </div>
+            )}
+            {weekEvents.length === 0 && !panchang?.ecoPlant && (
+              <p style={{ fontSize: 12, color: 'var(--ds-ink-mute)', fontStyle: 'italic' }}>Add family dates to see upcoming events.</p>
+            )}
+          </div>
+          <button onClick={() => navigate('/calendar')} className="ds-btn ds-btn-sm ds-btn-ghost" style={{ marginTop: 14, width: '100%', justifyContent: 'center' }}>Open calendar →</button>
         </div>
       </div>
     </section>
@@ -336,7 +404,7 @@ const CommunityHero = ({ appUser, score, familyRank, panchang, userPersonNode }:
 };
 
 /* ─────────────────────────────────────────────────────────────
-   4. Sewa Engine — time bank as HERO, not buried third tile
+   5. Sewa Engine — time bank as HERO, not buried third tile
    CRO: one-tap accept = community engagement + score + network effect
 ───────────────────────────────────────────────────────────── */
 const SewaEngine = ({ samayProfile, samayRequests }: {
@@ -550,33 +618,11 @@ function timeAgo(dateStr: string): string {
   return `${Math.floor(diff / 86400)}d ago`;
 }
 
-const CommunityFeed = ({ familyRank, timeline, panchang, dashboardTasks, openSewa }: {
-  familyRank: FamilyRank | null;
+const CommunityFeed = ({ timeline }: {
   timeline: GreenLegacyEvent[];
-  panchang: LivePanchang | null;
-  dashboardTasks: DashboardTask[];
-  openSewa: SamayRequest | null;
 }) => {
   const navigate = useNavigate();
-  const [taskInput, setTaskInput] = useState('');
-  const [tasks, setTasks] = useState<DashboardTask[]>(dashboardTasks);
-  const [addingTask, setAddingTask] = useState(false);
-
-  // sync if prop changes (after fetch completes)
-  useEffect(() => { setTasks(dashboardTasks); }, [dashboardTasks]);
-
-  async function handleAddTask() {
-    const title = taskInput.trim();
-    if (!title) return;
-    setAddingTask(true);
-    const created = await createDashboardTask(title);
-    if (created) setTasks(prev => [created, ...prev]);
-    else setTasks(prev => [{ id: Date.now().toString(), title, hours_estimate: 0, status: 'open', created_at: new Date().toISOString() }, ...prev]);
-    setTaskInput('');
-    setAddingTask(false);
-  }
-  // Map real timeline events; fall back to empty if none
-  const feed = timeline.slice(0, 5).map(e => ({
+  const feed = timeline.slice(0, 8).map(e => ({
     who: 'Your tree',
     what: e.notes ?? e.action_type.replace(/_/g, ' '),
     when: timeAgo(e.created_at),
@@ -588,172 +634,34 @@ const CommunityFeed = ({ familyRank, timeline, panchang, dashboardTasks, openSew
   return (
     <section style={{ padding: '24px 0 64px', background: 'var(--ds-ivory)' }}>
       <div style={{ maxWidth: 1240, margin: '0 auto', padding: '0 24px' }}>
-        <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 18 }} className="dash-grid">
-          <div className="ds-card" style={{ padding: 0, overflow: 'hidden' }}>
-            <div style={{ padding: '16px 22px', borderBottom: '1px solid var(--ds-hairline)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--ds-ivory-warm)' }}>
-              <div>
-                <span className="ds-eyebrow">Kutumb feed · live</span>
-                <div style={{ fontFamily: 'var(--ds-serif)', fontSize: 20, marginTop: 3, color: 'var(--ds-plum)' }}>What your community is doing</div>
-              </div>
-              <span className="ds-pill"><span className="ds-pill-dot live" />Live</span>
+        <div className="ds-card" style={{ padding: 0, overflow: 'hidden' }}>
+          <div style={{ padding: '16px 22px', borderBottom: '1px solid var(--ds-hairline)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--ds-ivory-warm)' }}>
+            <div>
+              <span className="ds-eyebrow">Kutumb feed · live</span>
+              <div style={{ fontFamily: 'var(--ds-serif)', fontSize: 20, marginTop: 3, color: 'var(--ds-plum)' }}>What your community is doing</div>
             </div>
-            {feed.length > 0 ? feed.map((e, i) => (
-              <div key={i} style={{ padding: '15px 22px', borderBottom: '1px solid var(--ds-hairline)', display: 'flex', gap: 12, alignItems: 'center' }}>
-                <div style={{ fontSize: 19, width: 36, height: 36, borderRadius: 8, background: 'var(--ds-ivory-warm)', display: 'grid', placeItems: 'center', flexShrink: 0 }}>{e.icon}</div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 13 }}><strong style={{ color: 'var(--ds-plum)' }}>{e.who}</strong> {e.what}</div>
-                  <div style={{ fontSize: 11, color: 'var(--ds-ink-mute)', marginTop: 2 }}>{e.when}</div>
-                </div>
-                <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexShrink: 0 }}>
-                  {e.delta && <span className="ds-tag ds-tag-green" style={{ fontSize: 10 }}>{e.delta}</span>}
-                  {e.cta && <button onClick={() => navigate(e.path)} className="ds-btn ds-btn-sm ds-btn-ghost" style={{ fontSize: 10, padding: '4px 9px', whiteSpace: 'nowrap' }}>{e.cta}</button>}
-                </div>
-              </div>
-            )) : (
-              <div style={{ padding: '32px 22px', textAlign: 'center', color: 'var(--ds-ink-mute)', fontSize: 13, fontStyle: 'italic' }}>
-                Log your first eco-action to start your feed.
-                <div style={{ marginTop: 12 }}>
-                  <button onClick={() => navigate('/eco-panchang')} className="ds-btn ds-btn-sm ds-btn-plum">Log an action →</button>
-                </div>
-              </div>
-            )}
+            <span className="ds-pill"><span className="ds-pill-dot live" />Live</span>
           </div>
-
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-            <div className="ds-card" style={{ padding: 20 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-                <span className="ds-eyebrow">Your rank</span>
-                <span className="ds-pill"><span className="ds-pill-dot live" />Live</span>
+          {feed.length > 0 ? feed.map((e, i) => (
+            <div key={i} style={{ padding: '15px 22px', borderBottom: '1px solid var(--ds-hairline)', display: 'flex', gap: 12, alignItems: 'center' }}>
+              <div style={{ fontSize: 19, width: 36, height: 36, borderRadius: 8, background: 'var(--ds-ivory-warm)', display: 'grid', placeItems: 'center', flexShrink: 0 }}>{e.icon}</div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 13 }}><strong style={{ color: 'var(--ds-plum)' }}>{e.who}</strong> {e.what}</div>
+                <div style={{ fontSize: 11, color: 'var(--ds-ink-mute)', marginTop: 2 }}>{e.when}</div>
               </div>
-              {familyRank ? (
-                <div style={{ padding: '12px 14px', borderRadius: 6, background: 'rgba(212,154,31,0.08)', border: '1px solid rgba(212,154,31,0.25)', marginBottom: 12 }}>
-                  <div style={{ fontFamily: 'var(--ds-mono)', fontSize: 10, color: 'var(--ds-gold-deep)' }}>Your position</div>
-                  <div style={{ display: 'flex', gap: 16, marginTop: 5 }}>
-                    <div><span style={{ fontFamily: 'var(--ds-serif)', fontSize: 26, fontWeight: 700, color: 'var(--ds-plum)' }}>#{familyRank.city_rank}</span><span style={{ fontSize: 11, color: 'var(--ds-ink-mute)', marginLeft: 4 }}>{familyRank.city ?? 'city'}</span></div>
-                    <div><span style={{ fontFamily: 'var(--ds-serif)', fontSize: 26, fontWeight: 700, color: 'var(--ds-plum)' }}>#{familyRank.state_rank}</span><span style={{ fontSize: 11, color: 'var(--ds-ink-mute)', marginLeft: 4 }}>{familyRank.state ?? 'state'}</span></div>
-                  </div>
-                </div>
-              ) : (
-                <div style={{ padding: '12px 14px', borderRadius: 6, background: 'var(--ds-ivory-warm)', border: '1px solid var(--ds-hairline)', marginBottom: 12, fontSize: 13, color: 'var(--ds-ink-soft)' }}>Complete your tree to get ranked</div>
-              )}
-              <button onClick={() => navigate('/leaderboard')} className="ds-btn ds-btn-sm ds-btn-ghost" style={{ width: '100%', justifyContent: 'center' }}>Full leaderboard →</button>
-            </div>
-            <div className="ds-card" style={{ padding: 20, background: 'linear-gradient(180deg,#142822,#0d1d18)', color: 'var(--ds-paper)', border: 'none' }}>
-              <span className="ds-eyebrow" style={{ color: '#7adba0' }}>
-                {panchang?.specialFlag
-                  ? `${panchang.tithiName} · विशेष तिथि`
-                  : `आज · ${panchang?.pakshaLabel ?? 'eco window'}`}
-              </span>
-              <div style={{ fontFamily: 'var(--ds-serif)', fontSize: 20, marginTop: 8 }}>
-                {panchang ? panchang.tithiName : '—'}
-              </div>
-              <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.45)', marginTop: 2 }}>
-                {panchang?.pakshaLabel ?? ''}
-                {panchang?.nakshatra ? ` · ${panchang.nakshatra}` : ''}
-                {panchang?.yoga ? ` · ${panchang.yoga} योग` : ''}
-              </div>
-              {/* Tithi-based eco actions from live API */}
-              <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 4 }}>
-                {panchang?.ecoPlant && (
-                  <p style={{ fontSize: 12, color: 'rgba(122,219,160,0.9)', lineHeight: 1.5, margin: 0 }}>🌱 {panchang.ecoPlant}</p>
-                )}
-                {panchang?.ecoWater && (
-                  <p style={{ fontSize: 12, color: 'rgba(147,210,255,0.85)', lineHeight: 1.5, margin: 0 }}>💧 {panchang.ecoWater}</p>
-                )}
-                {panchang?.ecoCommunity && (
-                  <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)', lineHeight: 1.5, margin: 0 }}>🤝 {panchang.ecoCommunity}</p>
-                )}
-                {!panchang?.ecoPlant && !panchang?.ecoWater && !panchang?.ecoCommunity && (
-                  <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.55)', lineHeight: 1.5, margin: 0 }}>हर eco-action आज के Prakriti score में जुड़ता है।</p>
-                )}
-              </div>
-              <button onClick={() => navigate('/eco-panchang')} className="ds-btn ds-btn-sm" style={{ marginTop: 12, background: '#7adba0', color: '#0a1f17', fontWeight: 700, width: '100%', justifyContent: 'center' }}>Log eco-action →</button>
-            </div>
-            <div className="ds-card" style={{ padding: 20 }}>
-              <span className="ds-eyebrow">Today's actions</span>
-
-              {/* Add task input */}
-              <div style={{ display: 'flex', gap: 6, marginTop: 10, marginBottom: 10 }}>
-                <input
-                  value={taskInput}
-                  onChange={e => setTaskInput(e.target.value)}
-                  onKeyDown={e => e.key === 'Enter' && handleAddTask()}
-                  placeholder="Add your own task…"
-                  style={{ flex: 1, fontSize: 12, padding: '6px 10px', borderRadius: 6, border: '1px solid var(--ds-hairline)', background: 'var(--ds-ivory-warm)', color: 'var(--ds-ink)', outline: 'none' }}
-                />
-                <button
-                  onClick={handleAddTask}
-                  disabled={addingTask || !taskInput.trim()}
-                  className="ds-btn ds-btn-sm"
-                  style={{ background: 'var(--ds-plum)', color: '#fff', padding: '6px 10px', fontSize: 11 }}
-                >
-                  {addingTask ? '…' : '+'}
-                </button>
-              </div>
-
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                {/* User's own tasks */}
-                {tasks.map(t => (
-                  <div key={t.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 10px', borderRadius: 6, background: 'rgba(212,154,31,0.07)', border: '1px solid rgba(212,154,31,0.2)' }}>
-                    <span style={{ fontSize: 12, color: 'var(--ds-ink)' }}>✏️ {t.title}</span>
-                    <button onClick={() => navigate('/time-bank')} className="ds-btn ds-btn-sm" style={{ padding: '4px 8px', fontSize: 10, background: 'var(--ds-plum)', color: '#fff' }}>Log →</button>
-                  </div>
-                ))}
-
-                {/* Tithi-based: plant action */}
-                {panchang?.ecoPlant && (
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 10px', borderRadius: 6, background: 'var(--ds-ivory-warm)', border: '1px solid var(--ds-hairline)' }}>
-                    <span style={{ fontSize: 12, color: 'var(--ds-ink)' }}>🌱 {panchang.ecoPlant}</span>
-                    <button onClick={() => navigate('/eco-panchang')} className="ds-btn ds-btn-sm" style={{ padding: '4px 8px', fontSize: 10, background: 'var(--ds-plum)', color: '#fff' }}>Do →</button>
-                  </div>
-                )}
-
-                {/* Tithi-based: water action */}
-                {panchang?.ecoWater && (
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 10px', borderRadius: 6, background: 'rgba(56,189,248,0.07)', border: '1px solid rgba(56,189,248,0.2)' }}>
-                    <span style={{ fontSize: 12, color: 'var(--ds-ink)' }}>💧 {panchang.ecoWater}</span>
-                    <button onClick={() => navigate('/eco-panchang')} className="ds-btn ds-btn-sm" style={{ padding: '4px 8px', fontSize: 10, background: 'var(--ds-plum)', color: '#fff' }}>Do →</button>
-                  </div>
-                )}
-
-                {/* Tithi-based: community action */}
-                {panchang?.ecoCommunity && (
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 10px', borderRadius: 6, background: 'var(--ds-ivory-warm)', border: '1px solid var(--ds-hairline)' }}>
-                    <span style={{ fontSize: 12, color: 'var(--ds-ink)' }}>🤝 {panchang.ecoCommunity}</span>
-                    <button onClick={() => navigate('/eco-panchang')} className="ds-btn ds-btn-sm" style={{ padding: '4px 8px', fontSize: 10, background: 'var(--ds-plum)', color: '#fff' }}>Do →</button>
-                  </div>
-                )}
-
-                {/* Tithi-based: nature observation */}
-                {panchang?.ecoObserve && (
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 10px', borderRadius: 6, background: 'rgba(168,85,247,0.06)', border: '1px solid rgba(168,85,247,0.18)' }}>
-                    <span style={{ fontSize: 12, color: 'var(--ds-ink)' }}>👁 {panchang.ecoObserve}</span>
-                    <button onClick={() => navigate('/eco-panchang')} className="ds-btn ds-btn-sm" style={{ padding: '4px 8px', fontSize: 10, background: 'var(--ds-plum)', color: '#fff' }}>Note →</button>
-                  </div>
-                )}
-
-                {/* Tithi-based: avoid */}
-                {panchang?.ecoAvoid && (
-                  <div style={{ padding: '7px 10px', borderRadius: 6, background: 'rgba(249,115,22,0.06)', border: '1px solid rgba(249,115,22,0.18)' }}>
-                    <span style={{ fontSize: 11, color: 'var(--ds-ink-soft)' }}>⚠️ आज बचें: {panchang.ecoAvoid}</span>
-                  </div>
-                )}
-
-                {/* Open Sewa request */}
-                {openSewa && (
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 10px', borderRadius: 6, background: 'rgba(122,219,160,0.08)', border: '1px solid rgba(122,219,160,0.25)' }}>
-                    <span style={{ fontSize: 12, color: 'var(--ds-ink)' }}>🙏 {openSewa.description ?? openSewa.notes ?? openSewa.category ?? 'Open Sewa request'} · {openSewa.hours_estimate ?? openSewa.hours ?? 1}h</span>
-                    <button onClick={() => navigate('/time-bank')} className="ds-btn ds-btn-sm" style={{ padding: '4px 8px', fontSize: 10, background: '#2a8068', color: '#fff' }}>Reply →</button>
-                  </div>
-                )}
-
-                {/* Fallback if nothing loaded yet */}
-                {tasks.length === 0 && !panchang?.ecoPlant && !panchang?.ecoCommunity && !openSewa && (
-                  <div style={{ fontSize: 12, color: 'var(--ds-ink-mute)', fontStyle: 'italic', padding: '4px 0' }}>Add a task or check back once panchang loads.</div>
-                )}
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexShrink: 0 }}>
+                {e.delta && <span className="ds-tag ds-tag-green" style={{ fontSize: 10 }}>{e.delta}</span>}
+                {e.cta && <button onClick={() => navigate(e.path)} className="ds-btn ds-btn-sm ds-btn-ghost" style={{ fontSize: 10, padding: '4px 9px', whiteSpace: 'nowrap' }}>{e.cta}</button>}
               </div>
             </div>
-          </div>
+          )) : (
+            <div style={{ padding: '32px 22px', textAlign: 'center', color: 'var(--ds-ink-mute)', fontSize: 13, fontStyle: 'italic' }}>
+              Log your first eco-action to start your feed.
+              <div style={{ marginTop: 12 }}>
+                <button onClick={() => navigate('/eco-panchang')} className="ds-btn ds-btn-sm ds-btn-plum">Log an action →</button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </section>
@@ -1056,9 +964,8 @@ const Dashboard = () => {
   const [nearby, setNearby] = useState<RadarMember[]>([]);
   const [timeline, setTimeline] = useState<GreenLegacyEvent[]>([]);
   const [treeSize, setTreeSize] = useState(0);
-  const [dashboardTasks, setDashboardTasks] = useState<DashboardTask[]>([]);
-  const [openSewa, setOpenSewa] = useState<SamayRequest | null>(null);
   const [userPersonNode, setUserPersonNode] = useState<Record<string, unknown> | null>(null);
+  const [vanshaPersons, setVanshaPersons] = useState<Record<string, unknown>[]>([]);
 
   const streak = (() => {
     try { return parseInt(localStorage.getItem('prakriti_streak') ?? '0', 10) || 0; } catch { return 0; }
@@ -1075,13 +982,12 @@ const Dashboard = () => {
     fetchFamilyRank(vid).then(setFamilyRank).catch(() => {});
     fetchSamayProfile().then(setSamayProfile).catch(() => {});
     fetchSamayRequests('local', 5).then(setSamayRequests).catch(() => {});
-    fetchSamayRequests('local', 1).then(reqs => setOpenSewa(reqs[0] ?? null)).catch(() => {});
-    fetchDashboardTasks().then(setDashboardTasks).catch(() => {});
     fetchRadarNearby(vid, 10).then(setNearby).catch(() => {});
     fetchGreenLegacyTimeline(vid, 5).then(setTimeline).catch(() => {});
     fetchVanshaTree(vid).then(d => {
       const persons = d.persons as Record<string, unknown>[];
       setTreeSize(persons.length ?? 0);
+      setVanshaPersons(persons);
       const root = persons.find(p => (p.relative_gen_index as number) === 0) ?? persons[0] ?? null;
       setUserPersonNode(root);
     }).catch(() => {});
@@ -1101,11 +1007,12 @@ const Dashboard = () => {
       <div style={{ background: 'var(--ds-ivory)', minHeight: '100vh' }}>
         {panchang?.isSpecial && <RightNowMoment panchang={panchang} />}
         <CommunityHero appUser={appUser} score={prakritiScore} familyRank={familyRank} panchang={panchang} userPersonNode={userPersonNode} />
-        <PrideWall />
+        <DashboardInfoRow persons={vanshaPersons} panchang={panchang} />
         <SewaEngine samayProfile={samayProfile} samayRequests={samayRequests} />
+        <PrideWall />
         <KutumbRadar nearby={nearby} />
         <InviteLoop treeSize={treeSize} />
-        <CommunityFeed familyRank={familyRank} timeline={timeline} panchang={panchang} dashboardTasks={dashboardTasks} openSewa={openSewa} />
+        <CommunityFeed timeline={timeline} />
         <OnThisDay />
         <Sanskaras />
 
@@ -1161,11 +1068,11 @@ const Dashboard = () => {
       <style>{`
         @media (max-width: 1000px) {
           .dash-hero-grid  { grid-template-columns: 1fr !important; }
+          .dash-info-grid  { grid-template-columns: 1fr !important; }
           .dash-sewa-grid  { grid-template-columns: 1fr !important; }
           .dash-radar-grid { grid-template-columns: 1fr !important; }
           .dash-otd-grid   { grid-template-columns: 1fr 1fr !important; }
           .dash-sk-grid    { grid-template-columns: repeat(2,1fr) !important; }
-          .dash-grid       { grid-template-columns: 1fr !important; }
           .dash-pw-grid    { grid-template-columns: 1fr 1fr !important; }
         }
         @media (max-width: 600px) {
