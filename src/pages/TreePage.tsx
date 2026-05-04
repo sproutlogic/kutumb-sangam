@@ -753,9 +753,12 @@ const TreePage = () => {
               const f = nodeMap[u.femaleNodeId];
               if (!m || !f) return null;
               const cx = (m.x + f.x) / 2;
-              // Use the leftmost spouse's y to match SpouseCoupleFrame reference (frame bottom = leftNode.y + 74)
+              // Tree renders bottom-to-top: children (level +1) are above parents (level 0) in SVG space.
+              // Trunk starts at the TOP edge of the parent couple frame and goes upward.
+              // The horizontal bar sits just below the children's bottom edges.
+              // Drop lines go from that bar up to the BOTTOM edge of each child container.
               const leftParent = m.x <= f.x ? m : f;
-              const yTrunkStart = leftParent.y + 76; // = SpouseCoupleFrame bottom + 2px gap
+              const yTrunkStart = leftParent.y - 36; // = SpouseCoupleFrame top edge
               const trunkStroke = "hsl(var(--primary))";
               const trunkW = 2.5;
               const dropBio = "#ea580c";
@@ -766,22 +769,20 @@ const TreePage = () => {
               const ordered = [...children].sort(
                 (a, b) => (nodeMap[a.id]?.x ?? 0) - (nodeMap[b.id]?.x ?? 0),
               );
-              // Connect to the exact TOP edge of each child container — no penetration.
-              const DROP_STANDOFF = 0;
-              const childTopY = (childId: string) => frameTopY(childId) + DROP_STANDOFF;
-              const tops = ordered.map((c) => childTopY(c.id)).filter((y) => y > 0);
-              if (tops.length === 0) return null;
-              // Bar sits ⅓ of the way down from parent bottom → keep it well above child frames.
-              // Enforce a minimum 16px gap above the highest child frame so the bar
-              // is clearly a trunk element, not a line "between" the child couple shapes.
+              // Attach drop lines to the BOTTOM edge of each child container.
+              const childBottomY = (childId: string) => frameBottomY(childId);
+              const bottoms = ordered.map((c) => childBottomY(c.id)).filter((y) => y > 0);
+              if (bottoms.length === 0) return null;
+              // Bar sits just below the lowest child bottom (largest Y among bottoms),
+              // between children and the parent couple's top edge.
               const minGap = 16;
-              const yBarIdeal = yTrunkStart + (Math.min(...tops) - yTrunkStart) / 3;
-              const yBar = Math.min(yBarIdeal, Math.min(...tops) - minGap);
+              const yBarIdeal = yTrunkStart - (yTrunkStart - Math.max(...bottoms)) / 3;
+              const yBar = Math.max(yBarIdeal, Math.max(...bottoms) + minGap);
 
               if (ordered.length === 1) {
                 const c = ordered[0];
                 const xc = nodeMap[c.id]?.x ?? cx;
-                const yAttach = childTopY(c.id);
+                const yAttach = childBottomY(c.id);
                 return (
                   <g key={`trunk-${u.id}`}>
                     <line x1={cx} y1={yTrunkStart} x2={cx} y2={yBar} stroke={trunkStroke} strokeWidth={trunkW} strokeOpacity={0.5} strokeLinecap="round" />
@@ -797,14 +798,14 @@ const TreePage = () => {
 
               return (
                 <g key={`trunk-${u.id}`}>
-                  {/* Vertical trunk from parent frame bottom to bar */}
+                  {/* Vertical trunk from parent frame top up to bar */}
                   <line x1={cx} y1={yTrunkStart} x2={cx} y2={yBar} stroke={trunkStroke} strokeWidth={trunkW} strokeOpacity={0.5} strokeLinecap="round" />
-                  {/* Horizontal bar spanning all children */}
+                  {/* Horizontal bar below all children, spanning their X range */}
                   <line x1={leftX} y1={yBar} x2={rightX} y2={yBar} stroke={trunkStroke} strokeWidth={trunkW} strokeOpacity={0.5} strokeLinecap="round" />
-                  {/* Drops from bar to each child's top frame edge */}
+                  {/* Drops from bar up to each child's bottom frame edge */}
                   {ordered.map((c) => {
                     const xc = nodeMap[c.id]?.x ?? cx;
-                    const yAttach = childTopY(c.id);
+                    const yAttach = childBottomY(c.id);
                     return (
                       <line key={`drop-${u.id}-${c.id}`} x1={xc} y1={yBar} x2={xc} y2={yAttach} stroke={dropStroke(c.relation)} strokeWidth={2} strokeOpacity={0.8} strokeLinecap="round" />
                     );
