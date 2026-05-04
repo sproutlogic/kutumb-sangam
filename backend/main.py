@@ -12,7 +12,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from routers import (
-    admin, approval, auth_router, calendar, content, eco_services, eco_sewa, green_legacy,
+    admin, approval, auth_router, calendar, content, eco_services, eco_sewa, gaurav_gatha, green_legacy,
     kutumb_pro, legacy_box, matrimony,
     node_claim, node_relation_labels, notifications, pandit, panchang, payments, person, prakriti, radar, sales, time_bank, tree, union, verification,
 )
@@ -91,6 +91,9 @@ app.include_router(eco_services.router)
 app.include_router(eco_sewa.router)
 app.include_router(green_legacy.router)
 app.include_router(content.router)
+
+# Community achievement wall
+app.include_router(gaurav_gatha.router)
 
 
 @app.api_route("/health", methods=["GET", "HEAD"])

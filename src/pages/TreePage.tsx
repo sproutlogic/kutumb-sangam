@@ -766,9 +766,8 @@ const TreePage = () => {
               const ordered = [...children].sort(
                 (a, b) => (nodeMap[a.id]?.x ?? 0) - (nodeMap[b.id]?.x ?? 0),
               );
-              // Connect to the TOP edge of each child container — with a 6px standoff
-              // so drops never visually enter shapes or dotted couple frames.
-              const DROP_STANDOFF = 6;
+              // Connect to the exact TOP edge of each child container — no penetration.
+              const DROP_STANDOFF = 0;
               const childTopY = (childId: string) => frameTopY(childId) + DROP_STANDOFF;
               const tops = ordered.map((c) => childTopY(c.id)).filter((y) => y > 0);
               if (tops.length === 0) return null;

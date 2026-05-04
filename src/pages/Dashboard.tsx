@@ -15,6 +15,7 @@ import {
   fetchSamayRequests, type SamayRequest,
   fetchRadarNearby, type RadarMember,
   fetchGreenLegacyTimeline, type GreenLegacyEvent,
+  fetchGauravGatha, submitGauravGatha, type GauravGathaEntry,
   fetchVanshaTree,
 } from '@/services/api';
 import { computeTithiIdToday, getPaksha } from '@/lib/panchangUtils';
@@ -194,13 +195,13 @@ const GG_FEATURE_CARDS = [
   { who: 'Heritage Wall', kind: 'गौरव गाथा', title: 'परिवार की उपलब्धियां हमेशा के लिए — हर साल इसी तारीख को स्मरण करें', img: '🪔', when: 'Feature', tone: 'var(--ds-gold-deep)' },
 ];
 
-const CommunityHero = ({ appUser, score, familyRank, panchang, userPersonNode, timeline }: {
+const CommunityHero = ({ appUser, score, familyRank, panchang, userPersonNode, gauravGatha }: {
   appUser: { full_name?: string | null } | null;
   score: PrakritiScore | null;
   familyRank: FamilyRank | null;
   panchang: LivePanchang | null;
   userPersonNode: Record<string, unknown> | null;
-  timeline: GreenLegacyEvent[];
+  gauravGatha: GauravGathaEntry[];
 }) => {
   const navigate = useNavigate();
   void score; void panchang;
@@ -209,15 +210,14 @@ const CommunityHero = ({ appUser, score, familyRank, panchang, userPersonNode, t
   const gotra = str('gotra');
   const moolNiwas = str('mool_niwas') || str('ancestral_place');
 
-  // Map live feed events to card shape; fall back to Hindi feature cards
-  const srcIcon: Record<string, string> = { eco_sewa: '🤝', verified: '🪔', ceremony: '🌾' };
-  const liveCards = timeline.slice(0, 6).map(e => ({
-    img: srcIcon[e.source] ?? '🌱',
-    kind: e.action_type.replace(/_/g, ' '),
-    title: e.notes ?? e.action_type.replace(/_/g, ' '),
-    who: 'Your tree',
+  // Map live gaurav gatha entries to card shape; fall back to Hindi feature cards
+  const liveCards = gauravGatha.slice(0, 6).map(e => ({
+    img: e.img,
+    kind: e.kind,
+    title: e.title,
+    who: e.who,
     when: new Date(e.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }),
-    tone: '#2a8068',
+    tone: e.tone,
   }));
   const ggCards = liveCards.length >= 3 ? liveCards : GG_FEATURE_CARDS;
 
@@ -851,21 +851,46 @@ const Sanskaras = () => {
 /* ─────────────────────────────────────────────────────────────
    10. Pride Wall — open to gotra + community, not just blood
 ───────────────────────────────────────────────────────────── */
-const PrideWall = () => {
-  const [dismissed, setDismissed] = useState<number[]>([]);
+const KIND_OPTIONS = ['Achievement', 'Service', 'Ecology', 'Wisdom', 'Craft', 'Community'];
+
+const PrideWall = ({ entries, onSubmitSuccess }: {
+  entries: GauravGathaEntry[];
+  onSubmitSuccess: () => void;
+}) => {
+  const [dismissed, setDismissed] = useState<string[]>([]);
   const [shareOpen, setShareOpen] = useState(false);
-  const [shareText, setShareText] = useState('');
+  const [shareTitle, setShareTitle] = useState('');
+  const [shareWho, setShareWho] = useState('');
+  const [shareKind, setShareKind] = useState('Achievement');
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState('');
+
   const todayMD = `${String(new Date().getMonth() + 1).padStart(2,'0')}-${String(new Date().getDate()).padStart(2,'0')}`;
-  const cards = [
-    { who: 'Aanya · your tree', kind: 'Achievement', title: 'AIR 412 in JEE Main · first in 3 generations', img: '🏆', when: '2 weeks ago', when_date: '05-03', tributes: 23, tone: 'var(--ds-saffron)', highlight: true },
-    { who: 'Chacha ji · your tree', kind: 'Service', title: 'Built a primary school in Etawah village', img: '🏫', when: '2024', when_date: '04-15', tributes: 18, tone: '#a64a8e', highlight: false },
-    { who: 'Meena Devi · Kashyap gotra', kind: 'Ecology', title: 'Planted 200 saplings across 3 villages in UP', img: '🌳', when: '1 month ago', when_date: '04-02', tributes: 41, tone: '#2a8068', highlight: false },
-    { who: 'Pt. Ramesh ji · community', kind: 'Wisdom', title: '47 years of Vedic teaching · 1,200+ students', img: '🪔', when: 'Ongoing', when_date: '01-14', tributes: 67, tone: 'var(--ds-plum-rose)', highlight: false },
-    { who: 'Bhabhi · your tree', kind: 'Craft', title: 'Rangoli book published · Rajpal & Sons', img: '📕', when: '3 months ago', when_date: '02-20', tributes: 7, tone: '#a64a8e', highlight: false },
-    { who: 'Verma parivar · Lucknow', kind: 'Community', title: 'Organized free health camp for 300 people', img: '🩺', when: 'Last month', when_date: '04-10', tributes: 55, tone: 'var(--ds-saffron)', highlight: false },
-  ];
-  const todayCards = cards.filter(c => c.when_date === todayMD);
-  const visible = cards.filter((_, i) => !dismissed.includes(i));
+
+  const todayCards = entries.filter(e => {
+    const d = new Date(e.created_at);
+    const md = `${String(d.getMonth() + 1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    return md === todayMD;
+  });
+
+  const visible = entries.filter(e => !dismissed.includes(e.id));
+
+  const handleSubmit = async () => {
+    if (!shareTitle.trim() || !shareWho.trim()) { setSubmitError('कृपया सभी जानकारी भरें।'); return; }
+    setSubmitting(true);
+    setSubmitError('');
+    try {
+      await submitGauravGatha({ title: shareTitle.trim(), who: shareWho.trim(), kind: shareKind });
+      setShareOpen(false);
+      setShareTitle(''); setShareWho(''); setShareKind('Achievement');
+      onSubmitSuccess();
+    } catch {
+      setSubmitError('Submit नहीं हो पाया — कृपया दोबारा कोशिश करें।');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   return (
     <section style={{ padding: '40px 0 56px', background: 'var(--ds-ivory)' }}>
       <div style={{ maxWidth: 1240, margin: '0 auto', padding: '0 24px' }}>
@@ -877,27 +902,45 @@ const PrideWall = () => {
           </div>
           <button onClick={() => setShareOpen(true)} className="ds-btn ds-btn-sm ds-btn-plum">+ Share yours</button>
         </div>
+
         {/* Share modal */}
         {shareOpen && (
           <div onClick={() => setShareOpen(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(28,13,46,0.55)', backdropFilter: 'blur(8px)', zIndex: 200, display: 'grid', placeItems: 'center', padding: 24 }}>
             <div onClick={e => e.stopPropagation()} style={{ width: 'min(520px,100%)', background: 'var(--ds-paper)', borderRadius: 16, padding: 28, boxShadow: '0 24px 64px -12px rgba(28,13,46,0.28)' }}>
               <div style={{ fontFamily: 'var(--ds-serif)', fontSize: 22, color: 'var(--ds-plum)', marginBottom: 4 }}>Share a Gaurav Gatha</div>
-              <p style={{ fontSize: 13, color: 'var(--ds-ink-soft)', marginBottom: 16 }}>What has your kutumb achieved? It will appear every year on this date.</p>
-              <textarea value={shareText} onChange={e => setShareText(e.target.value)} placeholder="e.g. Badi Dadi ji taught 200 children to read — Meerpur village, 1978." rows={4} style={{ width: '100%', borderRadius: 8, border: '1px solid var(--ds-hairline)', padding: '10px 12px', fontFamily: 'inherit', fontSize: 13, resize: 'vertical', background: 'var(--ds-ivory-warm)', boxSizing: 'border-box' }} />
-              <div style={{ display: 'flex', gap: 10, marginTop: 14, justifyContent: 'flex-end' }}>
-                <button onClick={() => setShareOpen(false)} style={{ padding: '8px 16px', borderRadius: 8, border: '1px solid var(--ds-hairline)', background: 'transparent', cursor: 'pointer', fontSize: 13 }}>Cancel</button>
-                <button onClick={() => { setShareOpen(false); setShareText(''); }} style={{ padding: '8px 20px', borderRadius: 8, background: 'var(--ds-plum)', color: '#fff', border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 600 }}>Submit →</button>
+              <p style={{ fontSize: 13, color: 'var(--ds-ink-soft)', marginBottom: 16 }}>What has your kutumb achieved? It will appear on the wall immediately.</p>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                <div>
+                  <label style={{ fontSize: 11, fontFamily: 'var(--ds-mono)', color: 'var(--ds-ink-soft)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>उपलब्धि (Achievement)</label>
+                  <textarea value={shareTitle} onChange={e => setShareTitle(e.target.value)} placeholder="e.g. Badi Dadi ji taught 200 children to read — Meerpur village, 1978." rows={3} style={{ width: '100%', borderRadius: 8, border: '1px solid var(--ds-hairline)', padding: '10px 12px', fontFamily: 'inherit', fontSize: 13, resize: 'vertical', background: 'var(--ds-ivory-warm)', boxSizing: 'border-box', marginTop: 4 }} />
+                </div>
+                <div>
+                  <label style={{ fontSize: 11, fontFamily: 'var(--ds-mono)', color: 'var(--ds-ink-soft)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>किसने (Who)</label>
+                  <input value={shareWho} onChange={e => setShareWho(e.target.value)} placeholder="e.g. Badi Dadi ji · Mathura" style={{ width: '100%', borderRadius: 8, border: '1px solid var(--ds-hairline)', padding: '9px 12px', fontFamily: 'inherit', fontSize: 13, background: 'var(--ds-ivory-warm)', boxSizing: 'border-box', marginTop: 4 }} />
+                </div>
+                <div>
+                  <label style={{ fontSize: 11, fontFamily: 'var(--ds-mono)', color: 'var(--ds-ink-soft)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>प्रकार (Kind)</label>
+                  <select value={shareKind} onChange={e => setShareKind(e.target.value)} style={{ width: '100%', borderRadius: 8, border: '1px solid var(--ds-hairline)', padding: '9px 12px', fontFamily: 'inherit', fontSize: 13, background: 'var(--ds-ivory-warm)', boxSizing: 'border-box', marginTop: 4 }}>
+                    {KIND_OPTIONS.map(k => <option key={k} value={k}>{k}</option>)}
+                  </select>
+                </div>
+              </div>
+              {submitError && <p style={{ fontSize: 12, color: '#c0392b', marginTop: 10 }}>{submitError}</p>}
+              <div style={{ display: 'flex', gap: 10, marginTop: 16, justifyContent: 'flex-end' }}>
+                <button onClick={() => { setShareOpen(false); setSubmitError(''); }} style={{ padding: '8px 16px', borderRadius: 8, border: '1px solid var(--ds-hairline)', background: 'transparent', cursor: 'pointer', fontSize: 13 }}>Cancel</button>
+                <button onClick={handleSubmit} disabled={submitting} style={{ padding: '8px 20px', borderRadius: 8, background: 'var(--ds-plum)', color: '#fff', border: 'none', cursor: submitting ? 'not-allowed' : 'pointer', fontSize: 13, fontWeight: 600, opacity: submitting ? 0.7 : 1 }}>{submitting ? 'Submitting…' : 'Submit →'}</button>
               </div>
             </div>
           </div>
         )}
+
         {/* Today in history */}
         {todayCards.length > 0 && (
           <div style={{ marginBottom: 28, padding: '18px 22px', borderRadius: 12, background: 'linear-gradient(135deg,rgba(212,154,31,0.08),rgba(74,33,104,0.04))', border: '1px solid rgba(212,154,31,0.25)' }}>
             <div className="ds-eyebrow" style={{ color: 'var(--ds-gold-deep)', marginBottom: 12 }}>आज की गौरवगाथा · इसी तारीख को हर साल</div>
             <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
-              {todayCards.map((c, i) => (
-                <div key={i} style={{ display: 'flex', gap: 12, alignItems: 'center', padding: '10px 14px', borderRadius: 8, background: 'var(--ds-paper)', border: `1px solid ${c.tone}33` }}>
+              {todayCards.map(c => (
+                <div key={c.id} style={{ display: 'flex', gap: 12, alignItems: 'center', padding: '10px 14px', borderRadius: 8, background: 'var(--ds-paper)', border: `1px solid ${c.tone}33` }}>
                   <div style={{ fontSize: 28 }}>{c.img}</div>
                   <div>
                     <div style={{ fontFamily: 'var(--ds-serif)', fontSize: 14, fontWeight: 600, color: 'var(--ds-ink)' }}>{c.title}</div>
@@ -908,27 +951,34 @@ const PrideWall = () => {
             </div>
           </div>
         )}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }} className="dash-pw-grid">
-          {visible.map((c, i) => (
-            <div key={i} className="ds-card" style={{ padding: 0, overflow: 'hidden', position: 'relative', border: c.highlight ? '1.5px solid var(--ds-gold)' : '1px solid var(--ds-hairline)' }}>
-              {c.highlight && <div style={{ position: 'absolute', top: 14, right: 14, padding: '4px 10px', borderRadius: 999, background: 'linear-gradient(135deg,var(--ds-gold-light),var(--ds-gold))', color: 'var(--ds-plum-deep)', fontSize: 9, fontFamily: 'var(--ds-mono)', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', zIndex: 2 }}>★ Featured</div>}
-              <button onClick={() => setDismissed(d => [...d, cards.indexOf(c)])} style={{ position: 'absolute', top: 10, left: 10, background: 'rgba(0,0,0,0.25)', border: 'none', color: '#fff', borderRadius: '50%', width: 22, height: 22, cursor: 'pointer', fontSize: 13, display: 'grid', placeItems: 'center', zIndex: 3 }}>×</button>
-              <div style={{ height: 120, background: `linear-gradient(135deg,${c.tone},var(--ds-plum-deep))`, display: 'grid', placeItems: 'center', fontSize: 54 }}>{c.img}</div>
-              <div style={{ padding: 18 }}>
-                <div className="ds-eyebrow" style={{ color: c.tone }}>{c.kind} · {c.when}</div>
-                <h3 style={{ fontFamily: 'var(--ds-serif)', fontSize: 16, marginTop: 6, lineHeight: 1.3, color: 'var(--ds-ink)' }}>{c.title}</h3>
-                <p style={{ fontSize: 11, color: 'var(--ds-ink-mute)', marginTop: 5 }}>by <span style={{ fontWeight: 600, color: 'var(--ds-ink)' }}>{c.who}</span></p>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--ds-hairline)' }}>
-                  <div style={{ display: 'flex', gap: 6 }}>
-                    <button className="ds-btn ds-btn-sm ds-btn-ghost" style={{ padding: '5px 8px', fontSize: 10 }}>🙏 Pranam</button>
-                    <button className="ds-btn ds-btn-sm ds-btn-ghost" style={{ padding: '5px 8px', fontSize: 10 }}>🌸 Tribute</button>
+
+        {entries.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: '48px 24px', color: 'var(--ds-ink-soft)', fontSize: 15 }}>
+            <div style={{ fontSize: 40, marginBottom: 12 }}>🏆</div>
+            <p>अभी कोई गौरव गाथा नहीं है।<br />सबसे पहले अपनी कुटुम्ब की उपलब्धि share करें!</p>
+          </div>
+        ) : (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }} className="dash-pw-grid">
+            {visible.map((c, i) => (
+              <div key={c.id} className="ds-card" style={{ padding: 0, overflow: 'hidden', position: 'relative', border: i === 0 ? '1.5px solid var(--ds-gold)' : '1px solid var(--ds-hairline)' }}>
+                {i === 0 && <div style={{ position: 'absolute', top: 14, right: 14, padding: '4px 10px', borderRadius: 999, background: 'linear-gradient(135deg,var(--ds-gold-light),var(--ds-gold))', color: 'var(--ds-plum-deep)', fontSize: 9, fontFamily: 'var(--ds-mono)', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', zIndex: 2 }}>★ Latest</div>}
+                <button onClick={() => setDismissed(d => [...d, c.id])} style={{ position: 'absolute', top: 10, left: 10, background: 'rgba(0,0,0,0.25)', border: 'none', color: '#fff', borderRadius: '50%', width: 22, height: 22, cursor: 'pointer', fontSize: 13, display: 'grid', placeItems: 'center', zIndex: 3 }}>×</button>
+                <div style={{ height: 120, background: `linear-gradient(135deg,${c.tone},var(--ds-plum-deep))`, display: 'grid', placeItems: 'center', fontSize: 54 }}>{c.img}</div>
+                <div style={{ padding: 18 }}>
+                  <div className="ds-eyebrow" style={{ color: c.tone }}>{c.kind} · {new Date(c.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</div>
+                  <h3 style={{ fontFamily: 'var(--ds-serif)', fontSize: 16, marginTop: 6, lineHeight: 1.3, color: 'var(--ds-ink)' }}>{c.title}</h3>
+                  <p style={{ fontSize: 11, color: 'var(--ds-ink-mute)', marginTop: 5 }}>by <span style={{ fontWeight: 600, color: 'var(--ds-ink)' }}>{c.who}</span></p>
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--ds-hairline)' }}>
+                    <div style={{ display: 'flex', gap: 6 }}>
+                      <button className="ds-btn ds-btn-sm ds-btn-ghost" style={{ padding: '5px 8px', fontSize: 10 }}>🙏 Pranam</button>
+                      <button className="ds-btn ds-btn-sm ds-btn-ghost" style={{ padding: '5px 8px', fontSize: 10 }}>🌸 Tribute</button>
+                    </div>
                   </div>
-                  <span style={{ fontSize: 10, color: 'var(--ds-ink-mute)', fontFamily: 'var(--ds-mono)' }}>{c.tributes} tributes</span>
                 </div>
               </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
       </div>
     </section>
   );
@@ -973,6 +1023,7 @@ const Dashboard = () => {
   const [samayRequests, setSamayRequests] = useState<SamayRequest[]>([]);
   const [nearby, setNearby] = useState<RadarMember[]>([]);
   const [timeline, setTimeline] = useState<GreenLegacyEvent[]>([]);
+  const [gauravGatha, setGauravGatha] = useState<GauravGathaEntry[]>([]);
   const [treeSize, setTreeSize] = useState(0);
   const [userPersonNode, setUserPersonNode] = useState<Record<string, unknown> | null>(null);
   const [vanshaPersons, setVanshaPersons] = useState<Record<string, unknown>[]>([]);
@@ -985,6 +1036,11 @@ const Dashboard = () => {
   });
   const panchang = useLivePanchang();
 
+  const refreshGauravGatha = () => {
+    const vid = resolveVanshaIdForApi(null);
+    if (vid) fetchGauravGatha(vid).then(setGauravGatha).catch(() => {});
+  };
+
   useEffect(() => {
     const vid = resolveVanshaIdForApi(null);
     if (!vid) return;
@@ -994,6 +1050,7 @@ const Dashboard = () => {
     fetchSamayRequests('local', 5).then(setSamayRequests).catch(() => {});
     fetchRadarNearby(vid, 10).then(setNearby).catch(() => {});
     fetchGreenLegacyTimeline(vid, 5).then(setTimeline).catch(() => {});
+    fetchGauravGatha(vid).then(setGauravGatha).catch(() => {});
     fetchVanshaTree(vid).then(d => {
       const persons = d.persons as Record<string, unknown>[];
       setTreeSize(persons.length ?? 0);
@@ -1016,10 +1073,10 @@ const Dashboard = () => {
     <AppShell>
       <div style={{ background: 'var(--ds-ivory)', minHeight: '100vh' }}>
         {panchang?.isSpecial && <RightNowMoment panchang={panchang} />}
-        <CommunityHero appUser={appUser} score={prakritiScore} familyRank={familyRank} panchang={panchang} userPersonNode={userPersonNode} timeline={timeline} />
+        <CommunityHero appUser={appUser} score={prakritiScore} familyRank={familyRank} panchang={panchang} userPersonNode={userPersonNode} gauravGatha={gauravGatha} />
         <DashboardInfoRow persons={vanshaPersons} panchang={panchang} />
         <SewaEngine samayProfile={samayProfile} samayRequests={samayRequests} />
-        <PrideWall />
+        <PrideWall entries={gauravGatha} onSubmitSuccess={refreshGauravGatha} />
         <KutumbRadar nearby={nearby} />
         <InviteLoop treeSize={treeSize} />
         <CommunityFeed timeline={timeline} />

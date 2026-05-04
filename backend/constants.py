@@ -115,3 +115,6 @@ GEOFENCE_RADIUS_METRES = 500
 # Ujjain — traditional Hindu meridian (default for panchang sunrise computation)
 UJJAIN_LAT: float = 23.1809
 UJJAIN_LON: float = 75.7771
+
+# ── Gaurav Gatha — community achievement wall ─────────────────────────────────
+GAURAV_GATHA_TABLE = "gaurav_gatha"

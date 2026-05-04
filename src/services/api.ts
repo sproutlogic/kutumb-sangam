@@ -1536,3 +1536,46 @@ export async function fetchRadarNearby(
     return [];
   }
 }
+
+// ── Gaurav Gatha ─────────────────────────────────────────────────────────────
+
+export interface GauravGathaEntry {
+  id: string;
+  kind: string;
+  title: string;
+  who: string;
+  img: string;
+  tone: string;
+  approved: boolean;
+  created_at: string;
+  vansha_id?: string;
+}
+
+export async function fetchGauravGatha(vansha_id?: string): Promise<GauravGathaEntry[]> {
+  try {
+    const params = new URLSearchParams({ limit: "50" });
+    if (vansha_id) params.set("vansha_id", vansha_id);
+    const res = await fetchApi(`${getApiBaseUrl()}/api/gaurav-gatha?${params.toString()}`, {
+      headers: { Accept: "application/json" },
+    });
+    const data = await parseJsonOrThrow(res);
+    return Array.isArray(data) ? (data as GauravGathaEntry[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+export async function submitGauravGatha(body: {
+  title: string;
+  who: string;
+  kind?: string;
+  img?: string;
+  vansha_id?: string;
+}): Promise<GauravGathaEntry> {
+  const res = await fetchApi(`${getApiBaseUrl()}/api/gaurav-gatha`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify(body),
+  });
+  return parseJsonOrThrow(res) as Promise<GauravGathaEntry>;
+}
