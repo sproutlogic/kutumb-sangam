@@ -96,6 +96,22 @@ def patch_me(body: MePatch, user: CurrentUser) -> dict[str, Any]:
     return res.data[0] if res.data else user
 
 
+@router.delete("/account", status_code=204)
+def delete_account(user: CurrentUser) -> None:
+    """Permanently delete the authenticated user's account and auth credentials."""
+    sb = get_supabase()
+    uid = user["id"]
+    try:
+        sb.table(USERS_TABLE).delete().eq("id", uid).execute()
+    except Exception:
+        logger.exception("Failed to delete public.users row for uid=%s", uid)
+    try:
+        sb.auth.admin.delete_user(uid)
+    except Exception:
+        logger.exception("Failed to delete Supabase auth user uid=%s", uid)
+        raise HTTPException(status_code=502, detail="Account deletion failed.")
+
+
 @router.post("/complete-onboarding")
 def complete_onboarding(user: CurrentUser) -> dict[str, Any]:
     """Mark the authenticated user's onboarding as complete.
