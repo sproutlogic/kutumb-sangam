@@ -151,14 +151,23 @@ const SettingsPage = () => {
   const handleDeleteAccount = async () => {
     setDeleteLoading(true);
     setDeleteError(null);
-    try {
-      await deleteAccount();
-      await signOut();
-      navigate('/');
-    } catch (err) {
-      setDeleteError(err instanceof Error ? err.message : 'Could not delete account. Please contact support.');
-      setDeleteLoading(false);
-    }
+    const attempt = async (retrying: boolean): Promise<void> => {
+      try {
+        await deleteAccount();
+        await signOut();
+        navigate('/');
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : '';
+        if (!retrying && msg.startsWith('Cannot reach API')) {
+          setDeleteError('Server is waking up — retrying in 5 seconds…');
+          await new Promise(r => setTimeout(r, 5000));
+          return attempt(true);
+        }
+        setDeleteError(msg || 'Could not delete account. Please contact support.');
+        setDeleteLoading(false);
+      }
+    };
+    await attempt(false);
   };
 
   const applyPalette = (p: string) => {
