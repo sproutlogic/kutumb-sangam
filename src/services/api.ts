@@ -1607,3 +1607,14 @@ export async function submitGauravGatha(body: {
   });
   return parseJsonOrThrow(res) as Promise<GauravGathaEntry>;
 }
+
+export async function deleteAccount(): Promise<void> {
+  const res = await fetchApi(`${getApiBaseUrl()}/api/auth/account`, {
+    method: "DELETE",
+    headers: { Accept: "application/json" },
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error((body as Record<string, string>).detail ?? "Failed to delete account");
+  }
+}

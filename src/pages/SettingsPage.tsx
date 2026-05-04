@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import AppShell from '@/components/shells/AppShell';
 import { useAuth } from '@/contexts/AuthContext';
 import {
   Palette, User, Bell, Lock, UserCheck,
   Database, Check, Download, ArrowRightLeft, Trash2, Loader2,
 } from 'lucide-react';
-import { fetchVanshaTree, getApiBaseUrl, isValidVanshaUuid } from '@/services/api';
+import { deleteAccount, fetchVanshaTree, getApiBaseUrl, isValidVanshaUuid } from '@/services/api';
 
 // ── Toggle ──────────────────────────────────────────────────────────────────
 function Toggle({ defaultOn }: { defaultOn: boolean }) {
@@ -84,7 +85,8 @@ interface FamilyMargdarshak {
 
 // ── SettingsPage ─────────────────────────────────────────────────────────────
 const SettingsPage = () => {
-  const { appUser } = useAuth();
+  const { appUser, signOut } = useAuth();
+  const navigate = useNavigate();
   const [palette, setPaletteState] = useState<string>(() => {
     try { return localStorage.getItem('ks_palette') || 'emerald'; } catch { return 'emerald'; }
   });
@@ -92,6 +94,9 @@ const SettingsPage = () => {
   const [treeProfile, setTreeProfile] = useState<TreeProfile | null>(null);
   const [margdarshaks, setMargdarshaks] = useState<FamilyMargdarshak[] | null>(null);
   const [margdarshakLoading, setMargdarshakLoading] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState(false);
+  const [deleteLoading, setDeleteLoading] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   useEffect(() => {
     const vid = appUser?.vansha_id;
@@ -143,6 +148,19 @@ const SettingsPage = () => {
       .finally(() => setMargdarshakLoading(false));
   }, [appUser?.vansha_id]);
 
+  const handleDeleteAccount = async () => {
+    setDeleteLoading(true);
+    setDeleteError(null);
+    try {
+      await deleteAccount();
+      await signOut();
+      navigate('/');
+    } catch (err) {
+      setDeleteError(err instanceof Error ? err.message : 'Could not delete account. Please contact support.');
+      setDeleteLoading(false);
+    }
+  };
+
   const applyPalette = (p: string) => {
     setPaletteState(p);
     try { localStorage.setItem('ks_palette', p); } catch { /* ignore */ }
@@ -161,6 +179,7 @@ const SettingsPage = () => {
     { id: 'privacy',      label: 'Privacy & sharing' },
     { id: 'margdarshaks', label: 'Connected Margdarshaks' },
     { id: 'data',         label: 'Data & export' },
+    { id: 'danger',       label: 'Delete account' },
   ];
 
   const NOTIFS = [
@@ -362,6 +381,56 @@ const SettingsPage = () => {
                     </span>
                   </div>
                 ))}
+              </div>
+            </Section>
+
+            {/* ── Danger zone ── */}
+            <Section id="danger" label="Danger zone" title="Delete account">
+              <div className="bg-card rounded-xl border border-destructive/30 shadow-card p-6">
+                <div className="flex items-start gap-3 mb-4">
+                  <Trash2 className="w-4 h-4 text-destructive flex-shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-sm font-semibold text-destructive">Delete my account</p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Permanently removes your account, login credentials, and all data you personally created. Family tree nodes you added will remain for other members. This cannot be undone.
+                    </p>
+                  </div>
+                </div>
+
+                {deleteError && (
+                  <p className="text-xs text-destructive mb-3 px-1">{deleteError}</p>
+                )}
+
+                {!deleteConfirm ? (
+                  <button
+                    onClick={() => setDeleteConfirm(true)}
+                    className="px-4 py-2 rounded-lg border border-destructive/40 text-destructive text-sm font-semibold hover:bg-destructive/5 transition-colors"
+                  >
+                    Delete my account…
+                  </button>
+                ) : (
+                  <div className="flex flex-col gap-3">
+                    <p className="text-sm font-semibold text-destructive">Are you absolutely sure?</p>
+                    <p className="text-xs text-muted-foreground">This will sign you out immediately and permanently erase your account.</p>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => { setDeleteConfirm(false); setDeleteError(null); }}
+                        disabled={deleteLoading}
+                        className="px-4 py-2 rounded-lg border border-border text-sm font-medium hover:bg-secondary transition-colors disabled:opacity-50"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        onClick={() => void handleDeleteAccount()}
+                        disabled={deleteLoading}
+                        className="px-4 py-2 rounded-lg bg-destructive text-destructive-foreground text-sm font-semibold hover:opacity-90 transition-opacity disabled:opacity-60 flex items-center gap-2"
+                      >
+                        {deleteLoading && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                        {deleteLoading ? 'Deleting…' : 'Yes, delete permanently'}
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             </Section>
 

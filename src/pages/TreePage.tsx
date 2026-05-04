@@ -325,6 +325,12 @@ const TreePage = () => {
   const [connectRelation, setConnectRelation] = useState('');
   const [connectUnionId, setConnectUnionId] = useState('');
   const [connectLinking, setConnectLinking] = useState(false);
+  // Drag-to-connect: use refs for logic (no stale-closure issues), state only for the preview render
+  const svgRef = useRef<SVGSVGElement>(null);
+  const dragPotentialRef = useRef<{ id: string; screenX: number; screenY: number } | null>(null);
+  const dragFromRef = useRef<{ id: string; x: number; y: number } | null>(null);
+  const wasDraggingRef = useRef(false); // suppresses onClick after a completed drag
+  const [dragPreview, setDragPreview] = useState<{ fx: number; fy: number; tx: number; ty: number } | null>(null);
   const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
   const [linkParentUnionId, setLinkParentUnionId] = useState('');
   // Kul Devata inline edit state (tree overview panel)
@@ -585,11 +591,15 @@ const TreePage = () => {
           }}
         >
           <svg
-            style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', WebkitUserSelect: 'none', userSelect: 'none' } as React.CSSProperties}
+            ref={svgRef}
+            style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', WebkitUserSelect: 'none', userSelect: 'none', cursor: dragPreview ? 'crosshair' : undefined } as React.CSSProperties}
             viewBox={`0 0 ${viewWidth} ${viewHeight}`}
             preserveAspectRatio="xMidYMid meet"
             draggable={false}
             onContextMenu={(e) => e.preventDefault()}
+            onMouseMove={handleSvgMouseMove}
+            onMouseUp={handleSvgMouseUp}
+            onMouseLeave={cancelDrag}
           >
             <defs>
               <linearGradient id="branch-grad" x1="0" y1="1" x2="0" y2="0">
@@ -757,7 +767,10 @@ const TreePage = () => {
                   containerVariant={getTreeNodeContainerVariant(node, state.unionRows ?? [])}
                   personalLabel={getLabel(node.id)}
                   onHoverChange={(isHovering) => setHoveredNodeId(isHovering ? node.id : null)}
+                  onDragStart={handleNodeDragStart}
                   onSelect={(e) => {
+                    // If this click ended a drag, don't also run the select/connect flow
+                    if (wasDraggingRef.current) { wasDraggingRef.current = false; return; }
                     if (connectingFromId) {
                       if (node.id === connectingFromId) { setConnectingFromId(null); return; }
                       const src = positionedNodes.find(n => n.id === connectingFromId);
@@ -845,6 +858,21 @@ const TreePage = () => {
               return <SpousePlusMark key={`plus-${e.from}-${e.to}`} left={left} right={right} />;
             })}
 
+            {/* Drag-to-connect preview line (L-shaped: horizontal then vertical) */}
+            {dragPreview && (
+              <g pointerEvents="none">
+                <path
+                  d={`M ${dragPreview.fx},${dragPreview.fy} H ${dragPreview.tx} V ${dragPreview.ty}`}
+                  stroke="rgba(46,19,70,0.7)"
+                  strokeWidth={2}
+                  strokeDasharray="7 4"
+                  fill="none"
+                  strokeLinecap="round"
+                />
+                <circle cx={dragPreview.tx} cy={dragPreview.ty} r={5} fill="rgba(46,19,70,0.45)" />
+              </g>
+            )}
+
           </svg>
 
         </div>
@@ -883,6 +911,95 @@ const TreePage = () => {
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, []);
+
+  const toSvgCoords = useCallback((e: React.MouseEvent) => {
+    const svg = svgRef.current;
+    if (!svg) return null;
+    const pt = svg.createSVGPoint();
+    pt.x = e.clientX;
+    pt.y = e.clientY;
+    const inv = svg.getScreenCTM()?.inverse();
+    if (!inv) return null;
+    const p = pt.matrixTransform(inv);
+    return { x: p.x, y: p.y };
+  }, []);
+
+  const triggerDragConnect = useCallback((fromId: string, toId: string) => {
+    const src = positionedNodes.find(n => n.id === fromId);
+    const tgt = positionedNodes.find(n => n.id === toId);
+    if (!src || !tgt) return;
+    const diff = tgt.generation - src.generation;
+    const opts = (diff > 0 && Number.isFinite(diff))
+      ? ['Son', 'Daughter', 'Adopted Son', 'Adopted Daughter']
+      : (diff < 0 && Number.isFinite(diff))
+        ? ['Father', 'Mother']
+        : diff === 0
+          ? ['Spouse']
+          : ['Son', 'Daughter', 'Father', 'Mother', 'Spouse', 'Adopted Son', 'Adopted Daughter'];
+    const parentNodeId = diff > 0 ? src.id : diff < 0 ? tgt.id : null;
+    const nameById = new Map(positionedNodes.map(n => [n.id, n.name]));
+    const parentUnions = parentNodeId
+      ? (state.unionRows ?? [])
+          .filter(u => u.maleNodeId === parentNodeId || u.femaleNodeId === parentNodeId)
+          .map(u => ({ id: u.id, label: `${nameById.get(u.maleNodeId) ?? '—'} + ${nameById.get(u.femaleNodeId) ?? '—'}` }))
+      : [];
+    setConnectingFromId(fromId);
+    setConnectPopup({ targetId: toId, targetName: tgt.name, options: opts, parentUnions });
+    setConnectRelation(opts[0]);
+    setConnectUnionId(parentUnions.length === 1 ? parentUnions[0].id : '');
+  }, [positionedNodes, state.unionRows]);
+
+  const handleNodeDragStart = useCallback((nodeId: string, e: React.MouseEvent) => {
+    e.preventDefault(); // block text-selection / scroll; do NOT stopPropagation
+    wasDraggingRef.current = false;
+    dragPotentialRef.current = { id: nodeId, screenX: e.clientX, screenY: e.clientY };
+  }, []);
+
+  const handleSvgMouseMove = useCallback((e: React.MouseEvent<SVGSVGElement>) => {
+    if (!dragPotentialRef.current && !dragFromRef.current) return;
+
+    if (dragPotentialRef.current) {
+      const dx = e.clientX - dragPotentialRef.current.screenX;
+      const dy = e.clientY - dragPotentialRef.current.screenY;
+      if (Math.sqrt(dx * dx + dy * dy) > 6) {
+        const node = positionedNodes.find(n => n.id === dragPotentialRef.current!.id);
+        if (node) {
+          dragFromRef.current = { id: dragPotentialRef.current.id, x: node.x, y: node.y };
+          dragPotentialRef.current = null;
+          wasDraggingRef.current = true;
+        }
+      }
+      return;
+    }
+
+    if (dragFromRef.current) {
+      const coords = toSvgCoords(e);
+      if (coords) setDragPreview({ fx: dragFromRef.current.x, fy: dragFromRef.current.y, tx: coords.x, ty: coords.y });
+    }
+  }, [positionedNodes, toSvgCoords]);
+
+  const cancelDrag = useCallback(() => {
+    dragPotentialRef.current = null;
+    dragFromRef.current = null;
+    setDragPreview(null);
+  }, []);
+
+  const handleSvgMouseUp = useCallback((e: React.MouseEvent<SVGSVGElement>) => {
+    dragPotentialRef.current = null;
+    const from = dragFromRef.current;
+    dragFromRef.current = null;
+    setDragPreview(null);
+    if (!from) return;
+    const coords = toSvgCoords(e);
+    if (coords) {
+      const HIT_R = 34;
+      const target = positionedNodes.find(n =>
+        n.id !== from.id &&
+        Math.sqrt((n.x - coords.x) ** 2 + (n.y - coords.y) ** 2) < HIT_R
+      );
+      if (target) triggerDragConnect(from.id, target.id);
+    }
+  }, [positionedNodes, toSvgCoords, triggerDragConnect]);
 
   const handleLinkSubmit = async () => {
     if (!connectPopup || !connectRelation || !connectingFromId) return;

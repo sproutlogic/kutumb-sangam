@@ -7,6 +7,7 @@ type Props = {
   hasDispute: boolean;
   onSelect: (e: MouseEvent<SVGGElement>) => void;
   onHoverChange?: (isHovering: boolean) => void;
+  onDragStart?: (nodeId: string, e: MouseEvent<SVGGElement>) => void;
   isSelected?: boolean;
   hasMatrimonialBridge?: boolean;
   containerVariant?: TreeNodeContainerVariant;
@@ -53,6 +54,7 @@ export function PersonNode({
   hasDispute,
   onSelect,
   onHoverChange,
+  onDragStart,
   isSelected,
   hasMatrimonialBridge,
   containerVariant = "default",
@@ -199,6 +201,7 @@ export function PersonNode({
     <g
       className="cursor-pointer"
       onClick={onSelect}
+      onMouseDown={(e) => onDragStart?.(node.id, e)}
       onMouseEnter={() => onHoverChange?.(true)}
       onMouseLeave={() => onHoverChange?.(false)}
     >
