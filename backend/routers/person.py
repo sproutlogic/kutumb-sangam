@@ -549,6 +549,80 @@ def update_person(node_id: uuid.UUID, body: PersonUpdateBody, user: CurrentUser)
     return {"ok": True}
 
 
+class LinkPersonBody(BaseModel):
+    vansha_id: uuid.UUID
+    person_id: uuid.UUID
+    target_person_id: uuid.UUID
+    relation: str = Field(min_length=2)
+
+
+@router.post("/person/link")
+def link_persons(body: LinkPersonBody) -> dict[str, Any]:
+    """Structurally link two existing persons (parent-child or spouse)."""
+    sb = get_supabase()
+    vid = str(body.vansha_id)
+    pid = str(body.person_id)
+    tid = str(body.target_person_id)
+    rel = body.relation.strip()
+
+    if pid == tid:
+        raise HTTPException(status_code=400, detail="Cannot link a person to themselves.")
+
+    if rel in SPOUSE_RELATIONS or rel == "Spouse":
+        rows = (
+            sb.table(PERSONS_TABLE)
+            .select("node_id,gender,relative_gen_index")
+            .in_("node_id", [pid, tid])
+            .eq(VANSHA_ID_COLUMN, vid)
+            .execute()
+        ).data or []
+        p_row = next((r for r in rows if _str_id(r.get("node_id")) == pid), None)
+        t_row = next((r for r in rows if _str_id(r.get("node_id")) == tid), None)
+        if not p_row or not t_row:
+            raise HTTPException(status_code=404, detail="One or both persons not found in this vansha.")
+        gp = _normalize_gender(p_row.get("gender"))
+        gt = _normalize_gender(t_row.get("gender"))
+        if gp == "male" and gt == "female":
+            male_id, female_id = pid, tid
+        elif gp == "female" and gt == "male":
+            male_id, female_id = tid, pid
+        else:
+            raise HTTPException(status_code=400, detail="Spouse link requires one male and one female person.")
+        gen = p_row.get("relative_gen_index", 0) or 0
+        u_id = _insert_union(sb, vid, male_id, female_id, int(gen))
+        if not u_id:
+            raise HTTPException(status_code=500, detail="Failed to create union.")
+        return {"ok": True, "union_id": u_id}
+
+    if rel in CHILD_RELATIONS:
+        parent_id, child_id = pid, tid
+    elif rel in PARENT_RELATIONS:
+        parent_id, child_id = tid, pid
+    else:
+        raise HTTPException(status_code=400, detail=f"Unknown relation '{rel}'.")
+
+    unions = (
+        sb.table(UNIONS_TABLE).select("*").eq(VANSHA_ID_COLUMN, vid).execute()
+    ).data or []
+    parent_union = _find_union_for_node(unions, parent_id)
+    if not parent_union:
+        raise HTTPException(
+            status_code=400,
+            detail="Parent has no union yet — add a spouse first, then reconnect.",
+        )
+    union_id = _str_id(parent_union.get("union_id") or parent_union.get("id"))
+    if not union_id:
+        raise HTTPException(status_code=500, detail="Could not resolve union ID.")
+
+    try:
+        sb.table(PERSONS_TABLE).update({PARENT_UNION_ID_COLUMN: union_id}).eq("node_id", child_id).eq(VANSHA_ID_COLUMN, vid).execute()
+    except Exception:
+        logger.exception("Failed to set parent_union_id for node_id=%s", child_id)
+        raise HTTPException(status_code=502, detail="Failed to update parent link.") from None
+
+    return {"ok": True, "union_id": union_id}
+
+
 @router.delete("/person/{node_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_person(node_id: uuid.UUID, user: CurrentUser) -> Response:
     sb = get_supabase()

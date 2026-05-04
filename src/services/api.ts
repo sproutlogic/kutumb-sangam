@@ -1565,6 +1565,20 @@ export async function fetchGauravGatha(vansha_id?: string): Promise<GauravGathaE
   }
 }
 
+export async function linkPersons(body: {
+  vansha_id: string;
+  person_id: string;
+  target_person_id: string;
+  relation: string;
+}): Promise<{ ok: boolean; union_id?: string }> {
+  const res = await fetchApi(`${getApiBaseUrl()}/api/person/link`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify(body),
+  });
+  return parseJsonOrThrow(res) as Promise<{ ok: boolean; union_id?: string }>;
+}
+
 export async function submitGauravGatha(body: {
   title: string;
   who: string;

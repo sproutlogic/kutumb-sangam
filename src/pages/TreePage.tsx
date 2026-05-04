@@ -9,7 +9,7 @@ import { useTree } from '@/contexts/TreeContext';
 import AppShell from '@/components/shells/AppShell';
 import TreeCompletionScore from '@/components/ui/TreeCompletionScore';
 import TrustBadge from '@/components/ui/TrustBadge';
-import { fetchMatrimonyProfile, fetchVanshaTree, fetchVanshaTreePage, getApiBaseUrl, getPersistedVanshaId, updatePerson, linkExistingSpouses, updateVanshaMetadata } from '@/services/api';
+import { fetchMatrimonyProfile, fetchVanshaTree, fetchVanshaTreePage, getApiBaseUrl, getPersistedVanshaId, linkExistingSpouses, linkPersons, updateVanshaMetadata } from '@/services/api';
 import { backendPayloadToTreeState } from '@/services/mapVanshaPayload';
 import { mergeMatrimonyProfile } from '@/engine/matrimonyDefaults';
 import { canViewerSeeNodeDetails } from '@/engine/privacy';
@@ -294,128 +294,6 @@ const PersonalLabelEditor: React.FC<{
   );
 };
 
-// ── Connect missing link panel ─────────────────────────────────────────────
-interface ConnectLinkPanelProps {
-  sourceNodeId: string;
-  sourceNodeName: string;
-  sourceGeneration: number;
-  allNodes: Array<{ id: string; name: string; generation?: number }>;
-  unionRows: Array<{ id: string; maleNodeId: string; femaleNodeId: string }>;
-  vanshaId: string;
-  onRefresh: () => Promise<void>;
-}
-
-// Same options as NodePage "Add member" flow — keeps UX consistent
-const CONNECT_RELATION_OPTIONS = [
-  'Son', 'Daughter', 'Father', 'Mother', 'Spouse',
-  'Adopted Son', 'Adopted Daughter',
-] as const;
-
-const SPOUSE_RELATIONS = new Set(['Spouse', 'husband', 'wife', 'Wife', 'Husband']);
-
-const ConnectLinkPanel: React.FC<ConnectLinkPanelProps> = ({
-  sourceNodeId, sourceNodeName, sourceGeneration, allNodes, unionRows, vanshaId, onRefresh,
-}) => {
-  const [open, setOpen] = useState(false);
-  const [targetId, setTargetId] = useState('');
-  const [relation, setRelation] = useState('');
-  const [linking, setLinking] = useState(false);
-  const [result, setResult] = useState<'success' | 'error' | null>(null);
-
-  // Only show members exactly one generation up or down
-  const others = allNodes.filter(n =>
-    n.id !== sourceNodeId &&
-    n.name && n.name !== '—' &&
-    (n.generation === sourceGeneration + 1 || n.generation === sourceGeneration - 1),
-  );
-  const targetNode = others.find(n => n.id === targetId);
-  const targetName = targetNode?.name ?? '';
-
-  // Auto-derive available relations from selected member's generation
-  const relationsForTarget = useMemo(() => {
-    if (!targetId || targetNode === undefined) return [];
-    const tg = targetNode.generation ?? sourceGeneration;
-    if (tg > sourceGeneration) return ['Son', 'Daughter', 'Adopted Son', 'Adopted Daughter'];
-    if (tg === sourceGeneration) return ['Spouse'];
-    return ['Father', 'Mother'];
-  }, [targetId, targetNode, sourceGeneration]);
-
-  // Reset relation whenever target changes
-  useEffect(() => { setRelation(''); }, [targetId]);
-
-  const handleConnect = async () => {
-    if (!targetId || !relation) return;
-    setLinking(true);
-    setResult(null);
-    try {
-      if (SPOUSE_RELATIONS.has(relation)) {
-        // Link as spouses — creates a union
-        await linkExistingSpouses({ vansha_id: vanshaId, anchor_node_id: sourceNodeId, spouse_node_id: targetId });
-      } else {
-        // Parent-child: set parent_union_id on the child — this is the structural connection.
-        // "Son"/"Daughter"/"Adopted Son"/"Adopted Daughter" → targetId is the child, sourceNodeId is the parent
-        // "Father"/"Mother" → sourceNodeId is the child, targetId is the parent
-        const targetIsChild = ['Son', 'Daughter', 'Adopted Son', 'Adopted Daughter'].includes(relation);
-        const childId  = targetIsChild ? targetId   : sourceNodeId;
-        const parentId = targetIsChild ? sourceNodeId : targetId;
-        const parentUnion = unionRows.find(u => u.maleNodeId === parentId || u.femaleNodeId === parentId);
-        if (!parentUnion) throw new Error('No union found for parent — add a spouse first.');
-        await updatePerson(childId, { parent_union_id: parentUnion.id });
-      }
-      await onRefresh(); // await so tree updates before showing success
-      setResult('success');
-    } catch {
-      setResult('error');
-    } finally {
-      setLinking(false);
-    }
-  };
-
-  return (
-    <div style={{ marginTop: 14 }}>
-      <button
-        onClick={() => setOpen(o => !o)}
-        style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '9px 12px', borderRadius: 8, border: '1px dashed rgba(74,33,104,0.3)', background: 'transparent', cursor: 'pointer', fontSize: 12, color: 'var(--ds-plum,#2e1346)', fontWeight: 600 }}
-      >
-        <span>🔗 Connect missing link</span>
-        <span style={{ opacity: 0.5 }}>{open ? '▲' : '▼'}</span>
-      </button>
-      {open && (
-        <div style={{ marginTop: 8, display: 'grid', gap: 8 }}>
-          {result === 'success' ? (
-            <div style={{ padding: '10px 12px', borderRadius: 8, background: 'rgba(122,219,160,0.08)', border: '1px solid rgba(122,219,160,0.3)', fontSize: 12, color: '#2a8068', fontWeight: 600 }}>
-              ✓ {sourceNodeName} linked to {targetName} as {relation}.
-            </div>
-          ) : (
-            <>
-              <div style={{ fontSize: 11, color: 'rgba(74,33,104,0.5)' }}>
-                Connect <strong>{sourceNodeName}</strong> to another existing member — no re-entry needed.
-              </div>
-              <select value={targetId} onChange={e => setTargetId(e.target.value)} className="ds-input w-full" style={{ fontSize: 12 }}>
-                <option value="">Select member…</option>
-                {others.map(n => <option key={n.id} value={n.id}>{n.name}</option>)}
-              </select>
-              <select value={relation} onChange={e => setRelation(e.target.value)} className="ds-input w-full" style={{ fontSize: 12 }} disabled={relationsForTarget.length === 0}>
-                <option value="">{targetId ? 'Select relation…' : 'Select a member first…'}</option>
-                {relationsForTarget.map(r => <option key={r} value={r}>{r}</option>)}
-              </select>
-              {result === 'error' && (
-                <div style={{ fontSize: 11, color: '#dc2626' }}>Could not link — please try again.</div>
-              )}
-              <button
-                onClick={() => void handleConnect()}
-                disabled={!targetId || !relation || linking}
-                style={{ padding: '9px 14px', borderRadius: 8, border: 'none', background: targetId && relation && !linking ? 'var(--ds-plum,#2e1346)' : 'rgba(74,33,104,0.2)', color: '#fff', fontSize: 12, fontWeight: 700, cursor: targetId && relation && !linking ? 'pointer' : 'not-allowed' }}
-              >
-                {linking ? 'Linking…' : 'Connect →'}
-              </button>
-            </>
-          )}
-        </div>
-      )}
-    </div>
-  );
-};
 
 const TreePage = () => {
   const { tr } = useLang();
@@ -442,6 +320,10 @@ const TreePage = () => {
   const [remoteError, setRemoteError] = useState<string | null>(null);
   const [retryToken, setRetryToken] = useState(0);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+  const [connectingFromId, setConnectingFromId] = useState<string | null>(null);
+  const [connectPopup, setConnectPopup] = useState<{ targetId: string; targetName: string; options: string[] } | null>(null);
+  const [connectRelation, setConnectRelation] = useState('');
+  const [connectLinking, setConnectLinking] = useState(false);
   const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
   const [linkParentUnionId, setLinkParentUnionId] = useState('');
   // Kul Devata inline edit state (tree overview panel)
@@ -852,6 +734,19 @@ const TreePage = () => {
                   personalLabel={getLabel(node.id)}
                   onHoverChange={(isHovering) => setHoveredNodeId(isHovering ? node.id : null)}
                   onSelect={(e) => {
+                    if (connectingFromId) {
+                      if (node.id === connectingFromId) { setConnectingFromId(null); return; }
+                      const src = positionedNodes.find(n => n.id === connectingFromId);
+                      if (!src) return;
+                      const diff = node.generation - src.generation;
+                      if (Math.abs(diff) !== 1 && diff !== 0) return;
+                      const opts = diff > 0
+                        ? ['Son', 'Daughter', 'Adopted Son', 'Adopted Daughter']
+                        : diff < 0 ? ['Father', 'Mother'] : ['Spouse'];
+                      setConnectPopup({ targetId: node.id, targetName: node.name, options: opts });
+                      setConnectRelation(opts[0]);
+                      return;
+                    }
                     if (hasBridge && !e.shiftKey) {
                       openBirthVanshaIfPresent(node);
                       return;
@@ -943,6 +838,34 @@ const TreePage = () => {
       setTimeout(() => zoomFit(), 50);
     }
   }, [isTreeInitialized, zoomFit]);
+
+  // ESC cancels connect mode
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') { setConnectingFromId(null); setConnectPopup(null); }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+
+  const handleLinkSubmit = async () => {
+    if (!connectPopup || !connectRelation || !connectingFromId) return;
+    const vid = vanshaId || defaultVanshaFromEnv || getPersistedVanshaId();
+    if (!vid) return;
+    setConnectLinking(true);
+    try {
+      await linkPersons({ vansha_id: vid, person_id: connectingFromId, target_person_id: connectPopup.targetId, relation: connectRelation });
+      setConnectingFromId(null);
+      setConnectPopup(null);
+      const data = await fetchVanshaTree(vid);
+      loadTreeState(backendPayloadToTreeState(data));
+    } catch (err) {
+      toast({ title: 'Link failed', description: err instanceof Error ? err.message : 'Could not connect.', variant: 'destructive' });
+    } finally {
+      setConnectLinking(false);
+    }
+  };
+
   const completionPct = Math.round(Math.min(100, (membersUsed / plan.maxNodes) * 100));
 
   const nodeOwnerId   = (selectedNode as Record<string, unknown> | undefined)?.ownerId   as string | undefined;
@@ -956,6 +879,37 @@ const TreePage = () => {
 
   return (
     <AppShell>
+      {/* Connect mode banner */}
+      {connectingFromId && (
+        <div style={{ position: 'fixed', top: 72, left: '50%', transform: 'translateX(-50%)', zIndex: 120, background: 'var(--ds-plum,#2e1346)', color: '#fff', padding: '8px 22px', borderRadius: 24, fontSize: 13, fontWeight: 600, pointerEvents: 'none', whiteSpace: 'nowrap', boxShadow: '0 4px 20px rgba(28,13,46,0.35)' }}>
+          Click a family member to connect · ESC to cancel
+        </div>
+      )}
+
+      {/* Connect relation popup */}
+      {connectPopup && (() => {
+        const srcNode = positionedNodes.find(n => n.id === connectingFromId);
+        return (
+          <div onClick={() => setConnectPopup(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(28,13,46,0.5)', zIndex: 200, display: 'grid', placeItems: 'center', padding: 24 }}>
+            <div onClick={e => e.stopPropagation()} style={{ background: 'var(--ds-paper,#fff)', borderRadius: 16, padding: 28, width: 'min(400px,100%)', boxShadow: '0 24px 64px rgba(28,13,46,0.3)' }}>
+              <div style={{ fontFamily: 'var(--ds-serif)', fontSize: 18, color: 'var(--ds-plum,#2e1346)', marginBottom: 6 }}>Connect family members</div>
+              <p style={{ fontSize: 13, color: 'var(--ds-ink-soft)', marginBottom: 16 }}>
+                <strong>{srcNode?.name ?? ''}</strong> → <strong>{connectPopup.targetName}</strong>
+              </p>
+              <select value={connectRelation} onChange={e => setConnectRelation(e.target.value)} style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid var(--ds-hairline,#e0ddd5)', fontSize: 13, marginBottom: 18, background: 'var(--ds-ivory,#faf8f2)' }}>
+                {connectPopup.options.map(r => <option key={r} value={r}>{r}</option>)}
+              </select>
+              <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+                <button onClick={() => setConnectPopup(null)} style={{ padding: '8px 16px', borderRadius: 8, border: '1px solid var(--ds-hairline,#e0ddd5)', background: 'transparent', cursor: 'pointer', fontSize: 13 }}>Cancel</button>
+                <button onClick={() => void handleLinkSubmit()} disabled={connectLinking} style={{ padding: '8px 22px', borderRadius: 8, background: 'var(--ds-plum,#2e1346)', color: '#fff', border: 'none', cursor: connectLinking ? 'not-allowed' : 'pointer', fontSize: 13, fontWeight: 700, opacity: connectLinking ? 0.7 : 1 }}>
+                  {connectLinking ? 'Linking…' : 'Confirm →'}
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
       {/* Full-page canvas layout: tree left + sidebar right (bottom sheet on mobile) */}
       <div style={{ display: 'flex', height: 'calc(100vh - 64px)', overflow: 'hidden' }}>
 
@@ -1257,21 +1211,13 @@ const TreePage = () => {
               </div>
 
               {/* Connect missing link */}
-              <ConnectLinkPanel
-                sourceNodeId={selectedNode.id}
-                sourceNodeName={selectedNode.name}
-                sourceGeneration={selectedNode.generation ?? 0}
-                allNodes={state.nodes}
-                unionRows={(state.unionRows ?? []).map(u => ({ id: u.id, maleNodeId: u.maleNodeId, femaleNodeId: u.femaleNodeId }))}
-                vanshaId={vanshaId || defaultVanshaFromEnv}
-                onRefresh={async () => {
-                  const vid = vanshaId || defaultVanshaFromEnv || getPersistedVanshaId();
-                  if (!vid) return;
-                  const data = await fetchVanshaTree(vid);
-                  loadTreeState(backendPayloadToTreeState(data));
-                }}
-
-              />
+              <button
+                onClick={() => { setConnectingFromId(selectedNode.id); setSelectedNodeId(null); }}
+                style={{ marginTop: 14, width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '9px 12px', borderRadius: 8, border: '1px dashed rgba(74,33,104,0.3)', background: 'transparent', cursor: 'pointer', fontSize: 12, color: 'var(--ds-plum,#2e1346)', fontWeight: 600 }}
+              >
+                <span>🔗 Connect missing link</span>
+                <span style={{ opacity: 0.5 }}>→</span>
+              </button>
             </div>
           ) : (
             <div style={{ padding: 20 }}>
