@@ -1062,110 +1062,118 @@ const TreePage = () => {
                 </button>
               </div>
 
-              {/* ── Connect to parents (restore missing trunk line) ───── */}
-              {selectedNode && vanshaId && (() => {
-                // Show unions as options — display name = "Male name + Female name"
-                const unions = state.unionRows ?? [];
-                const unionOptions = unions.map(u => {
-                  const mNode = state.nodes.find(n => n.id === u.maleNodeId);
-                  const fNode = state.nodes.find(n => n.id === u.femaleNodeId);
-                  const mName = mNode?.givenName || mNode?.name || 'Unknown';
-                  const fName = fNode?.givenName || fNode?.name || 'Unknown';
-                  return { id: u.id, label: `${mName} + ${fName}` };
-                });
-                if (unionOptions.length === 0) return null;
-                return (
-                  <details style={{ marginBottom: 14, borderRadius: 8, border: '1px solid rgba(74,33,104,0.15)', background: 'rgba(74,33,104,0.02)' }}>
-                    <summary style={{ padding: '8px 12px', cursor: 'pointer', fontSize: 11, fontWeight: 600, color: 'var(--ds-plum,#2e1346)', userSelect: 'none', listStyle: 'none', display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <span>🔗</span> Connect to parents / परिवार से जोड़ें
-                    </summary>
-                    <div style={{ padding: '8px 12px 12px' }}>
-                      <p style={{ fontSize: 10, color: 'rgba(74,33,104,0.55)', marginBottom: 8, lineHeight: 1.5 }}>
-                        Use this to restore a missing trunk line — select the couple whose child this person is.
-                      </p>
-                      <select
-                        value={linkParentUnionId}
-                        onChange={e => setLinkParentUnionId(e.target.value)}
-                        style={{ width: '100%', padding: '6px 8px', borderRadius: 6, border: '1px solid rgba(74,33,104,0.25)', background: 'rgba(252,250,244,0.9)', fontSize: 12, marginBottom: 8, outline: 'none' }}
-                      >
-                        <option value="">-- Select parent couple --</option>
-                        {unionOptions.map(u => (
-                          <option key={u.id} value={u.id}>{u.label}</option>
-                        ))}
-                      </select>
-                      <button
-                        disabled={!linkParentUnionId || isSavingParentLink}
-                        onClick={async () => {
-                          if (!linkParentUnionId || !selectedNode) return;
-                          setIsSavingParentLink(true);
-                          try {
-                            await updatePerson(selectedNode.id, { parent_union_id: linkParentUnionId });
-                            const data = await fetchVanshaTree(vanshaId!);
-                            loadTreeState(backendPayloadToTreeState(data));
-                            setLinkParentUnionId('');
-                            toast({ title: 'Trunk line restored', description: `${selectedNode.name} connected to parents.` });
-                          } catch (e) {
-                            toast({ title: 'Failed to connect', description: e instanceof Error ? e.message : 'Error', variant: 'destructive' });
-                          } finally {
-                            setIsSavingParentLink(false);
-                          }
-                        }}
-                        style={{ width: '100%', padding: '7px 0', borderRadius: 7, border: 'none', background: linkParentUnionId ? 'var(--ds-plum,#2e1346)' : 'rgba(74,33,104,0.2)', color: '#fff', fontSize: 12, fontWeight: 700, cursor: linkParentUnionId ? 'pointer' : 'default', opacity: isSavingParentLink ? 0.6 : 1 }}
-                      >
-                        {isSavingParentLink ? 'Connecting…' : '🔗 Link as child of this couple'}
-                      </button>
-                    </div>
-                  </details>
-                );
-              })()}
+              {/* ── Link management card (always visible) ─────────────── */}
+              <div style={{ marginBottom: 14, borderRadius: 10, border: '1px solid rgba(74,33,104,0.18)', background: 'rgba(74,33,104,0.03)', overflow: 'hidden' }}>
+                <div style={{ padding: '10px 14px 6px', fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'rgba(74,33,104,0.5)', fontWeight: 700 }}>Links</div>
 
-              {/* ── Remove wrong link ───────────────────────────────────── */}
-              {selectedNode && vanshaId && (() => {
-                const nodeEdges = edges.filter(e => e.from === selectedNode.id || e.to === selectedNode.id);
-                if (nodeEdges.length === 0) return null;
-                return (
-                  <details style={{ marginBottom: 14, borderRadius: 8, border: '1px solid rgba(220,38,38,0.2)', background: 'rgba(220,38,38,0.02)' }}>
-                    <summary style={{ padding: '8px 12px', cursor: 'pointer', fontSize: 11, fontWeight: 600, color: '#b91c1c', userSelect: 'none', listStyle: 'none', display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <span>🗑</span> Remove a wrong link
-                    </summary>
-                    <div style={{ padding: '8px 12px 12px', display: 'flex', flexDirection: 'column', gap: 6 }}>
-                      {nodeEdges.map(e => {
-                        const otherId = e.from === selectedNode.id ? e.to : e.from;
-                        const otherNode = positionedNodes.find(n => n.id === otherId);
-                        const edgeKey = `${e.from}|${e.to}`;
-                        return (
-                          <div key={edgeKey} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: '6px 8px', borderRadius: 6, background: 'rgba(220,38,38,0.04)', border: '1px solid rgba(220,38,38,0.12)' }}>
-                            <div style={{ fontSize: 11, color: '#1c0d2e', minWidth: 0 }}>
-                              <span style={{ fontWeight: 600 }}>{otherNode?.name ?? otherId.slice(0, 8)}</span>
-                              <span style={{ color: 'rgba(74,33,104,0.45)', marginLeft: 5 }}>({e.relation})</span>
-                            </div>
-                            <button
-                              disabled={unlinkingEdge === edgeKey}
-                              onClick={async () => {
-                                if (!confirm(`Remove link between ${selectedNode.name} and ${otherNode?.name ?? 'this person'}?`)) return;
-                                setUnlinkingEdge(edgeKey);
-                                try {
-                                  await unlinkPersons({ vansha_id: vanshaId, person_id: e.from, target_person_id: e.to });
-                                  const data = await fetchVanshaTree(vanshaId);
-                                  loadTreeState(backendPayloadToTreeState(data));
-                                  toast({ title: 'Link removed' });
-                                } catch (err) {
-                                  toast({ title: 'Failed to remove link', description: err instanceof Error ? err.message : 'Error', variant: 'destructive' });
-                                } finally {
-                                  setUnlinkingEdge(null);
-                                }
-                              }}
-                              style={{ padding: '4px 10px', borderRadius: 6, border: 'none', background: unlinkingEdge === edgeKey ? 'rgba(220,38,38,0.2)' : '#dc2626', color: '#fff', fontSize: 11, fontWeight: 700, cursor: unlinkingEdge === edgeKey ? 'default' : 'pointer', whiteSpace: 'nowrap', opacity: unlinkingEdge === edgeKey ? 0.6 : 1, flexShrink: 0 }}
-                            >
-                              {unlinkingEdge === edgeKey ? '…' : 'Remove'}
-                            </button>
-                          </div>
-                        );
-                      })}
+                {/* 1 — click-to-connect on canvas */}
+                <div style={{ padding: '4px 14px 10px' }}>
+                  <button
+                    onClick={() => { setConnectingFromId(selectedNode.id); setSelectedNodeId(null); }}
+                    style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 8, padding: '9px 12px', borderRadius: 8, border: 'none', background: 'var(--ds-plum,#2e1346)', color: '#fff', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
+                  >
+                    <span style={{ fontSize: 15 }}>🔗</span>
+                    <span>Connect to another member</span>
+                    <span style={{ marginLeft: 'auto', opacity: 0.6, fontSize: 11 }}>click on tree →</span>
+                  </button>
+                </div>
+
+                {/* 2 — link as child of a couple */}
+                {vanshaId && (() => {
+                  const unionOptions = (state.unionRows ?? []).map(u => {
+                    const mNode = state.nodes.find(n => n.id === u.maleNodeId);
+                    const fNode = state.nodes.find(n => n.id === u.femaleNodeId);
+                    return { id: u.id, label: `${mNode?.givenName || mNode?.name || '?'} + ${fNode?.givenName || fNode?.name || '?'}` };
+                  });
+                  if (unionOptions.length === 0) return null;
+                  return (
+                    <div style={{ padding: '0 14px 10px', borderTop: '1px solid rgba(74,33,104,0.08)' }}>
+                      <div style={{ fontSize: 10, color: 'rgba(74,33,104,0.5)', margin: '8px 0 6px' }}>Set as child of couple (restores trunk line)</div>
+                      <div style={{ display: 'flex', gap: 6 }}>
+                        <select
+                          value={linkParentUnionId}
+                          onChange={e => setLinkParentUnionId(e.target.value)}
+                          style={{ flex: 1, padding: '6px 8px', borderRadius: 6, border: '1px solid rgba(74,33,104,0.2)', background: '#faf8f2', fontSize: 11, outline: 'none' }}
+                        >
+                          <option value="">Select couple…</option>
+                          {unionOptions.map(u => <option key={u.id} value={u.id}>{u.label}</option>)}
+                        </select>
+                        <button
+                          disabled={!linkParentUnionId || isSavingParentLink}
+                          onClick={async () => {
+                            if (!linkParentUnionId || !selectedNode) return;
+                            setIsSavingParentLink(true);
+                            try {
+                              await updatePerson(selectedNode.id, { parent_union_id: linkParentUnionId });
+                              const data = await fetchVanshaTree(vanshaId!);
+                              loadTreeState(backendPayloadToTreeState(data));
+                              setLinkParentUnionId('');
+                              toast({ title: 'Trunk line restored' });
+                            } catch (e) {
+                              toast({ title: 'Failed', description: e instanceof Error ? e.message : 'Error', variant: 'destructive' });
+                            } finally {
+                              setIsSavingParentLink(false);
+                            }
+                          }}
+                          style={{ padding: '6px 12px', borderRadius: 6, border: 'none', background: linkParentUnionId ? 'var(--ds-plum,#2e1346)' : 'rgba(74,33,104,0.15)', color: '#fff', fontSize: 11, fontWeight: 700, cursor: linkParentUnionId && !isSavingParentLink ? 'pointer' : 'default', whiteSpace: 'nowrap' }}
+                        >
+                          {isSavingParentLink ? '…' : 'Link'}
+                        </button>
+                      </div>
                     </div>
-                  </details>
-                );
-              })()}
+                  );
+                })()}
+
+                {/* 3 — existing links with remove buttons */}
+                {(() => {
+                  const nodeEdges = edges.filter(e => e.from === selectedNode.id || e.to === selectedNode.id);
+                  if (nodeEdges.length === 0) return (
+                    <div style={{ padding: '0 14px 10px', borderTop: '1px solid rgba(74,33,104,0.08)', fontSize: 10, color: 'rgba(74,33,104,0.4)', paddingTop: 8 }}>No links yet</div>
+                  );
+                  return (
+                    <div style={{ borderTop: '1px solid rgba(74,33,104,0.08)', padding: '8px 14px 10px' }}>
+                      <div style={{ fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'rgba(74,33,104,0.4)', marginBottom: 6 }}>Existing links · tap to remove wrong ones</div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                        {nodeEdges.map(e => {
+                          const otherId = e.from === selectedNode.id ? e.to : e.from;
+                          const otherNode = positionedNodes.find(n => n.id === otherId);
+                          const edgeKey = `${e.from}|${e.to}`;
+                          return (
+                            <div key={edgeKey} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '5px 8px', borderRadius: 6, background: '#fff', border: '1px solid rgba(74,33,104,0.1)' }}>
+                              <span style={{ fontSize: 13 }}>👤</span>
+                              <div style={{ flex: 1, minWidth: 0 }}>
+                                <div style={{ fontSize: 11, fontWeight: 600, color: '#1c0d2e', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{otherNode?.name ?? otherId.slice(0, 8)}</div>
+                                <div style={{ fontSize: 9, color: 'rgba(74,33,104,0.45)' }}>{e.relation}</div>
+                              </div>
+                              <button
+                                disabled={unlinkingEdge === edgeKey}
+                                onClick={async () => {
+                                  if (!vanshaId) return;
+                                  if (!confirm(`Remove link: ${selectedNode.name} ↔ ${otherNode?.name ?? 'this person'}?`)) return;
+                                  setUnlinkingEdge(edgeKey);
+                                  try {
+                                    await unlinkPersons({ vansha_id: vanshaId, person_id: e.from, target_person_id: e.to });
+                                    const data = await fetchVanshaTree(vanshaId);
+                                    loadTreeState(backendPayloadToTreeState(data));
+                                    toast({ title: 'Link removed' });
+                                  } catch (err) {
+                                    toast({ title: 'Failed', description: err instanceof Error ? err.message : 'Error', variant: 'destructive' });
+                                  } finally {
+                                    setUnlinkingEdge(null);
+                                  }
+                                }}
+                                style={{ padding: '3px 8px', borderRadius: 5, border: '1px solid rgba(220,38,38,0.3)', background: 'rgba(220,38,38,0.06)', color: '#b91c1c', fontSize: 10, fontWeight: 700, cursor: unlinkingEdge === edgeKey ? 'default' : 'pointer', whiteSpace: 'nowrap', opacity: unlinkingEdge === edgeKey ? 0.5 : 1, flexShrink: 0 }}
+                              >
+                                {unlinkingEdge === edgeKey ? '…' : '✕ Remove'}
+                              </button>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })()}
+              </div>
 
               {/* Node sovereignty strip */}
               {isSovereign ? (
@@ -1281,14 +1289,6 @@ const TreePage = () => {
                 </div>
               </div>
 
-              {/* Connect missing link */}
-              <button
-                onClick={() => { setConnectingFromId(selectedNode.id); setSelectedNodeId(null); }}
-                style={{ marginTop: 14, width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '9px 12px', borderRadius: 8, border: '1px dashed rgba(74,33,104,0.3)', background: 'transparent', cursor: 'pointer', fontSize: 12, color: 'var(--ds-plum,#2e1346)', fontWeight: 600 }}
-              >
-                <span>🔗 Connect missing link</span>
-                <span style={{ opacity: 0.5 }}>→</span>
-              </button>
             </div>
           ) : (
             <div style={{ padding: 20 }}>
