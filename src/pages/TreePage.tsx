@@ -871,8 +871,7 @@ const TreePage = () => {
       await linkPersons({ vansha_id: vid, person_id: connectingFromId, target_person_id: connectPopup.targetId, relation: connectRelation, union_id: connectUnionId || undefined });
       setConnectingFromId(null);
       setConnectPopup(null);
-      const data = await fetchVanshaTree(vid);
-      loadTreeState(backendPayloadToTreeState(data));
+      setRetryToken(t => t + 1); // triggers the main loading effect to re-fetch the full tree
     } catch (err) {
       toast({ title: 'Link failed', description: err instanceof Error ? err.message : 'Could not connect.', variant: 'destructive' });
     } finally {
@@ -1124,51 +1123,103 @@ const TreePage = () => {
                   );
                 })()}
 
-                {/* 3 — existing links with remove buttons */}
+                {/* 3 — existing links with remove buttons
+                    Sources: unionRows (spouse/parent), node.parentUnionId (child-of), direct edges (legacy) */}
                 {(() => {
-                  const nodeEdges = edges.filter(e => e.from === selectedNode.id || e.to === selectedNode.id);
-                  if (nodeEdges.length === 0) return (
-                    <div style={{ padding: '0 14px 10px', borderTop: '1px solid rgba(74,33,104,0.08)', fontSize: 10, color: 'rgba(74,33,104,0.4)', paddingTop: 8 }}>No links yet</div>
-                  );
+                  type LinkItem = { key: string; label: string; relation: string; onRemove: () => Promise<void> };
+                  const items: LinkItem[] = [];
+                  const vid = vanshaId;
+
+                  // Child-of: this node has a parent union
+                  const puId = selectedNode.parentUnionId;
+                  if (puId) {
+                    const u = (state.unionRows ?? []).find(r => r.id === puId || r.id.replace(/-/g,'') === puId.replace(/-/g,''));
+                    const mN = positionedNodes.find(n => n.id === u?.maleNodeId);
+                    const fN = positionedNodes.find(n => n.id === u?.femaleNodeId);
+                    items.push({
+                      key: `pu-${puId}`,
+                      label: u ? `${mN?.name ?? '?'} + ${fN?.name ?? '?'}` : puId.slice(0, 8),
+                      relation: 'child of',
+                      onRemove: async () => {
+                        if (!vid) return;
+                        await updatePerson(selectedNode.id, { parent_union_id: '' });
+                        setRetryToken(t => t + 1);
+                        toast({ title: 'Parent link removed' });
+                      },
+                    });
+                  }
+
+                  // Spouse / union: node is maleNodeId or femaleNodeId in a union row
+                  (state.unionRows ?? [])
+                    .filter(u => u.maleNodeId === selectedNode.id || u.femaleNodeId === selectedNode.id)
+                    .forEach(u => {
+                      const otherId = u.maleNodeId === selectedNode.id ? u.femaleNodeId : u.maleNodeId;
+                      const otherNode = positionedNodes.find(n => n.id === otherId);
+                      items.push({
+                        key: `su-${u.id}`,
+                        label: otherNode?.name ?? otherId.slice(0, 8),
+                        relation: 'spouse / union',
+                        onRemove: async () => {
+                          if (!vid) return;
+                          await unlinkPersons({ vansha_id: vid, person_id: selectedNode.id, target_person_id: otherId });
+                          setRetryToken(t => t + 1);
+                          toast({ title: 'Spouse link removed' });
+                        },
+                      });
+                    });
+
+                  // Legacy direct edges (rare – only when no union row covers them)
+                  edges
+                    .filter(e => e.from === selectedNode.id || e.to === selectedNode.id)
+                    .forEach(e => {
+                      const otherId = e.from === selectedNode.id ? e.to : e.from;
+                      if (items.some(it => it.key.includes(otherId))) return; // already shown
+                      const otherNode = positionedNodes.find(n => n.id === otherId);
+                      items.push({
+                        key: `ed-${e.from}|${e.to}`,
+                        label: otherNode?.name ?? otherId.slice(0, 8),
+                        relation: e.relation,
+                        onRemove: async () => {
+                          if (!vid) return;
+                          await unlinkPersons({ vansha_id: vid, person_id: e.from, target_person_id: e.to });
+                          setRetryToken(t => t + 1);
+                          toast({ title: 'Link removed' });
+                        },
+                      });
+                    });
+
                   return (
                     <div style={{ borderTop: '1px solid rgba(74,33,104,0.08)', padding: '8px 14px 10px' }}>
-                      <div style={{ fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'rgba(74,33,104,0.4)', marginBottom: 6 }}>Existing links · tap to remove wrong ones</div>
+                      <div style={{ fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'rgba(74,33,104,0.4)', marginBottom: 6 }}>
+                        {items.length === 0 ? 'No links yet' : 'Existing links · remove wrong ones'}
+                      </div>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-                        {nodeEdges.map(e => {
-                          const otherId = e.from === selectedNode.id ? e.to : e.from;
-                          const otherNode = positionedNodes.find(n => n.id === otherId);
-                          const edgeKey = `${e.from}|${e.to}`;
-                          return (
-                            <div key={edgeKey} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '5px 8px', borderRadius: 6, background: '#fff', border: '1px solid rgba(74,33,104,0.1)' }}>
-                              <span style={{ fontSize: 13 }}>👤</span>
-                              <div style={{ flex: 1, minWidth: 0 }}>
-                                <div style={{ fontSize: 11, fontWeight: 600, color: '#1c0d2e', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{otherNode?.name ?? otherId.slice(0, 8)}</div>
-                                <div style={{ fontSize: 9, color: 'rgba(74,33,104,0.45)' }}>{e.relation}</div>
-                              </div>
-                              <button
-                                disabled={unlinkingEdge === edgeKey}
-                                onClick={async () => {
-                                  if (!vanshaId) return;
-                                  if (!confirm(`Remove link: ${selectedNode.name} ↔ ${otherNode?.name ?? 'this person'}?`)) return;
-                                  setUnlinkingEdge(edgeKey);
-                                  try {
-                                    await unlinkPersons({ vansha_id: vanshaId, person_id: e.from, target_person_id: e.to });
-                                    const data = await fetchVanshaTree(vanshaId);
-                                    loadTreeState(backendPayloadToTreeState(data));
-                                    toast({ title: 'Link removed' });
-                                  } catch (err) {
-                                    toast({ title: 'Failed', description: err instanceof Error ? err.message : 'Error', variant: 'destructive' });
-                                  } finally {
-                                    setUnlinkingEdge(null);
-                                  }
-                                }}
-                                style={{ padding: '3px 8px', borderRadius: 5, border: '1px solid rgba(220,38,38,0.3)', background: 'rgba(220,38,38,0.06)', color: '#b91c1c', fontSize: 10, fontWeight: 700, cursor: unlinkingEdge === edgeKey ? 'default' : 'pointer', whiteSpace: 'nowrap', opacity: unlinkingEdge === edgeKey ? 0.5 : 1, flexShrink: 0 }}
-                              >
-                                {unlinkingEdge === edgeKey ? '…' : '✕ Remove'}
-                              </button>
+                        {items.map(item => (
+                          <div key={item.key} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '5px 8px', borderRadius: 6, background: '#fff', border: '1px solid rgba(74,33,104,0.1)' }}>
+                            <span style={{ fontSize: 13 }}>👤</span>
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <div style={{ fontSize: 11, fontWeight: 600, color: '#1c0d2e', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.label}</div>
+                              <div style={{ fontSize: 9, color: 'rgba(74,33,104,0.45)' }}>{item.relation}</div>
                             </div>
-                          );
-                        })}
+                            <button
+                              disabled={unlinkingEdge === item.key}
+                              onClick={async () => {
+                                if (!confirm(`Remove: ${selectedNode.name} ↔ ${item.label} (${item.relation})?`)) return;
+                                setUnlinkingEdge(item.key);
+                                try {
+                                  await item.onRemove();
+                                } catch (err) {
+                                  toast({ title: 'Failed', description: err instanceof Error ? err.message : 'Error', variant: 'destructive' });
+                                } finally {
+                                  setUnlinkingEdge(null);
+                                }
+                              }}
+                              style={{ padding: '3px 8px', borderRadius: 5, border: '1px solid rgba(220,38,38,0.3)', background: 'rgba(220,38,38,0.06)', color: '#b91c1c', fontSize: 10, fontWeight: 700, cursor: unlinkingEdge === item.key ? 'default' : 'pointer', whiteSpace: 'nowrap', opacity: unlinkingEdge === item.key ? 0.5 : 1, flexShrink: 0 }}
+                            >
+                              {unlinkingEdge === item.key ? '…' : '✕ Remove'}
+                            </button>
+                          </div>
+                        ))}
                       </div>
                     </div>
                   );
