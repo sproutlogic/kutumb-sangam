@@ -1570,6 +1570,7 @@ export async function linkPersons(body: {
   person_id: string;
   target_person_id: string;
   relation: string;
+  union_id?: string;
 }): Promise<{ ok: boolean; union_id?: string }> {
   const res = await fetchApi(`${getApiBaseUrl()}/api/person/link`, {
     method: "POST",

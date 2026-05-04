@@ -321,8 +321,9 @@ const TreePage = () => {
   const [retryToken, setRetryToken] = useState(0);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [connectingFromId, setConnectingFromId] = useState<string | null>(null);
-  const [connectPopup, setConnectPopup] = useState<{ targetId: string; targetName: string; options: string[] } | null>(null);
+  const [connectPopup, setConnectPopup] = useState<{ targetId: string; targetName: string; options: string[]; parentUnions: Array<{ id: string; label: string }> } | null>(null);
   const [connectRelation, setConnectRelation] = useState('');
+  const [connectUnionId, setConnectUnionId] = useState('');
   const [connectLinking, setConnectLinking] = useState(false);
   const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
   const [linkParentUnionId, setLinkParentUnionId] = useState('');
@@ -743,8 +744,17 @@ const TreePage = () => {
                       const opts = diff > 0
                         ? ['Son', 'Daughter', 'Adopted Son', 'Adopted Daughter']
                         : diff < 0 ? ['Father', 'Mother'] : ['Spouse'];
-                      setConnectPopup({ targetId: node.id, targetName: node.name, options: opts });
+                      // Find unions belonging to the parent node for the picker
+                      const parentNodeId = diff > 0 ? src.id : diff < 0 ? node.id : null;
+                      const nameById = new Map(positionedNodes.map(n => [n.id, n.name]));
+                      const parentUnions = parentNodeId
+                        ? (state.unionRows ?? [])
+                            .filter(u => u.maleNodeId === parentNodeId || u.femaleNodeId === parentNodeId)
+                            .map(u => ({ id: u.id, label: `${nameById.get(u.maleNodeId) ?? '—'} + ${nameById.get(u.femaleNodeId) ?? '—'}` }))
+                        : [];
+                      setConnectPopup({ targetId: node.id, targetName: node.name, options: opts, parentUnions });
                       setConnectRelation(opts[0]);
+                      setConnectUnionId(parentUnions.length === 1 ? parentUnions[0].id : '');
                       return;
                     }
                     if (hasBridge && !e.shiftKey) {
@@ -854,7 +864,7 @@ const TreePage = () => {
     if (!vid) return;
     setConnectLinking(true);
     try {
-      await linkPersons({ vansha_id: vid, person_id: connectingFromId, target_person_id: connectPopup.targetId, relation: connectRelation });
+      await linkPersons({ vansha_id: vid, person_id: connectingFromId, target_person_id: connectPopup.targetId, relation: connectRelation, union_id: connectUnionId || undefined });
       setConnectingFromId(null);
       setConnectPopup(null);
       const data = await fetchVanshaTree(vid);
@@ -896,12 +906,21 @@ const TreePage = () => {
               <p style={{ fontSize: 13, color: 'var(--ds-ink-soft)', marginBottom: 16 }}>
                 <strong>{srcNode?.name ?? ''}</strong> → <strong>{connectPopup.targetName}</strong>
               </p>
-              <select value={connectRelation} onChange={e => setConnectRelation(e.target.value)} style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid var(--ds-hairline,#e0ddd5)', fontSize: 13, marginBottom: 18, background: 'var(--ds-ivory,#faf8f2)' }}>
+              <select value={connectRelation} onChange={e => setConnectRelation(e.target.value)} style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid var(--ds-hairline,#e0ddd5)', fontSize: 13, marginBottom: 12, background: 'var(--ds-ivory,#faf8f2)' }}>
                 {connectPopup.options.map(r => <option key={r} value={r}>{r}</option>)}
               </select>
+              {connectPopup.parentUnions.length > 1 && (
+                <div style={{ marginBottom: 14 }}>
+                  <div style={{ fontSize: 11, color: 'var(--ds-ink-soft)', marginBottom: 4 }}>Which family?</div>
+                  <select value={connectUnionId} onChange={e => setConnectUnionId(e.target.value)} style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid var(--ds-hairline,#e0ddd5)', fontSize: 13, background: 'var(--ds-ivory,#faf8f2)' }}>
+                    <option value="">Select family…</option>
+                    {connectPopup.parentUnions.map(u => <option key={u.id} value={u.id}>{u.label}</option>)}
+                  </select>
+                </div>
+              )}
               <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
                 <button onClick={() => setConnectPopup(null)} style={{ padding: '8px 16px', borderRadius: 8, border: '1px solid var(--ds-hairline,#e0ddd5)', background: 'transparent', cursor: 'pointer', fontSize: 13 }}>Cancel</button>
-                <button onClick={() => void handleLinkSubmit()} disabled={connectLinking} style={{ padding: '8px 22px', borderRadius: 8, background: 'var(--ds-plum,#2e1346)', color: '#fff', border: 'none', cursor: connectLinking ? 'not-allowed' : 'pointer', fontSize: 13, fontWeight: 700, opacity: connectLinking ? 0.7 : 1 }}>
+                <button onClick={() => void handleLinkSubmit()} disabled={connectLinking || (connectPopup.parentUnions.length > 1 && !connectUnionId)} style={{ padding: '8px 22px', borderRadius: 8, background: 'var(--ds-plum,#2e1346)', color: '#fff', border: 'none', cursor: (connectLinking || (connectPopup.parentUnions.length > 1 && !connectUnionId)) ? 'not-allowed' : 'pointer', fontSize: 13, fontWeight: 700, opacity: (connectLinking || (connectPopup.parentUnions.length > 1 && !connectUnionId)) ? 0.5 : 1 }}>
                   {connectLinking ? 'Linking…' : 'Confirm →'}
                 </button>
               </div>

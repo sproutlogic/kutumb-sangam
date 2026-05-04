@@ -554,6 +554,10 @@ class LinkPersonBody(BaseModel):
     person_id: uuid.UUID
     target_person_id: uuid.UUID
     relation: str = Field(min_length=2)
+    union_id: Optional[uuid.UUID] = Field(
+        default=None,
+        description="Explicit union to attach child to. If omitted, auto-resolved or created.",
+    )
 
 
 @router.post("/person/link")
@@ -601,16 +605,66 @@ def link_persons(body: LinkPersonBody) -> dict[str, Any]:
     else:
         raise HTTPException(status_code=400, detail=f"Unknown relation '{rel}'.")
 
-    unions = (
-        sb.table(UNIONS_TABLE).select("*").eq(VANSHA_ID_COLUMN, vid).execute()
-    ).data or []
-    parent_union = _find_union_for_node(unions, parent_id)
-    if not parent_union:
-        raise HTTPException(
-            status_code=400,
-            detail="Parent has no union yet — add a spouse first, then reconnect.",
+    # Resolve union_id
+    if body.union_id:
+        # Frontend sent an explicit union — validate it belongs to parent
+        all_unions = (sb.table(UNIONS_TABLE).select("*").eq(VANSHA_ID_COLUMN, vid).execute()).data or []
+        explicit = next(
+            (u for u in all_unions
+             if _str_id(u.get("union_id") or u.get("id")) == str(body.union_id)
+             and (_str_id(u.get("male_node_id")) == parent_id or _str_id(u.get("female_node_id")) == parent_id)),
+            None,
         )
-    union_id = _str_id(parent_union.get("union_id") or parent_union.get("id"))
+        if not explicit:
+            raise HTTPException(status_code=400, detail="Provided union does not belong to this parent.")
+        union_id = str(body.union_id)
+    else:
+        # Auto-resolve: use single existing union, or create a solo union
+        all_unions = (sb.table(UNIONS_TABLE).select("*").eq(VANSHA_ID_COLUMN, vid).execute()).data or []
+        parent_unions = [
+            u for u in all_unions
+            if _str_id(u.get("male_node_id")) == parent_id or _str_id(u.get("female_node_id")) == parent_id
+        ]
+        if len(parent_unions) == 1:
+            union_id = _str_id(parent_unions[0].get("union_id") or parent_unions[0].get("id")) or ""
+        elif len(parent_unions) > 1:
+            raise HTTPException(
+                status_code=409,
+                detail="Parent has multiple unions — please specify which family the child belongs to.",
+            )
+        else:
+            # No union yet — create a solo union (parent + placeholder)
+            p_row = (
+                sb.table(PERSONS_TABLE)
+                .select("gender,relative_gen_index")
+                .eq("node_id", parent_id)
+                .eq(VANSHA_ID_COLUMN, vid)
+                .limit(1)
+                .execute()
+            ).data
+            if not p_row:
+                raise HTTPException(status_code=404, detail="Parent not found.")
+            pg = _normalize_gender(p_row[0].get("gender"))
+            gen = int(p_row[0].get("relative_gen_index", 0) or 0)
+            ph_id = str(uuid.uuid4())
+            sb.table(PERSONS_TABLE).insert({
+                VANSHA_ID_COLUMN: vid,
+                "node_id": ph_id,
+                "first_name": "—",
+                "last_name": "",
+                "date_of_birth": "0001-01-01",
+                "ancestral_place": "",
+                "gender": "female" if pg == "male" else "male",
+                "relation": "member",
+                "relative_gen_index": gen,
+                "branch": "main",
+            }).execute()
+            male_id = parent_id if pg == "male" else ph_id
+            female_id = ph_id if pg == "male" else parent_id
+            union_id = _insert_union(sb, vid, male_id, female_id, gen) or ""
+            if not union_id:
+                raise HTTPException(status_code=500, detail="Failed to create solo union for parent.")
+
     if not union_id:
         raise HTTPException(status_code=500, detail="Could not resolve union ID.")
 
