@@ -298,7 +298,8 @@ const PersonalLabelEditor: React.FC<{
 interface ConnectLinkPanelProps {
   sourceNodeId: string;
   sourceNodeName: string;
-  allNodes: Array<{ id: string; name: string }>;
+  sourceGeneration: number;
+  allNodes: Array<{ id: string; name: string; generation?: number }>;
   unionRows: Array<{ id: string; maleNodeId: string; femaleNodeId: string }>;
   vanshaId: string;
   onRefresh: () => Promise<void>;
@@ -313,7 +314,7 @@ const CONNECT_RELATION_OPTIONS = [
 const SPOUSE_RELATIONS = new Set(['Spouse', 'husband', 'wife', 'Wife', 'Husband']);
 
 const ConnectLinkPanel: React.FC<ConnectLinkPanelProps> = ({
-  sourceNodeId, sourceNodeName, allNodes, unionRows, vanshaId, onRefresh,
+  sourceNodeId, sourceNodeName, sourceGeneration, allNodes, unionRows, vanshaId, onRefresh,
 }) => {
   const [open, setOpen] = useState(false);
   const [targetId, setTargetId] = useState('');
@@ -321,11 +322,16 @@ const ConnectLinkPanel: React.FC<ConnectLinkPanelProps> = ({
   const [linking, setLinking] = useState(false);
   const [result, setResult] = useState<'success' | 'error' | null>(null);
 
-  const others = allNodes.filter(n => n.id !== sourceNodeId && n.name && n.name !== '—');
+  // Only show members exactly one generation up or down
+  const others = allNodes.filter(n =>
+    n.id !== sourceNodeId &&
+    n.name && n.name !== '—' &&
+    (n.generation === sourceGeneration + 1 || n.generation === sourceGeneration - 1),
+  );
   const targetName = others.find(n => n.id === targetId)?.name ?? '';
 
   const handleConnect = async () => {
-    if (!targetId || !relation || !vanshaId) return;
+    if (!targetId || !relation) return;
     setLinking(true);
     setResult(null);
     try {
@@ -1221,13 +1227,6 @@ const TreePage = () => {
               <div style={{ marginBottom: 14 }}>
                 <div className="ds-eyebrow" style={{ color: 'var(--ds-muted)', marginBottom: 10, fontSize: 9 }}>Actions</div>
                 <div style={{ display: 'grid', gap: 8 }}>
-                  {/* Active action */}
-                  <button
-                    onClick={() => navigate(`/node/${selectedNode.id}`)}
-                    style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px', borderRadius: 8, border: '1px solid var(--ds-border,rgba(74,33,104,0.12))', background: 'var(--ds-ivory,#faf8f2)', cursor: 'pointer', fontSize: 13 }}
-                  >
-                    <span>✏️ Edit member</span>
-                  </button>
                   {/* Coming soon actions */}
                   {[
                     { icon: '📜', label: 'Generate vanshavali' },
@@ -1248,6 +1247,7 @@ const TreePage = () => {
               <ConnectLinkPanel
                 sourceNodeId={selectedNode.id}
                 sourceNodeName={selectedNode.name}
+                sourceGeneration={selectedNode.generation ?? 0}
                 allNodes={state.nodes}
                 unionRows={(state.unionRows ?? []).map(u => ({ id: u.id, maleNodeId: u.maleNodeId, femaleNodeId: u.femaleNodeId }))}
                 vanshaId={vanshaId || defaultVanshaFromEnv}
