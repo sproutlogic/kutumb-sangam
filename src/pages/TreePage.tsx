@@ -1069,6 +1069,19 @@ const TreePage = () => {
               {/* ── Profile header ── */}
               {(() => {
                 const isSelf = selectedNode.relation?.toLowerCase() === 'self';
+                // Owner sees their own node with full birth year; all other nodes show dd MMM only
+                const isOwnerSelf = isSelf && isSovereign;
+                const fmtDOB = (dateStr: string | undefined): string | undefined => {
+                  if (!dateStr || dateStr.length < 10) return dateStr;
+                  try {
+                    const d = new Date(dateStr + 'T00:00:00');
+                    if (isNaN(d.getTime())) return dateStr;
+                    return d.toLocaleDateString('en-IN', {
+                      day: 'numeric', month: 'short',
+                      ...(isOwnerSelf ? { year: 'numeric' } : {}),
+                    });
+                  } catch { return dateStr; }
+                };
                 const parentUnion = (state.unionRows ?? []).find(u =>
                   u.id === selectedNode.parentUnionId ||
                   (u.id ?? '').replace(/-/g,'') === (selectedNode.parentUnionId ?? '').replace(/-/g,'')
@@ -1115,7 +1128,7 @@ const TreePage = () => {
                     {/* Profile fields */}
                     <div style={{ marginBottom: 14, borderRadius: 8, border: '1px solid rgba(74,33,104,0.1)', overflow: 'hidden', background: '#faf8f2' }}>
                       <div style={{ padding: '8px 12px 4px' }}>
-                        {row('Date of Birth', selectedNode.dateOfBirth || undefined)}
+                        {row('Date of Birth', fmtDOB(selectedNode.dateOfBirth))}
                         {row('Father', fatherNode?.name)}
                         {row('Mother', motherNode?.name)}
                         {spouseNodes.length > 0 && row('Spouse', spouseNodes.map(s => s!.name).join(', '))}

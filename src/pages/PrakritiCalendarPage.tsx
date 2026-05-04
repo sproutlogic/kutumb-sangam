@@ -42,21 +42,6 @@ function daysFromToday(dateStr: string): number {
   return Math.round(diff / 86_400_000);
 }
 
-interface Deed { icon: string; what: string; score: string; done: boolean; }
-
-const DEFAULT_DEEDS: Deed[] = [
-  { icon: '🌱', what: 'Plant a native tree',      score: '+12', done: false },
-  { icon: '💧', what: 'Restore one water source', score: '+10', done: false },
-  { icon: '🪔', what: 'Light a single ghee diya', score: '+3',  done: true  },
-  { icon: '🥣', what: 'Donate grain — anna daan', score: '+6',  done: false },
-];
-
-const ECO_ALERTS = [
-  { c: 'var(--ds-saffron)',    t: 'AQI Kanpur 168',     s: "Unhealthy · don't burn waste today" },
-  { c: '#2aa86b',              t: 'Light rain forecast', s: 'Good day for sapling transplant' },
-  { c: 'var(--ds-gold-deep)',  t: 'Solar peak 11:40',    s: 'Run pump / heater off-grid window' },
-];
-
 /* Only these flags count as major vrats / festivals */
 const MAJOR_FLAGS = new Set(['purnima', 'amavasya', 'ekadashi', 'pradosh', 'chaturthi', 'sankranti']);
 
@@ -77,8 +62,7 @@ const EcoPanchangPage = () => {
   const [upcoming, setUpcoming]   = useState<PanchangCalendarRow[]>([]);
   const [loading, setLoading]     = useState(true);
   const [selected, setSelected]   = useState<string>(todayStr());
-  const [deeds, setDeeds]         = useState<Deed[]>(DEFAULT_DEEDS);
-  const [userLat, setUserLat]     = useState<number | undefined>(undefined);
+const [userLat, setUserLat]     = useState<number | undefined>(undefined);
   const [userLon, setUserLon]     = useState<number | undefined>(undefined);
   const [locLabel, setLocLabel]   = useState<string>('');
 
@@ -92,15 +76,6 @@ const EcoPanchangPage = () => {
       fetchTodayPanchang(lat, lon).then(data => {
         if (data) {
           setPanchang(data);
-          const rec = data.eco_recommendation;
-          if (rec) {
-            setDeeds([
-              { icon: '🌱', what: rec.plant     || 'Plant a native tree',      score: '+12', done: false },
-              { icon: '💧', what: rec.water     || 'Restore one water source', score: '+10', done: false },
-              { icon: '🌿', what: rec.observe   || 'Observe nature today',     score: '+5',  done: false },
-              { icon: '🤝', what: rec.community || 'Community eco-action',     score: '+6',  done: false },
-            ]);
-          }
         }
       }).finally(() => setLoading(false));
     };
@@ -163,11 +138,7 @@ const EcoPanchangPage = () => {
   const todaySunrise   = parseTsToHHMM(panchang?.sunrise_ts);
   const todaySunset    = parseTsToHHMM(panchang?.sunset_ts);
 
-  const avoidItems: string[] = panchang?.eco_recommendation?.avoid
-    ? panchang.eco_recommendation.avoid.split(/[,;]/).map(s => s.trim()).filter(Boolean)
-    : ['Felling trees', 'Buying single-use plastic', 'Wasting cooked food'];
-
-  /* ── Build upcoming tiles from API rows ─────────────────── */
+/* ── Build upcoming tiles from API rows ─────────────────── */
   const upcomingTiles = upcoming.slice(0, 6).map(r => {
     const flag      = r.special_flag ?? '';
     const days      = daysFromToday(r.gregorian_date);
@@ -235,47 +206,6 @@ const EcoPanchangPage = () => {
                   <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.45)', marginTop: 4 }}>{s.s}</div>
                 </div>
               ))}
-            </div>
-          </div>
-        </div>
-
-        {/* ── Deeds + alerts ──────────────────────────────────── */}
-        <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 14, marginBottom: 24 }} className="ep-deeds-grid">
-          <div className="ds-card" style={{ padding: 0, overflow: 'hidden' }}>
-            <div style={{ padding: '18px 22px', borderBottom: '1px solid var(--ds-hairline)' }}>
-              <span className="ds-eyebrow">Today's eco-deeds</span>
-              <div style={{ fontFamily: 'var(--ds-serif)', fontSize: 22, marginTop: 4, color: 'var(--ds-plum)' }}>What counts double today</div>
-            </div>
-            {deeds.map((d, i) => (
-              <div key={i} style={{ padding: '14px 22px', borderBottom: i < deeds.length - 1 ? '1px solid var(--ds-hairline)' : 'none', display: 'flex', alignItems: 'center', gap: 14 }}>
-                <div style={{ width: 38, height: 38, borderRadius: 8, background: 'var(--ds-ivory-warm)', border: '1px solid var(--ds-hairline)', display: 'grid', placeItems: 'center', fontSize: 18, flexShrink: 0 }}>{d.icon}</div>
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--ds-ink)', textDecoration: d.done ? 'line-through' : 'none', opacity: d.done ? 0.5 : 1 }}>{d.what}</div>
-                </div>
-                <span className="ds-tag ds-tag-gold">{d.score}</span>
-                <button onClick={() => setDeeds(ds => ds.map((x, j) => j === i ? { ...x, done: !x.done } : x))} style={{ width: 34, height: 34, borderRadius: 6, border: d.done ? 'none' : '2px solid var(--ds-hairline-strong)', background: d.done ? '#2aa86b' : 'transparent', color: '#fff', cursor: 'pointer', display: 'grid', placeItems: 'center', fontSize: 15, flexShrink: 0 }}>
-                  {d.done ? '✓' : ''}
-                </button>
-              </div>
-            ))}
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {ECO_ALERTS.map((a, i) => (
-              <div key={i} style={{ padding: '12px 16px 12px 22px', borderRadius: 10, border: `1px solid ${a.c}30`, background: `${a.c}08`, position: 'relative' }}>
-                <div style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', width: 4, height: 32, borderRadius: 2, background: a.c }} />
-                <div style={{ fontSize: 13, fontWeight: 600, color: a.c }}>{a.t}</div>
-                <div style={{ fontSize: 12, color: 'var(--ds-ink-mute)', marginTop: 2 }}>{a.s}</div>
-              </div>
-            ))}
-            <div style={{ padding: '14px 18px', borderRadius: 10, background: 'var(--ds-ivory-warm)', border: '1px solid var(--ds-hairline)' }}>
-              <div className="ds-eyebrow">Today's to-avoid</div>
-              <ul style={{ marginTop: 8, listStyle: 'none', display: 'flex', flexDirection: 'column', gap: 6 }}>
-                {avoidItems.map(a => (
-                  <li key={a} style={{ fontSize: 13, color: 'var(--ds-ink-soft)', display: 'flex', alignItems: 'flex-start', gap: 8 }}>
-                    <span style={{ color: '#d12d2d', fontWeight: 700, flexShrink: 0 }}>✗</span> {a}
-                  </li>
-                ))}
-              </ul>
             </div>
           </div>
         </div>
@@ -418,7 +348,6 @@ const EcoPanchangPage = () => {
       <style>{`
         @media (max-width: 880px) {
           .ep-hero-grid     { grid-template-columns: 1fr !important; }
-          .ep-deeds-grid    { grid-template-columns: 1fr !important; }
           .ep-upcoming-grid { grid-template-columns: 1fr 1fr !important; }
         }
         @media (max-width: 560px) {

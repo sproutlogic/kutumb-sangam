@@ -291,6 +291,16 @@ const CommunityHero = ({ appUser, score, familyRank, panchang, userPersonNode, g
 /* ─────────────────────────────────────────────────────────────
    4. Dashboard Info Row — Notice · Date in History · Todo Calendar
 ───────────────────────────────────────────────────────────── */
+
+/** Format ISO date as "4 May" — day + month, no year. */
+function fmtDayMonth(dateStr: string): string {
+  if (dateStr.length < 10) return '';
+  try {
+    const d = new Date(dateStr + 'T00:00:00');
+    return isNaN(d.getTime()) ? '' : d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
+  } catch { return ''; }
+}
+
 const DashboardInfoRow = ({ persons, panchang }: {
   persons: Record<string, unknown>[];
   panchang: LivePanchang | null;
@@ -300,20 +310,20 @@ const DashboardInfoRow = ({ persons, panchang }: {
   const todayMD = `${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
 
   // Date-in-history: birthdays, anniversaries, punya tithis from family
-  const todayEvents: Array<{ name: string; type: string; icon: string }> = [];
+  const todayEvents: Array<{ name: string; type: string; icon: string; date: string }> = [];
   persons.forEach(p => {
     const nameStr = [p.first_name, p.last_name].filter(Boolean).join(' ') || String(p.name ?? '—');
     const dob = String(p.date_of_birth ?? '');
     if (dob.length >= 10 && dob.slice(5, 7) + '-' + dob.slice(8, 10) === todayMD) {
-      todayEvents.push({ name: nameStr, type: 'Birthday', icon: '🎂' });
+      todayEvents.push({ name: nameStr, type: 'Birthday', icon: '🎂', date: fmtDayMonth(dob) });
     }
     const anniv = String(p.marriage_anniversary ?? '');
     if (anniv.length >= 10 && anniv.slice(5, 7) + '-' + anniv.slice(8, 10) === todayMD) {
-      todayEvents.push({ name: nameStr, type: 'Anniversary', icon: '💐' });
+      todayEvents.push({ name: nameStr, type: 'Anniversary', icon: '💐', date: fmtDayMonth(anniv) });
     }
     const swarg = String(p.swargwas_date ?? '');
     if (swarg.length >= 10 && swarg.slice(5, 7) + '-' + swarg.slice(8, 10) === todayMD) {
-      todayEvents.push({ name: nameStr, type: 'Punya Tithi', icon: '🕯️' });
+      todayEvents.push({ name: nameStr, type: 'Punya Tithi', icon: '🕯️', date: fmtDayMonth(swarg) });
     }
   });
 
@@ -368,9 +378,9 @@ const DashboardInfoRow = ({ persons, panchang }: {
               {todayEvents.slice(0, 3).map((e, i) => (
                 <div key={i} style={{ display: 'flex', gap: 10, alignItems: 'center', padding: '8px 10px', borderRadius: 8, background: 'var(--ds-ivory-warm)', border: '1px solid var(--ds-hairline)' }}>
                   <span style={{ fontSize: 20, flexShrink: 0 }}>{e.icon}</span>
-                  <div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontFamily: 'var(--ds-serif)', fontSize: 14, color: 'var(--ds-ink)', fontWeight: 600 }}>{e.name}</div>
-                    <div style={{ fontSize: 11, color: 'var(--ds-ink-mute)' }}>{e.type}</div>
+                    <div style={{ fontSize: 11, color: 'var(--ds-ink-mute)' }}>{e.type}{e.date ? ` · ${e.date}` : ''}</div>
                   </div>
                 </div>
               ))}
