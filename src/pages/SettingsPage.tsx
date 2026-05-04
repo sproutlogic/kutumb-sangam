@@ -99,12 +99,9 @@ const SettingsPage = () => {
     fetchVanshaTree(vid)
       .then(payload => {
         const persons = payload.persons as Record<string, unknown>[];
-        // Find the node that belongs to this user: prefer owner_id match with relation=self,
-        // then any owner_id match, then the anchor (gen 0), then first person.
-        const uid = appUser?.id ?? '';
+        // 'self' relation is set only on the tree owner's own node
         const root =
-          persons.find(p => String(p.owner_id ?? '') === uid && String(p.relation ?? '').toLowerCase() === 'self') ??
-          persons.find(p => String(p.owner_id ?? '') === uid) ??
+          persons.find(p => String(p.relation ?? '').toLowerCase() === 'self') ??
           persons.find(p => (p.relative_gen_index as number) === 0) ??
           persons[0];
         if (!root) return;
