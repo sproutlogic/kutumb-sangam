@@ -643,7 +643,7 @@ const TreePage = () => {
                   await unlinkPersons({ vansha_id: vid, person_id: e.from, target_person_id: e.to });
                 })}>
                   <path d={d} stroke={adopted ? stroke : "url(#branch-grad)"} strokeWidth={adopted ? 2 : 2.5} strokeOpacity={adopted ? 0.55 : 1} strokeDasharray={adopted ? "5 4" : undefined} fill="none" strokeLinecap="round" />
-                  <path d={d} stroke="transparent" strokeWidth={14} fill="none" />
+                  <path d={d} stroke="transparent" strokeWidth={14} fill="none" pointerEvents="all" />
                 </g>
               );
             })}
@@ -696,7 +696,7 @@ const TreePage = () => {
                       await unlinkPersons({ vansha_id: vid, person_id: u.maleNodeId, target_person_id: u.femaleNodeId });
                     })}>
                       <line x1={cx} y1={yTrunkStart} x2={cx} y2={yBar} stroke={trunkStroke} strokeWidth={trunkW} strokeOpacity={0.5} strokeLinecap="round" />
-                      <line x1={cx} y1={yTrunkStart} x2={cx} y2={yBar} stroke="transparent" strokeWidth={14} />
+                      <line x1={cx} y1={yTrunkStart} x2={cx} y2={yBar} stroke="transparent" strokeWidth={14} pointerEvents="all" />
                     </g>
                     <line x1={cx} y1={yBar} x2={xc} y2={yBar} stroke={trunkStroke} strokeWidth={trunkW} strokeOpacity={0.5} strokeLinecap="round" />
                     {/* Drop — click to remove child's parent link */}
@@ -704,7 +704,7 @@ const TreePage = () => {
                       await updatePerson(c.id, { parent_union_id: '' });
                     })}>
                       <line x1={xc} y1={yBar} x2={xc} y2={yAttach} stroke={dropStroke(c.relation)} strokeWidth={2} strokeOpacity={0.8} strokeLinecap="round" />
-                      <line x1={xc} y1={yBar} x2={xc} y2={yAttach} stroke="transparent" strokeWidth={14} />
+                      <line x1={xc} y1={yBar} x2={xc} y2={yAttach} stroke="transparent" strokeWidth={14} pointerEvents="all" />
                     </g>
                   </g>
                 );
@@ -722,7 +722,7 @@ const TreePage = () => {
                     await unlinkPersons({ vansha_id: vid, person_id: u.maleNodeId, target_person_id: u.femaleNodeId });
                   })}>
                     <line x1={cx} y1={yTrunkStart} x2={cx} y2={yBar} stroke={trunkStroke} strokeWidth={trunkW} strokeOpacity={0.5} strokeLinecap="round" />
-                    <line x1={cx} y1={yTrunkStart} x2={cx} y2={yBar} stroke="transparent" strokeWidth={14} />
+                    <line x1={cx} y1={yTrunkStart} x2={cx} y2={yBar} stroke="transparent" strokeWidth={14} pointerEvents="all" />
                   </g>
                   <line x1={leftX} y1={yBar} x2={rightX} y2={yBar} stroke={trunkStroke} strokeWidth={trunkW} strokeOpacity={0.5} strokeLinecap="round" />
                   {/* Drops — each click removes that child's parent link */}
@@ -734,7 +734,7 @@ const TreePage = () => {
                         await updatePerson(c.id, { parent_union_id: '' });
                       })}>
                         <line x1={xc} y1={yBar} x2={xc} y2={yAttach} stroke={dropStroke(c.relation)} strokeWidth={2} strokeOpacity={0.8} strokeLinecap="round" />
-                        <line x1={xc} y1={yBar} x2={xc} y2={yAttach} stroke="transparent" strokeWidth={14} />
+                        <line x1={xc} y1={yBar} x2={xc} y2={yAttach} stroke="transparent" strokeWidth={14} pointerEvents="all" />
                       </g>
                     );
                   })}
@@ -887,7 +887,7 @@ const TreePage = () => {
   const handleLinkSubmit = async () => {
     if (!connectPopup || !connectRelation || !connectingFromId) return;
     const vid = vanshaId || defaultVanshaFromEnv || getPersistedVanshaId();
-    if (!vid) return;
+    if (!vid) { toast({ title: "No vansha ID — open tree via /tree?vansha_id=...", variant: "destructive" }); return; }
     setConnectLinking(true);
     try {
       await linkPersons({ vansha_id: vid, person_id: connectingFromId, target_person_id: connectPopup.targetId, relation: connectRelation, union_id: connectUnionId || undefined });
