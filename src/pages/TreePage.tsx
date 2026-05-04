@@ -328,7 +328,20 @@ const ConnectLinkPanel: React.FC<ConnectLinkPanelProps> = ({
     n.name && n.name !== '—' &&
     (n.generation === sourceGeneration + 1 || n.generation === sourceGeneration - 1),
   );
-  const targetName = others.find(n => n.id === targetId)?.name ?? '';
+  const targetNode = others.find(n => n.id === targetId);
+  const targetName = targetNode?.name ?? '';
+
+  // Auto-derive available relations from selected member's generation
+  const relationsForTarget = useMemo(() => {
+    if (!targetId || targetNode === undefined) return [];
+    const tg = targetNode.generation ?? sourceGeneration;
+    if (tg > sourceGeneration) return ['Son', 'Daughter', 'Adopted Son', 'Adopted Daughter'];
+    if (tg === sourceGeneration) return ['Spouse'];
+    return ['Father', 'Mother'];
+  }, [targetId, targetNode, sourceGeneration]);
+
+  // Reset relation whenever target changes
+  useEffect(() => { setRelation(''); }, [targetId]);
 
   const handleConnect = async () => {
     if (!targetId || !relation) return;
@@ -382,9 +395,9 @@ const ConnectLinkPanel: React.FC<ConnectLinkPanelProps> = ({
                 <option value="">Select member…</option>
                 {others.map(n => <option key={n.id} value={n.id}>{n.name}</option>)}
               </select>
-              <select value={relation} onChange={e => setRelation(e.target.value)} className="ds-input w-full" style={{ fontSize: 12 }}>
-                <option value="">Select relation…</option>
-                {CONNECT_RELATION_OPTIONS.map(r => <option key={r} value={r}>{r}</option>)}
+              <select value={relation} onChange={e => setRelation(e.target.value)} className="ds-input w-full" style={{ fontSize: 12 }} disabled={relationsForTarget.length === 0}>
+                <option value="">{targetId ? 'Select relation…' : 'Select a member first…'}</option>
+                {relationsForTarget.map(r => <option key={r} value={r}>{r}</option>)}
               </select>
               {result === 'error' && (
                 <div style={{ fontSize: 11, color: '#dc2626' }}>Could not link — please try again.</div>
@@ -1252,7 +1265,7 @@ const TreePage = () => {
                 unionRows={(state.unionRows ?? []).map(u => ({ id: u.id, maleNodeId: u.maleNodeId, femaleNodeId: u.femaleNodeId }))}
                 vanshaId={vanshaId || defaultVanshaFromEnv}
                 onRefresh={async () => {
-                  const vid = vanshaId || defaultVanshaFromEnv;
+                  const vid = vanshaId || defaultVanshaFromEnv || getPersistedVanshaId();
                   if (!vid) return;
                   const data = await fetchVanshaTree(vid);
                   loadTreeState(backendPayloadToTreeState(data));
