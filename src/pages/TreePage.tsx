@@ -299,6 +299,7 @@ interface ConnectLinkPanelProps {
   sourceNodeId: string;
   sourceNodeName: string;
   allNodes: Array<{ id: string; name: string }>;
+  unionRows: Array<{ id: string; maleNodeId: string; femaleNodeId: string }>;
   vanshaId: string;
   onRefresh: () => Promise<void>;
 }
@@ -312,7 +313,7 @@ const CONNECT_RELATION_OPTIONS = [
 const SPOUSE_RELATIONS = new Set(['Spouse', 'husband', 'wife', 'Wife', 'Husband']);
 
 const ConnectLinkPanel: React.FC<ConnectLinkPanelProps> = ({
-  sourceNodeId, sourceNodeName, allNodes, vanshaId, onRefresh,
+  sourceNodeId, sourceNodeName, allNodes, unionRows, vanshaId, onRefresh,
 }) => {
   const [open, setOpen] = useState(false);
   const [targetId, setTargetId] = useState('');
@@ -332,13 +333,15 @@ const ConnectLinkPanel: React.FC<ConnectLinkPanelProps> = ({
         // Link as spouses — creates a union
         await linkExistingSpouses({ vansha_id: vanshaId, anchor_node_id: sourceNodeId, spouse_node_id: targetId });
       } else {
-        // Parent-child: determine who is the child and update their relation label.
-        // "Son"/"Daughter"/"Adopted Son"/"Adopted Daughter" → targetId is the child of sourceNodeId
-        // "Father"/"Mother" → sourceNodeId is the child of targetId
+        // Parent-child: set parent_union_id on the child — this is the structural connection.
+        // "Son"/"Daughter"/"Adopted Son"/"Adopted Daughter" → targetId is the child, sourceNodeId is the parent
+        // "Father"/"Mother" → sourceNodeId is the child, targetId is the parent
         const targetIsChild = ['Son', 'Daughter', 'Adopted Son', 'Adopted Daughter'].includes(relation);
-        const childId   = targetIsChild ? targetId   : sourceNodeId;
-        const parentRel = targetIsChild ? relation   : (relation === 'Father' ? 'Son' : 'Daughter');
-        await updatePerson(childId, { relation: parentRel });
+        const childId  = targetIsChild ? targetId   : sourceNodeId;
+        const parentId = targetIsChild ? sourceNodeId : targetId;
+        const parentUnion = unionRows.find(u => u.maleNodeId === parentId || u.femaleNodeId === parentId);
+        if (!parentUnion) throw new Error('No union found for parent — add a spouse first.');
+        await updatePerson(childId, { parent_union_id: parentUnion.id });
       }
       await onRefresh(); // await so tree updates before showing success
       setResult('success');
@@ -1246,6 +1249,7 @@ const TreePage = () => {
                 sourceNodeId={selectedNode.id}
                 sourceNodeName={selectedNode.name}
                 allNodes={state.nodes}
+                unionRows={(state.unionRows ?? []).map(u => ({ id: u.id, maleNodeId: u.maleNodeId, femaleNodeId: u.femaleNodeId }))}
                 vanshaId={vanshaId || defaultVanshaFromEnv}
                 onRefresh={async () => {
                   const vid = vanshaId || defaultVanshaFromEnv;
