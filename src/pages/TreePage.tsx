@@ -9,7 +9,7 @@ import { useTree } from '@/contexts/TreeContext';
 import AppShell from '@/components/shells/AppShell';
 import TreeCompletionScore from '@/components/ui/TreeCompletionScore';
 import TrustBadge from '@/components/ui/TrustBadge';
-import { fetchMatrimonyProfile, fetchVanshaTree, fetchVanshaTreePage, getApiBaseUrl, getPersistedVanshaId, linkExistingSpouses, linkPersons, unlinkPersons, updateVanshaMetadata } from '@/services/api';
+import { deletePerson, fetchMatrimonyProfile, fetchVanshaTree, fetchVanshaTreePage, getApiBaseUrl, getPersistedVanshaId, linkPersons, unlinkPersons, updatePerson, updateVanshaMetadata } from '@/services/api';
 import { backendPayloadToTreeState } from '@/services/mapVanshaPayload';
 import { mergeMatrimonyProfile } from '@/engine/matrimonyDefaults';
 import { canViewerSeeNodeDetails } from '@/engine/privacy';
@@ -334,6 +334,8 @@ const TreePage = () => {
   const [kulDevSaving, setKulDevSaving] = useState(false);
   const [isSavingParentLink, setIsSavingParentLink] = useState(false);
   const [unlinkingEdge, setUnlinkingEdge] = useState<string | null>(null);
+  const [deletingNodeId, setDeletingNodeId] = useState<string | null>(null);
+  const [inviteCopied, setInviteCopied] = useState(false);
   const [isPaginated, setIsPaginated] = useState(false);
   const [genMin, setGenMin] = useState(-3);
   const [genMax, setGenMax] = useState(genMin + PAGE_SIZE - 1);
@@ -629,25 +631,20 @@ const TreePage = () => {
               const childNode = state.nodes.find((n) => n.id === e.from);
               const adopted = childNode ? isAdoptedChildRelation(childNode.relation) : false;
               const pu = childNode?.parentUnionId?.trim();
-              const stroke = adopted
-                ? "hsl(var(--accent))"
-                : pu
-                  ? unionStrokeColor(pu)
-                  : "hsl(var(--primary))";
+              const stroke = adopted ? "hsl(var(--accent))" : pu ? unionStrokeColor(pu) : "hsl(var(--primary))";
               const fromY = frameBottomY(e.from);
               const toY   = frameTopY(e.to);
               const midY  = (fromY + toY) / 2;
+              const d = `M${from.x},${fromY} C${from.x},${midY} ${to.x},${midY} ${to.x},${toY}`;
+              const vid = vanshaId;
               return (
-                <path
-                  key={`ln-${i}`}
-                  d={`M${from.x},${fromY} C${from.x},${midY} ${to.x},${midY} ${to.x},${toY}`}
-                  stroke={adopted ? stroke : "url(#branch-grad)"}
-                  strokeWidth={adopted ? 2 : 2.5}
-                  strokeOpacity={adopted ? 0.55 : 1}
-                  strokeDasharray={adopted ? "5 4" : undefined}
-                  fill="none"
-                  strokeLinecap="round"
-                />
+                <g key={`ln-${i}`} style={{ cursor: 'pointer' }} onClick={() => handleDeleteLine(`leg-${e.from}-${e.to}`, async () => {
+                  if (!vid) return;
+                  await unlinkPersons({ vansha_id: vid, person_id: e.from, target_person_id: e.to });
+                })}>
+                  <path d={d} stroke={adopted ? stroke : "url(#branch-grad)"} strokeWidth={adopted ? 2 : 2.5} strokeOpacity={adopted ? 0.55 : 1} strokeDasharray={adopted ? "5 4" : undefined} fill="none" strokeLinecap="round" />
+                  <path d={d} stroke="transparent" strokeWidth={14} fill="none" />
+                </g>
               );
             })}
 
@@ -685,15 +682,30 @@ const TreePage = () => {
               const yBarIdeal = yTrunkStart - (yTrunkStart - Math.max(...bottoms)) / 3;
               const yBar = Math.max(yBarIdeal, Math.max(...bottoms) + minGap);
 
+              const vid = vanshaId;
+
               if (ordered.length === 1) {
                 const c = ordered[0];
                 const xc = nodeMap[c.id]?.x ?? cx;
                 const yAttach = childBottomY(c.id);
                 return (
                   <g key={`trunk-${u.id}`}>
-                    <line x1={cx} y1={yTrunkStart} x2={cx} y2={yBar} stroke={trunkStroke} strokeWidth={trunkW} strokeOpacity={0.5} strokeLinecap="round" />
+                    {/* Trunk spine — click to remove the couple link */}
+                    <g style={{ cursor: 'pointer' }} onClick={() => handleDeleteLine(`su-${u.id}`, async () => {
+                      if (!vid) return;
+                      await unlinkPersons({ vansha_id: vid, person_id: u.maleNodeId, target_person_id: u.femaleNodeId });
+                    })}>
+                      <line x1={cx} y1={yTrunkStart} x2={cx} y2={yBar} stroke={trunkStroke} strokeWidth={trunkW} strokeOpacity={0.5} strokeLinecap="round" />
+                      <line x1={cx} y1={yTrunkStart} x2={cx} y2={yBar} stroke="transparent" strokeWidth={14} />
+                    </g>
                     <line x1={cx} y1={yBar} x2={xc} y2={yBar} stroke={trunkStroke} strokeWidth={trunkW} strokeOpacity={0.5} strokeLinecap="round" />
-                    <line x1={xc} y1={yBar} x2={xc} y2={yAttach} stroke={dropStroke(c.relation)} strokeWidth={2} strokeOpacity={0.8} strokeLinecap="round" />
+                    {/* Drop — click to remove child's parent link */}
+                    <g style={{ cursor: 'pointer' }} onClick={() => handleDeleteLine(`pu-${c.id}`, async () => {
+                      await updatePerson(c.id, { parent_union_id: '' });
+                    })}>
+                      <line x1={xc} y1={yBar} x2={xc} y2={yAttach} stroke={dropStroke(c.relation)} strokeWidth={2} strokeOpacity={0.8} strokeLinecap="round" />
+                      <line x1={xc} y1={yBar} x2={xc} y2={yAttach} stroke="transparent" strokeWidth={14} />
+                    </g>
                   </g>
                 );
               }
@@ -704,16 +716,26 @@ const TreePage = () => {
 
               return (
                 <g key={`trunk-${u.id}`}>
-                  {/* Vertical trunk from parent frame top up to bar */}
-                  <line x1={cx} y1={yTrunkStart} x2={cx} y2={yBar} stroke={trunkStroke} strokeWidth={trunkW} strokeOpacity={0.5} strokeLinecap="round" />
-                  {/* Horizontal bar below all children, spanning their X range */}
+                  {/* Trunk spine — click to remove couple link */}
+                  <g style={{ cursor: 'pointer' }} onClick={() => handleDeleteLine(`su-${u.id}`, async () => {
+                    if (!vid) return;
+                    await unlinkPersons({ vansha_id: vid, person_id: u.maleNodeId, target_person_id: u.femaleNodeId });
+                  })}>
+                    <line x1={cx} y1={yTrunkStart} x2={cx} y2={yBar} stroke={trunkStroke} strokeWidth={trunkW} strokeOpacity={0.5} strokeLinecap="round" />
+                    <line x1={cx} y1={yTrunkStart} x2={cx} y2={yBar} stroke="transparent" strokeWidth={14} />
+                  </g>
                   <line x1={leftX} y1={yBar} x2={rightX} y2={yBar} stroke={trunkStroke} strokeWidth={trunkW} strokeOpacity={0.5} strokeLinecap="round" />
-                  {/* Drops from bar up to each child's bottom frame edge */}
+                  {/* Drops — each click removes that child's parent link */}
                   {ordered.map((c) => {
                     const xc = nodeMap[c.id]?.x ?? cx;
                     const yAttach = childBottomY(c.id);
                     return (
-                      <line key={`drop-${u.id}-${c.id}`} x1={xc} y1={yBar} x2={xc} y2={yAttach} stroke={dropStroke(c.relation)} strokeWidth={2} strokeOpacity={0.8} strokeLinecap="round" />
+                      <g key={`drop-${u.id}-${c.id}`} style={{ cursor: 'pointer' }} onClick={() => handleDeleteLine(`pu-${c.id}`, async () => {
+                        await updatePerson(c.id, { parent_union_id: '' });
+                      })}>
+                        <line x1={xc} y1={yBar} x2={xc} y2={yAttach} stroke={dropStroke(c.relation)} strokeWidth={2} strokeOpacity={0.8} strokeLinecap="round" />
+                        <line x1={xc} y1={yBar} x2={xc} y2={yAttach} stroke="transparent" strokeWidth={14} />
+                      </g>
                     );
                   })}
                 </g>
@@ -879,6 +901,35 @@ const TreePage = () => {
     }
   };
 
+  const handleDeleteNode = async (nodeId: string, name: string) => {
+    if (!confirm(`Delete "${name}" from the tree? This cannot be undone.`)) return;
+    setDeletingNodeId(nodeId);
+    try {
+      await deletePerson(nodeId);
+      setSelectedNodeId(null);
+      setRetryToken(t => t + 1);
+      toast({ title: `${name} removed from tree` });
+    } catch (err) {
+      toast({ title: 'Delete failed', description: err instanceof Error ? err.message : 'Error', variant: 'destructive' });
+    } finally {
+      setDeletingNodeId(null);
+    }
+  };
+
+  const handleDeleteLine = async (key: string, action: () => Promise<void>) => {
+    if (!confirm('Delete this connection?')) return;
+    setUnlinkingEdge(key);
+    try {
+      await action();
+      setRetryToken(t => t + 1);
+      toast({ title: 'Connection removed' });
+    } catch (err) {
+      toast({ title: 'Failed to remove connection', description: err instanceof Error ? err.message : 'Error', variant: 'destructive' });
+    } finally {
+      setUnlinkingEdge(null);
+    }
+  };
+
   const completionPct = Math.round(Math.min(100, (membersUsed / plan.maxNodes) * 100));
 
   const nodeOwnerId   = (selectedNode as Record<string, unknown> | undefined)?.ownerId   as string | undefined;
@@ -1007,471 +1058,159 @@ const TreePage = () => {
             overflowY: 'auto', flexShrink: 0,
           }}
         >
-          {/* Mobile drag handle / collapsed strip */}
+          {/* Mobile drag handle */}
           {isMobile && (
-            <div
-              onClick={() => !selectedNode && setSelectedNodeId(null)}
-              style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '10px 0 6px', cursor: 'pointer', flexShrink: 0 }}
-            >
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '10px 0 6px', flexShrink: 0 }}>
               <div style={{ width: 36, height: 4, borderRadius: 2, background: 'rgba(74,33,104,0.2)' }} />
             </div>
           )}
-          {isMobile && !selectedNode && (
-            <div style={{ padding: '4px 16px 12px', textAlign: 'center', fontSize: 12, color: 'rgba(74,33,104,0.5)' }}>
-              Tap a member to see details
-            </div>
-          )}
           {selectedNode ? (
-            <div style={{ padding: isMobile ? '4px 16px 20px' : 20 }}>
-              {/* Member header */}
-              <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginBottom: 12 }}>
-                <div style={{ width: 52, height: 52, borderRadius: '50%', background: 'linear-gradient(135deg,var(--ds-plum,#2e1346),#1a0a2e)', display: 'grid', placeItems: 'center', color: '#fff', fontSize: 22, fontFamily: 'var(--font-heading, serif)', fontWeight: 700, flexShrink: 0 }}>
-                  {(selectedNode.name || '?').charAt(0)}
-                </div>
-                <div style={{ flex: 1 }}>
-                  <div className="font-heading" style={{ fontSize: 18, color: 'var(--ds-plum,#2e1346)', fontWeight: 700 }}>{selectedNode.name}</div>
-                </div>
-                <button
-                  onClick={() => setSelectedNodeId(null)}
-                  style={{ width: 28, height: 28, borderRadius: '50%', border: 'none', background: 'rgba(74,33,104,0.08)', color: 'rgba(74,33,104,0.6)', fontSize: 16, cursor: 'pointer', display: 'grid', placeItems: 'center', flexShrink: 0 }}
-                  aria-label="Close"
-                >✕</button>
-              </div>
+            <div style={{ padding: isMobile ? '4px 16px 24px' : '16px 20px 24px' }}>
+              {/* ── Profile header ── */}
+              {(() => {
+                const isSelf = selectedNode.relation?.toLowerCase() === 'self';
+                const parentUnion = (state.unionRows ?? []).find(u =>
+                  u.id === selectedNode.parentUnionId ||
+                  (u.id ?? '').replace(/-/g,'') === (selectedNode.parentUnionId ?? '').replace(/-/g,'')
+                );
+                const fatherNode = parentUnion
+                  ? state.nodes.find(n => n.id === parentUnion.maleNodeId)
+                  : state.nodes.find(n => n.id === selectedNode.fatherNodeId);
+                const motherNode = parentUnion
+                  ? state.nodes.find(n => n.id === parentUnion.femaleNodeId)
+                  : state.nodes.find(n => n.id === selectedNode.motherNodeId);
+                const myUnions = (state.unionRows ?? []).filter(u =>
+                  u.maleNodeId === selectedNode.id || u.femaleNodeId === selectedNode.id
+                );
+                const spouseNodes = myUnions.map(u => {
+                  const sid = u.maleNodeId === selectedNode.id ? u.femaleNodeId : u.maleNodeId;
+                  return state.nodes.find(n => n.id === sid);
+                }).filter(Boolean);
+                const myUnionIds = new Set(myUnions.map(u => u.id));
+                const childNodes = state.nodes.filter(n => n.parentUnionId && myUnionIds.has(n.parentUnionId));
 
-              {/* Edit + Add member actions */}
-              <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
-                <button
-                  onClick={() => navigate(`/node/${selectedNode.id}`)}
-                  style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '8px 10px', borderRadius: 8, border: '1px solid rgba(74,33,104,0.15)', background: 'rgba(74,33,104,0.04)', fontSize: 12, fontWeight: 600, color: 'var(--ds-plum,#2e1346)', cursor: 'pointer' }}
-                >
-                  <Pencil className="w-3 h-3" /> Edit profile
-                </button>
-                <button
-                  onClick={() => {
-                    const vidForAdd = vanshaId || defaultVanshaFromEnv;
-                    if (vidForAdd) {
-                      navigate(`/node?vansha_id=${encodeURIComponent(vidForAdd)}&anchor_node_id=${encodeURIComponent(selectedNode.id)}`);
-                    } else {
-                      navigate(`/node?anchor_node_id=${encodeURIComponent(selectedNode.id)}`);
-                    }
-                  }}
-                  style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '8px 10px', borderRadius: 8, border: 'none', background: 'var(--ds-plum,#2e1346)', fontSize: 12, fontWeight: 600, color: '#fff', cursor: 'pointer' }}
-                >
-                  <UserPlus className="w-3 h-3" /> Add member
-                </button>
-              </div>
+                const row = (label: string, value: string | undefined) => value ? (
+                  <div key={label} style={{ display: 'grid', gridTemplateColumns: '88px 1fr', gap: 4, padding: '4px 0', fontSize: 12, borderBottom: '1px solid rgba(74,33,104,0.06)' }}>
+                    <span style={{ color: 'rgba(74,33,104,0.5)', fontSize: 11 }}>{label}</span>
+                    <span style={{ color: '#1c0d2e', fontWeight: 500 }}>{value}</span>
+                  </div>
+                ) : null;
 
-              {/* ── Link management card (always visible) ─────────────── */}
-              <div style={{ marginBottom: 14, borderRadius: 10, border: '1px solid rgba(74,33,104,0.18)', background: 'rgba(74,33,104,0.03)', overflow: 'hidden' }}>
-                <div style={{ padding: '10px 14px 6px', fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'rgba(74,33,104,0.5)', fontWeight: 700 }}>Links</div>
+                const inviteLink = `${window.location.origin}/code?type=node&nodeId=${selectedNode.id}`;
 
-                {/* 1 — click-to-connect on canvas */}
-                <div style={{ padding: '4px 14px 10px' }}>
-                  <button
-                    onClick={() => { setConnectingFromId(selectedNode.id); setSelectedNodeId(null); }}
-                    style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 8, padding: '9px 12px', borderRadius: 8, border: 'none', background: 'var(--ds-plum,#2e1346)', color: '#fff', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
-                  >
-                    <span style={{ fontSize: 15 }}>🔗</span>
-                    <span>Connect to another member</span>
-                    <span style={{ marginLeft: 'auto', opacity: 0.6, fontSize: 11 }}>click on tree →</span>
-                  </button>
-                </div>
+                return (
+                  <>
+                    {/* Name + close */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14 }}>
+                      <div style={{ width: 48, height: 48, borderRadius: '50%', background: 'linear-gradient(135deg,#2e1346,#1a0a2e)', display: 'grid', placeItems: 'center', color: '#fff', fontSize: 20, fontWeight: 700, flexShrink: 0 }}>
+                        {(selectedNode.name || '?').charAt(0).toUpperCase()}
+                      </div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 17, fontWeight: 700, color: '#1c0d2e', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{selectedNode.name}</div>
+                        <div style={{ fontSize: 11, color: 'rgba(74,33,104,0.5)', marginTop: 1 }}>{selectedNode.relation || ''}</div>
+                      </div>
+                      <button onClick={() => setSelectedNodeId(null)} style={{ width: 28, height: 28, borderRadius: '50%', border: 'none', background: 'rgba(74,33,104,0.08)', color: 'rgba(74,33,104,0.6)', fontSize: 15, cursor: 'pointer', display: 'grid', placeItems: 'center', flexShrink: 0 }}>✕</button>
+                    </div>
 
-                {/* 2 — link as child of a couple */}
-                {vanshaId && (() => {
-                  const unionOptions = (state.unionRows ?? []).map(u => {
-                    const mNode = state.nodes.find(n => n.id === u.maleNodeId);
-                    const fNode = state.nodes.find(n => n.id === u.femaleNodeId);
-                    return { id: u.id, label: `${mNode?.givenName || mNode?.name || '?'} + ${fNode?.givenName || fNode?.name || '?'}` };
-                  });
-                  if (unionOptions.length === 0) return null;
-                  return (
-                    <div style={{ padding: '0 14px 10px', borderTop: '1px solid rgba(74,33,104,0.08)' }}>
-                      <div style={{ fontSize: 10, color: 'rgba(74,33,104,0.5)', margin: '8px 0 6px' }}>Set as child of couple (restores trunk line)</div>
-                      <div style={{ display: 'flex', gap: 6 }}>
-                        <select
-                          value={linkParentUnionId}
-                          onChange={e => setLinkParentUnionId(e.target.value)}
-                          style={{ flex: 1, padding: '6px 8px', borderRadius: 6, border: '1px solid rgba(74,33,104,0.2)', background: '#faf8f2', fontSize: 11, outline: 'none' }}
-                        >
-                          <option value="">Select couple…</option>
-                          {unionOptions.map(u => <option key={u.id} value={u.id}>{u.label}</option>)}
-                        </select>
+                    {/* Profile fields */}
+                    <div style={{ marginBottom: 14, borderRadius: 8, border: '1px solid rgba(74,33,104,0.1)', overflow: 'hidden', background: '#faf8f2' }}>
+                      <div style={{ padding: '8px 12px 4px' }}>
+                        {row('Date of Birth', selectedNode.dateOfBirth || undefined)}
+                        {row('Father', fatherNode?.name)}
+                        {row('Mother', motherNode?.name)}
+                        {spouseNodes.length > 0 && row('Spouse', spouseNodes.map(s => s!.name).join(', '))}
+                        {childNodes.length > 0 && row('Children', childNodes.map(c => c.name).join(', '))}
+                        {!selectedNode.dateOfBirth && !fatherNode && !motherNode && spouseNodes.length === 0 && childNodes.length === 0 && (
+                          <div style={{ fontSize: 11, color: 'rgba(74,33,104,0.4)', padding: '6px 0 4px', fontStyle: 'italic' }}>No profile details yet</div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Action buttons */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 14 }}>
+                      {/* Edit */}
+                      <button
+                        onClick={() => navigate(`/node/${selectedNode.id}`)}
+                        style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', borderRadius: 8, border: '1px solid rgba(74,33,104,0.2)', background: 'rgba(74,33,104,0.04)', fontSize: 13, fontWeight: 600, color: '#2e1346', cursor: 'pointer' }}
+                      >
+                        <Pencil className="w-4 h-4" /> Edit profile
+                      </button>
+
+                      {/* Connect */}
+                      <button
+                        onClick={() => { setConnectingFromId(selectedNode.id); setSelectedNodeId(null); }}
+                        style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', borderRadius: 8, border: 'none', background: '#2e1346', fontSize: 13, fontWeight: 600, color: '#fff', cursor: 'pointer' }}
+                      >
+                        <span style={{ fontSize: 16 }}>🔗</span> Connect to another member
+                        <span style={{ marginLeft: 'auto', opacity: 0.6, fontSize: 11 }}>tap on tree →</span>
+                      </button>
+
+                      {/* Delete (not self) */}
+                      {!isSelf && (
                         <button
-                          disabled={!linkParentUnionId || isSavingParentLink}
-                          onClick={async () => {
-                            if (!linkParentUnionId || !selectedNode) return;
-                            setIsSavingParentLink(true);
-                            try {
-                              await updatePerson(selectedNode.id, { parent_union_id: linkParentUnionId });
-                              const data = await fetchVanshaTree(vanshaId!);
-                              loadTreeState(backendPayloadToTreeState(data));
-                              setLinkParentUnionId('');
-                              toast({ title: 'Trunk line restored' });
-                            } catch (e) {
-                              toast({ title: 'Failed', description: e instanceof Error ? e.message : 'Error', variant: 'destructive' });
-                            } finally {
-                              setIsSavingParentLink(false);
-                            }
-                          }}
-                          style={{ padding: '6px 12px', borderRadius: 6, border: 'none', background: linkParentUnionId ? 'var(--ds-plum,#2e1346)' : 'rgba(74,33,104,0.15)', color: '#fff', fontSize: 11, fontWeight: 700, cursor: linkParentUnionId && !isSavingParentLink ? 'pointer' : 'default', whiteSpace: 'nowrap' }}
+                          disabled={deletingNodeId === selectedNode.id}
+                          onClick={() => handleDeleteNode(selectedNode.id, selectedNode.name)}
+                          style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', borderRadius: 8, border: '1px solid rgba(220,38,38,0.3)', background: 'rgba(220,38,38,0.04)', fontSize: 13, fontWeight: 600, color: '#b91c1c', cursor: 'pointer', opacity: deletingNodeId === selectedNode.id ? 0.5 : 1 }}
                         >
-                          {isSavingParentLink ? '…' : 'Link'}
+                          <span style={{ fontSize: 15 }}>🗑</span>
+                          {deletingNodeId === selectedNode.id ? 'Deleting…' : 'Delete member'}
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Invite link */}
+                    <div style={{ padding: '10px 12px', borderRadius: 8, border: '1px solid rgba(74,33,104,0.12)', background: '#faf8f2' }}>
+                      <div style={{ fontSize: 10, color: 'rgba(74,33,104,0.5)', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.1em' }}>Invite to join as {selectedNode.name}</div>
+                      <div style={{ display: 'flex', gap: 6 }}>
+                        <div style={{ flex: 1, padding: '5px 8px', borderRadius: 6, background: '#fff', border: '1px solid rgba(74,33,104,0.15)', fontSize: 10, fontFamily: 'monospace', color: '#2e1346', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{inviteLink}</div>
+                        <button
+                          onClick={async () => {
+                            await navigator.clipboard.writeText(inviteLink);
+                            setInviteCopied(true);
+                            setTimeout(() => setInviteCopied(false), 2000);
+                            toast({ title: 'Invite link copied!' });
+                          }}
+                          style={{ padding: '5px 10px', borderRadius: 6, border: 'none', background: '#2e1346', color: '#fff', fontSize: 11, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0 }}
+                        >
+                          {inviteCopied ? '✓ Copied' : 'Copy'}
                         </button>
                       </div>
                     </div>
-                  );
-                })()}
-
-                {/* 3 — existing links with remove buttons
-                    Sources: unionRows (spouse/parent), node.parentUnionId (child-of), direct edges (legacy) */}
-                {(() => {
-                  type LinkItem = { key: string; label: string; relation: string; onRemove: () => Promise<void> };
-                  const items: LinkItem[] = [];
-                  const vid = vanshaId;
-
-                  // Child-of: this node has a parent union
-                  const puId = selectedNode.parentUnionId;
-                  if (puId) {
-                    const u = (state.unionRows ?? []).find(r => r.id === puId || r.id.replace(/-/g,'') === puId.replace(/-/g,''));
-                    const mN = positionedNodes.find(n => n.id === u?.maleNodeId);
-                    const fN = positionedNodes.find(n => n.id === u?.femaleNodeId);
-                    items.push({
-                      key: `pu-${puId}`,
-                      label: u ? `${mN?.name ?? '?'} + ${fN?.name ?? '?'}` : puId.slice(0, 8),
-                      relation: 'child of',
-                      onRemove: async () => {
-                        if (!vid) return;
-                        await updatePerson(selectedNode.id, { parent_union_id: '' });
-                        setRetryToken(t => t + 1);
-                        toast({ title: 'Parent link removed' });
-                      },
-                    });
-                  }
-
-                  // Spouse / union: node is maleNodeId or femaleNodeId in a union row
-                  (state.unionRows ?? [])
-                    .filter(u => u.maleNodeId === selectedNode.id || u.femaleNodeId === selectedNode.id)
-                    .forEach(u => {
-                      const otherId = u.maleNodeId === selectedNode.id ? u.femaleNodeId : u.maleNodeId;
-                      const otherNode = positionedNodes.find(n => n.id === otherId);
-                      items.push({
-                        key: `su-${u.id}`,
-                        label: otherNode?.name ?? otherId.slice(0, 8),
-                        relation: 'spouse / union',
-                        onRemove: async () => {
-                          if (!vid) return;
-                          await unlinkPersons({ vansha_id: vid, person_id: selectedNode.id, target_person_id: otherId });
-                          setRetryToken(t => t + 1);
-                          toast({ title: 'Spouse link removed' });
-                        },
-                      });
-                    });
-
-                  // Legacy direct edges (rare – only when no union row covers them)
-                  edges
-                    .filter(e => e.from === selectedNode.id || e.to === selectedNode.id)
-                    .forEach(e => {
-                      const otherId = e.from === selectedNode.id ? e.to : e.from;
-                      if (items.some(it => it.key.includes(otherId))) return; // already shown
-                      const otherNode = positionedNodes.find(n => n.id === otherId);
-                      items.push({
-                        key: `ed-${e.from}|${e.to}`,
-                        label: otherNode?.name ?? otherId.slice(0, 8),
-                        relation: e.relation,
-                        onRemove: async () => {
-                          if (!vid) return;
-                          await unlinkPersons({ vansha_id: vid, person_id: e.from, target_person_id: e.to });
-                          setRetryToken(t => t + 1);
-                          toast({ title: 'Link removed' });
-                        },
-                      });
-                    });
-
-                  return (
-                    <div style={{ borderTop: '1px solid rgba(74,33,104,0.08)', padding: '8px 14px 10px' }}>
-                      <div style={{ fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'rgba(74,33,104,0.4)', marginBottom: 6 }}>
-                        {items.length === 0 ? 'No links yet' : 'Existing links · remove wrong ones'}
-                      </div>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-                        {items.map(item => (
-                          <div key={item.key} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '5px 8px', borderRadius: 6, background: '#fff', border: '1px solid rgba(74,33,104,0.1)' }}>
-                            <span style={{ fontSize: 13 }}>👤</span>
-                            <div style={{ flex: 1, minWidth: 0 }}>
-                              <div style={{ fontSize: 11, fontWeight: 600, color: '#1c0d2e', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.label}</div>
-                              <div style={{ fontSize: 9, color: 'rgba(74,33,104,0.45)' }}>{item.relation}</div>
-                            </div>
-                            <button
-                              disabled={unlinkingEdge === item.key}
-                              onClick={async () => {
-                                if (!confirm(`Remove: ${selectedNode.name} ↔ ${item.label} (${item.relation})?`)) return;
-                                setUnlinkingEdge(item.key);
-                                try {
-                                  await item.onRemove();
-                                } catch (err) {
-                                  toast({ title: 'Failed', description: err instanceof Error ? err.message : 'Error', variant: 'destructive' });
-                                } finally {
-                                  setUnlinkingEdge(null);
-                                }
-                              }}
-                              style={{ padding: '3px 8px', borderRadius: 5, border: '1px solid rgba(220,38,38,0.3)', background: 'rgba(220,38,38,0.06)', color: '#b91c1c', fontSize: 10, fontWeight: 700, cursor: unlinkingEdge === item.key ? 'default' : 'pointer', whiteSpace: 'nowrap', opacity: unlinkingEdge === item.key ? 0.5 : 1, flexShrink: 0 }}
-                            >
-                              {unlinkingEdge === item.key ? '…' : '✕ Remove'}
-                            </button>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  );
-                })()}
-              </div>
-
-              {/* Node sovereignty strip */}
-              {isSovereign ? (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '7px 10px', borderRadius: 7, background: 'rgba(34,120,58,0.07)', border: '1px solid rgba(34,120,58,0.2)', marginBottom: 14, fontSize: 11 }}>
-                  <span style={{ fontSize: 14 }}>🔑</span>
-                  <span style={{ color: '#1a6b32', fontWeight: 600 }}>You own this node</span>
-                  <span style={{ color: 'rgba(34,120,58,0.55)', marginLeft: 2 }}>· full control</span>
-                </div>
-              ) : isCreator && isUnclaimed ? (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '7px 10px', borderRadius: 7, background: 'rgba(74,33,104,0.05)', border: '1px solid rgba(74,33,104,0.14)', marginBottom: 14, fontSize: 11 }}>
-                  <span style={{ fontSize: 14 }}>✍️</span>
-                  <span style={{ color: 'var(--ds-plum,#2e1346)', fontWeight: 600 }}>Added by you</span>
-                  <span style={{ color: 'rgba(74,33,104,0.45)', marginLeft: 2 }}>· control until claimed</span>
-                </div>
-              ) : !canControl && isUnclaimed ? (
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 10px', borderRadius: 7, background: 'rgba(232,116,34,0.06)', border: '1px solid rgba(232,116,34,0.22)', marginBottom: 14 }}>
-                  <div style={{ fontSize: 11, color: 'var(--ds-plum,#2e1346)' }}>
-                    <span style={{ fontWeight: 600 }}>Unclaimed node</span>
-                    <span style={{ color: 'rgba(74,33,104,0.5)', marginLeft: 4 }}>· Is this you?</span>
-                  </div>
-                  <button
-                    onClick={() => navigate(`/node/${selectedNode.id}`)}
-                    style={{ fontSize: 11, padding: '4px 10px', borderRadius: 6, border: 'none', background: '#e87422', color: '#fff', fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}
-                  >Claim →</button>
-                </div>
-              ) : !canControl ? (
-                <div style={{ padding: '7px 10px', borderRadius: 7, background: 'rgba(74,33,104,0.04)', border: '1px solid rgba(74,33,104,0.1)', marginBottom: 14, fontSize: 11, color: 'rgba(74,33,104,0.5)' }}>
-                  🔒 Owned and managed by this person
-                </div>
-              ) : null}
-
-              {/* Personal label editor */}
-              <PersonalLabelEditor
-                nodeId={selectedNode.id}
-                currentLabel={getLabel(selectedNode.id)}
-                onSave={(label) => setLabel(selectedNode.id, label)}
-              />
-
-              {/* Arpit karein — punya seva CTAs */}
-              <div style={{ marginBottom: 14 }}>
-                <div className="ds-eyebrow" style={{ color: 'var(--ds-muted)', marginBottom: 8, fontSize: 9 }}>अर्पित करें · In their name</div>
-                <div style={{ display: 'grid', gap: 7 }}>
-                  {[
-                    { icon: '🌳', label: 'Plant a tree', sub: '100 kg O₂/yr · 200+ species', color: '#1a6b32' },
-                    { icon: '💧', label: 'Water station for animals', sub: 'Earn punya this summer', color: '#1a4a8a' },
-                    { icon: '🫗', label: 'Jal seva · Water drive', sub: 'Quench thirst, earn punya', color: '#1a5a6a' },
-                    { icon: '🧹', label: 'Swachchhata drive', sub: 'Lead a cleanliness drive', color: '#5a2a8a' },
-                    { icon: '🙌', label: 'Do it yourself', sub: 'Log your own seva', color: '#8a3a00' },
-                  ].map(({ icon, label, sub, color }) => (
-                    <div
-                      key={label}
-                      style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px', borderRadius: 8, border: `1px solid ${color}22`, background: `${color}08` }}
-                    >
-                      <span style={{ fontSize: 20, lineHeight: 1, flexShrink: 0 }}>{icon}</span>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--ds-plum,#2e1346)' }}>{label}</div>
-                        <div style={{ fontSize: 10, color: 'rgba(74,33,104,0.5)', marginTop: 1 }}>{sub}</div>
-                      </div>
-                      <span style={{ fontSize: 10, fontWeight: 600, color: 'var(--ds-muted,#6b6b8a)', flexShrink: 0, whiteSpace: 'nowrap' }}>Coming Soon</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Vital details */}
-              <div style={{ padding: '14px 0', borderTop: '1px solid var(--ds-border,rgba(74,33,104,0.1))', borderBottom: '1px solid var(--ds-border,rgba(74,33,104,0.1))', marginBottom: 14 }}>
-                <div className="ds-eyebrow" style={{ color: 'var(--ds-muted)', marginBottom: 8, fontSize: 9 }}>Vital details</div>
-                {[
-                  ['Name', selectedNode.name],
-                  ['आप क्या कहते हैं', getLabel(selectedNode.id) || '—'],
-                  (canControl || (selectedNode as Record<string,unknown>).privacyLevel !== 'private') && selectedNode.dateOfBirth ? ['Date of birth', selectedNode.dateOfBirth] : null,
-                  selectedNode.ancestralPlace ? ['Ancestral place', selectedNode.ancestralPlace] : null,
-                  selectedNode.currentResidence ? ['Residence', selectedNode.currentResidence] : null,
-                ].filter(Boolean).map(([k, v]) => (
-                  <div key={k as string} style={{ display: 'grid', gridTemplateColumns: '110px 1fr', gap: 6, padding: '5px 0', fontSize: 13 }}>
-                    <span style={{ color: 'var(--ds-muted,#6b6b8a)' }}>{k}</span>
-                    <span style={{ color: 'var(--ds-text,#1c0d2e)', fontWeight: 500 }}>{v}</span>
-                  </div>
-                ))}
-              </div>
-
-              {/* Privacy — only node sovereign or creator can change */}
-              {canControl && (
-                <div style={{ padding: '12px 0', borderBottom: '1px solid var(--ds-border,rgba(74,33,104,0.1))', marginBottom: 14 }}>
-                  <div className="ds-eyebrow" style={{ color: 'var(--ds-muted)', marginBottom: 8, fontSize: 9 }}>Privacy</div>
-                  <select className="ds-input w-full" defaultValue="Tree (all generations)">
-                    <option>Private (only you)</option>
-                    <option>Parents only</option>
-                    <option>Grandparents and above</option>
-                    <option>Tree (all generations)</option>
-                    <option>Public</option>
-                  </select>
-                </div>
-              )}
-
-              {/* Node actions */}
-              <div style={{ marginBottom: 14 }}>
-                <div className="ds-eyebrow" style={{ color: 'var(--ds-muted)', marginBottom: 10, fontSize: 9 }}>Actions</div>
-                <div style={{ display: 'grid', gap: 8 }}>
-                  {/* Coming soon actions */}
-                  {[
-                    { icon: '📜', label: 'Generate vanshavali' },
-                    { icon: '🪷', label: 'Log a ceremony' },
-                  ].map(({ icon, label }) => (
-                    <div
-                      key={label}
-                      style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px', borderRadius: 8, border: '1px solid var(--ds-border,rgba(74,33,104,0.08))', background: 'rgba(74,33,104,0.02)', fontSize: 13, opacity: 0.65 }}
-                    >
-                      <span style={{ color: 'var(--ds-muted,#6b6b8a)' }}>{icon} {label}</span>
-                      <span style={{ fontSize: 10, fontWeight: 600, color: 'var(--ds-muted,#6b6b8a)' }}>Coming Soon</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
+                  </>
+                );
+              })()}
             </div>
           ) : (
             <div style={{ padding: 20 }}>
-              <div className="ds-eyebrow" style={{ color: 'var(--ds-muted)', marginBottom: 12, fontSize: 9 }}>Tree overview</div>
-              <div style={{ display: 'grid', gap: 10, marginBottom: 20 }}>
-                <div className="ds-card" style={{ padding: '14px' }}>
-                  <div className="ds-eyebrow" style={{ color: 'var(--ds-muted)', fontSize: 9 }}>Members</div>
-                  <div className="font-heading" style={{ fontSize: 22, fontWeight: 700, color: 'var(--ds-text)' }}>{membersUsed} <span style={{ fontSize: 13, fontWeight: 400, color: 'var(--ds-muted)' }}>/ {plan.maxNodes}</span></div>
-                  <div style={{ marginTop: 6, height: 4, borderRadius: 2, background: 'var(--ds-border)', overflow: 'hidden' }}>
-                    <div style={{ width: `${Math.min(100, membersUsed / plan.maxNodes * 100)}%`, height: '100%', background: 'linear-gradient(90deg,var(--ds-plum),var(--ds-gold))' }} />
-                  </div>
+              {/* Tree stats */}
+              <div style={{ fontSize: 13, fontWeight: 700, color: '#1c0d2e', marginBottom: 12 }}>
+                {state.treeName || 'Vansha Tree'}
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 18 }}>
+                <div style={{ padding: '10px 12px', borderRadius: 8, border: '1px solid rgba(74,33,104,0.1)', background: '#faf8f2', textAlign: 'center' }}>
+                  <div style={{ fontSize: 22, fontWeight: 700, color: '#2e1346' }}>{membersUsed}</div>
+                  <div style={{ fontSize: 10, color: 'rgba(74,33,104,0.5)' }}>Members</div>
                 </div>
-                <div className="ds-card" style={{ padding: '14px' }}>
-                  <div className="ds-eyebrow" style={{ color: 'var(--ds-muted)', fontSize: 9 }}>Generations</div>
-                  <div className="font-heading" style={{ fontSize: 22, fontWeight: 700, color: 'var(--ds-text)' }}>{generationsUsed} <span style={{ fontSize: 13, fontWeight: 400, color: 'var(--ds-muted)' }}>/ {plan.generationCap}</span></div>
+                <div style={{ padding: '10px 12px', borderRadius: 8, border: '1px solid rgba(74,33,104,0.1)', background: '#faf8f2', textAlign: 'center' }}>
+                  <div style={{ fontSize: 22, fontWeight: 700, color: '#2e1346' }}>{generationsUsed}</div>
+                  <div style={{ fontSize: 10, color: 'rgba(74,33,104,0.5)' }}>Generations</div>
                 </div>
               </div>
 
-              {/* ── Kul Devata card ── */}
-              <div className="ds-card" style={{ padding: '14px', marginBottom: 16 }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-                  <div className="ds-eyebrow" style={{ color: 'var(--ds-muted)', fontSize: 9 }}>🪔 Kul Devata</div>
-                  {hasEntitlement('culturalFields') ? (
-                    kulDevEditing ? (
-                      <div style={{ display: 'flex', gap: 6 }}>
-                        <button
-                          onClick={async () => {
-                            const vid = vanshaId || defaultVanshaFromEnv;
-                            if (!vid) return;
-                            setKulDevSaving(true);
-                            try {
-                              await updateVanshaMetadata(vid, {
-                                kuldevi: kuldeviEdit.trim() || undefined,
-                                kuldevta: kuldevtaEdit.trim() || undefined,
-                              });
-                              // Refresh tree state to pick up new values
-                              const data = await fetchVanshaTree(vid);
-                              loadTreeState(backendPayloadToTreeState(data));
-                              toast({ title: 'Kul Devata updated' });
-                              setKulDevEditing(false);
-                            } catch {
-                              toast({ title: 'Could not save', variant: 'destructive' });
-                            } finally {
-                              setKulDevSaving(false);
-                            }
-                          }}
-                          disabled={kulDevSaving}
-                          style={{ fontSize: 11, color: 'var(--ds-gold)', fontWeight: 600, background: 'none', border: 'none', cursor: 'pointer' }}
-                        >
-                          {kulDevSaving ? '…' : 'Save'}
-                        </button>
-                        <button
-                          onClick={() => setKulDevEditing(false)}
-                          style={{ fontSize: 11, color: 'var(--ds-muted)', background: 'none', border: 'none', cursor: 'pointer' }}
-                        >
-                          Cancel
-                        </button>
-                      </div>
-                    ) : (
-                      <button
-                        onClick={() => {
-                          setKuldeviEdit(state.kuldevi ?? '');
-                          setKuldevtaEdit(state.kuldevta ?? '');
-                          setKulDevEditing(true);
-                        }}
-                        style={{ fontSize: 10, color: 'var(--ds-plum)', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 600 }}
-                      >
-                        Edit
-                      </button>
-                    )
-                  ) : (
-                    <span title="Requires Ankur plan or above" style={{ fontSize: 10, color: 'var(--ds-gold)', cursor: 'default' }}>🔒 Paid</span>
-                  )}
-                </div>
-
-                {kulDevEditing && hasEntitlement('culturalFields') ? (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                    <div>
-                      <div style={{ fontSize: 10, color: 'var(--ds-muted)', marginBottom: 3 }}>कुलदेवी / Kuldevi</div>
-                      <input
-                        value={kuldeviEdit}
-                        onChange={e => setKuldeviEdit(e.target.value)}
-                        placeholder="e.g. Sheetala Mata"
-                        style={{ width: '100%', fontSize: 12, padding: '5px 8px', borderRadius: 6, border: '1px solid var(--ds-border)', background: 'var(--ds-card)', color: 'var(--ds-text)' }}
-                      />
-                    </div>
-                    <div>
-                      <div style={{ fontSize: 10, color: 'var(--ds-muted)', marginBottom: 3 }}>कुलदेवता / Kuldevta</div>
-                      <input
-                        value={kuldevtaEdit}
-                        onChange={e => setKuldevtaEdit(e.target.value)}
-                        placeholder="e.g. Shiva, Ganesh"
-                        style={{ width: '100%', fontSize: 12, padding: '5px 8px', borderRadius: 6, border: '1px solid var(--ds-border)', background: 'var(--ds-card)', color: 'var(--ds-text)' }}
-                      />
-                    </div>
+              {/* Usage guide */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {[
+                  { icon: '👆', text: 'Tap any member to see their profile' },
+                  { icon: '🔗', text: 'Tap member → Connect → tap another to draw a line' },
+                  { icon: '✂️', text: 'Click any line in the tree to delete it' },
+                  { icon: '🗑', text: 'Select a member → Delete member to remove them' },
+                ].map(({ icon, text }) => (
+                  <div key={text} style={{ display: 'flex', gap: 10, padding: '8px 10px', borderRadius: 7, background: 'rgba(74,33,104,0.03)', border: '1px solid rgba(74,33,104,0.07)', fontSize: 12, color: '#1c0d2e', alignItems: 'flex-start' }}>
+                    <span style={{ fontSize: 16, flexShrink: 0 }}>{icon}</span>
+                    <span>{text}</span>
                   </div>
-                ) : (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <span style={{ fontSize: 10, color: 'var(--ds-muted)', width: 56, flexShrink: 0 }}>कुलदेवी</span>
-                      <span style={{ fontSize: 13, fontWeight: 600, color: state.kuldevi ? 'var(--ds-plum)' : 'var(--ds-muted)' }}>
-                        {state.kuldevi || (hasEntitlement('culturalFields') ? '— not set' : '—')}
-                      </span>
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <span style={{ fontSize: 10, color: 'var(--ds-muted)', width: 56, flexShrink: 0 }}>कुलदेवता</span>
-                      <span style={{ fontSize: 13, fontWeight: 600, color: state.kuldevta ? 'var(--ds-plum)' : 'var(--ds-muted)' }}>
-                        {state.kuldevta || (hasEntitlement('culturalFields') ? '— not set' : '—')}
-                      </span>
-                    </div>
-                    {!hasEntitlement('culturalFields') && (
-                      <p style={{ fontSize: 10, color: 'var(--ds-muted)', marginTop: 4, lineHeight: 1.4 }}>
-                        Upgrade to Ankur to update Kul Devata for your tree.
-                      </p>
-                    )}
-                  </div>
-                )}
+                ))}
               </div>
-
-              <div style={{ fontSize: 12, color: 'var(--ds-muted)', textAlign: 'center', padding: '20px 0' }}>
-                Tap any member in the tree to see their details and actions here.
-              </div>
-
-              {isTreeInitialized && (
-                <div style={{ marginTop: 8 }}>
-                  <InvitePanel
-                    selectedNodeId={selectedNodeId}
-                    nodeName={state.nodes.find(n => n.id === selectedNodeId)?.name}
-                    treeName={state.treeName}
-                  />
-                </div>
-              )}
             </div>
           )}
         </aside>
