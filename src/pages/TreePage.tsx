@@ -9,7 +9,7 @@ import { useTree } from '@/contexts/TreeContext';
 import AppShell from '@/components/shells/AppShell';
 import TreeCompletionScore from '@/components/ui/TreeCompletionScore';
 import TrustBadge from '@/components/ui/TrustBadge';
-import { fetchMatrimonyProfile, fetchVanshaTree, fetchVanshaTreePage, getApiBaseUrl, getPersistedVanshaId, linkExistingSpouses, linkPersons, updateVanshaMetadata } from '@/services/api';
+import { fetchMatrimonyProfile, fetchVanshaTree, fetchVanshaTreePage, getApiBaseUrl, getPersistedVanshaId, linkExistingSpouses, linkPersons, unlinkPersons, updateVanshaMetadata } from '@/services/api';
 import { backendPayloadToTreeState } from '@/services/mapVanshaPayload';
 import { mergeMatrimonyProfile } from '@/engine/matrimonyDefaults';
 import { canViewerSeeNodeDetails } from '@/engine/privacy';
@@ -333,6 +333,7 @@ const TreePage = () => {
   const [kulDevEditing, setKulDevEditing] = useState(false);
   const [kulDevSaving, setKulDevSaving] = useState(false);
   const [isSavingParentLink, setIsSavingParentLink] = useState(false);
+  const [unlinkingEdge, setUnlinkingEdge] = useState<string | null>(null);
   const [isPaginated, setIsPaginated] = useState(false);
   const [genMin, setGenMin] = useState(-3);
   const [genMax, setGenMax] = useState(genMin + PAGE_SIZE - 1);
@@ -740,10 +741,13 @@ const TreePage = () => {
                       const src = positionedNodes.find(n => n.id === connectingFromId);
                       if (!src) return;
                       const diff = node.generation - src.generation;
-                      if (Math.abs(diff) !== 1 && diff !== 0) return;
-                      const opts = diff > 0
+                      const opts = (diff > 0 && Number.isFinite(diff))
                         ? ['Son', 'Daughter', 'Adopted Son', 'Adopted Daughter']
-                        : diff < 0 ? ['Father', 'Mother'] : ['Spouse'];
+                        : (diff < 0 && Number.isFinite(diff))
+                          ? ['Father', 'Mother']
+                          : diff === 0
+                            ? ['Spouse']
+                            : ['Son', 'Daughter', 'Father', 'Mother', 'Spouse', 'Adopted Son', 'Adopted Daughter'];
                       // Find unions belonging to the parent node for the picker
                       const parentNodeId = diff > 0 ? src.id : diff < 0 ? node.id : null;
                       const nameById = new Map(positionedNodes.map(n => [n.id, n.name]));
@@ -1110,6 +1114,54 @@ const TreePage = () => {
                       >
                         {isSavingParentLink ? 'Connecting…' : '🔗 Link as child of this couple'}
                       </button>
+                    </div>
+                  </details>
+                );
+              })()}
+
+              {/* ── Remove wrong link ───────────────────────────────────── */}
+              {selectedNode && vanshaId && (() => {
+                const nodeEdges = edges.filter(e => e.from === selectedNode.id || e.to === selectedNode.id);
+                if (nodeEdges.length === 0) return null;
+                return (
+                  <details style={{ marginBottom: 14, borderRadius: 8, border: '1px solid rgba(220,38,38,0.2)', background: 'rgba(220,38,38,0.02)' }}>
+                    <summary style={{ padding: '8px 12px', cursor: 'pointer', fontSize: 11, fontWeight: 600, color: '#b91c1c', userSelect: 'none', listStyle: 'none', display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <span>🗑</span> Remove a wrong link
+                    </summary>
+                    <div style={{ padding: '8px 12px 12px', display: 'flex', flexDirection: 'column', gap: 6 }}>
+                      {nodeEdges.map(e => {
+                        const otherId = e.from === selectedNode.id ? e.to : e.from;
+                        const otherNode = positionedNodes.find(n => n.id === otherId);
+                        const edgeKey = `${e.from}|${e.to}`;
+                        return (
+                          <div key={edgeKey} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: '6px 8px', borderRadius: 6, background: 'rgba(220,38,38,0.04)', border: '1px solid rgba(220,38,38,0.12)' }}>
+                            <div style={{ fontSize: 11, color: '#1c0d2e', minWidth: 0 }}>
+                              <span style={{ fontWeight: 600 }}>{otherNode?.name ?? otherId.slice(0, 8)}</span>
+                              <span style={{ color: 'rgba(74,33,104,0.45)', marginLeft: 5 }}>({e.relation})</span>
+                            </div>
+                            <button
+                              disabled={unlinkingEdge === edgeKey}
+                              onClick={async () => {
+                                if (!confirm(`Remove link between ${selectedNode.name} and ${otherNode?.name ?? 'this person'}?`)) return;
+                                setUnlinkingEdge(edgeKey);
+                                try {
+                                  await unlinkPersons({ vansha_id: vanshaId, person_id: e.from, target_person_id: e.to });
+                                  const data = await fetchVanshaTree(vanshaId);
+                                  loadTreeState(backendPayloadToTreeState(data));
+                                  toast({ title: 'Link removed' });
+                                } catch (err) {
+                                  toast({ title: 'Failed to remove link', description: err instanceof Error ? err.message : 'Error', variant: 'destructive' });
+                                } finally {
+                                  setUnlinkingEdge(null);
+                                }
+                              }}
+                              style={{ padding: '4px 10px', borderRadius: 6, border: 'none', background: unlinkingEdge === edgeKey ? 'rgba(220,38,38,0.2)' : '#dc2626', color: '#fff', fontSize: 11, fontWeight: 700, cursor: unlinkingEdge === edgeKey ? 'default' : 'pointer', whiteSpace: 'nowrap', opacity: unlinkingEdge === edgeKey ? 0.6 : 1, flexShrink: 0 }}
+                            >
+                              {unlinkingEdge === edgeKey ? '…' : 'Remove'}
+                            </button>
+                          </div>
+                        );
+                      })}
                     </div>
                   </details>
                 );
