@@ -7,7 +7,7 @@ import {
   CheckCircle2, XCircle, Lock, TrendingUp, Clock, LogOut,
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
-import { getApiBaseUrl } from '@/services/api';
+import { getApiBaseUrl, fetchPanchangCalendar, fetchTodayPanchang, type PanchangCalendarRow, type TodayPanchang } from '@/services/api';
 import { useToast } from '@/hooks/use-toast';
 
 // ── Types ────────────────────────────────────────────────────────────
@@ -30,7 +30,6 @@ interface TransactionsResponse {
   current_subscription: { plan_id: string; status: string; start_date: string; end_date: string; } | null;
   transactions: Transaction[];
 }
-interface PanchangDay { gregorian_date: string; tithis: { name: string }; paksha: string; }
 interface PeerPandit { id: string; full_name: string; status: string; deva: string; city: string; spec: string; verified: boolean; }
 
 // UI shapes
@@ -106,15 +105,21 @@ const FB_PEERS: PeerPandit[] = [
   { id:'p-dev',  full_name:'Pt. Devdatt Joshi',   status:'active',    deva:'हरिद्वार', city:'Haridwar',         spec:'Asthi Visarjan', verified:true  },
   { id:'p-ana',  full_name:'Pt. Anand Sharma',    status:'verifying', deva:'उज्जैन',   city:'Ujjain',           spec:'Kaal Sarp Dosh', verified:false },
 ];
-function makeFbPanchang(): PanchangDay[] {
+const TITHI_NAMES = ['Pratipada','Dwitiya','Tritiya','Chaturthi','Panchami','Shashthi','Saptami','Ashtami','Navami','Dashami','Ekadashi','Dwadashi','Trayodashi','Chaturdashi','Purnima'];
+function makeFbPanchang(): PanchangCalendarRow[] {
   const now = new Date();
   const y = now.getFullYear(); const m = now.getMonth();
   const days = new Date(y, m + 1, 0).getDate();
   const mm = String(m + 1).padStart(2, '0');
   return Array.from({ length: days }, (_, i) => ({
+    id: `fb-${i}`,
     gregorian_date: `${y}-${mm}-${String(i+1).padStart(2,'0')}`,
-    tithis: { name: ['Pratipada','Dwitiya','Tritiya','Chaturthi','Panchami','Shashthi','Saptami','Ashtami','Navami','Dashami','Ekadashi','Dwadashi','Trayodashi','Chaturdashi','Purnima'][(i*3)%15] },
-    paksha: i < 15 ? 'shukla' : 'krishna',
+    tithi_id: (i * 3) % 15 + 1,
+    tithis: { id: (i*3)%15+1, name: TITHI_NAMES[(i*3)%15], sanskrit_name: TITHI_NAMES[(i*3)%15], paksha: i<15?'shukla':'krishna', lord: '', eco_action: '', eco_score_delta: 0, description: '', suitable_for: [] },
+    paksha: (i < 15 ? 'shukla' : 'krishna') as 'shukla'|'krishna',
+    nakshatra: null, yoga: null, masa_name: null, samvat_year: null,
+    special_flag: null, is_kshaya: false, is_adhika: false,
+    sunrise_ts: null, sunset_ts: null, ref_lat: 23.18, ref_lon: 75.78,
   }));
 }
 const FB_PANCHANG = makeFbPanchang();
@@ -414,18 +419,25 @@ function CalendarPage({ base, authFetch }: PageProps) {
   const toStr   = `${_y}-${_mm}-${String(_dim).padStart(2,'0')}`;
   const monthLabel = _now.toLocaleDateString('en-IN', { month: 'long', year: 'numeric' });
 
-  const { data: rawPanchang, isLoading: pLoad, isError: pErr } = useQuery<PanchangDay[]>({
+  const { data: rawPanchang, isLoading: pLoad, isError: pErr } = useQuery<PanchangCalendarRow[]>({
     queryKey: ['pcrm-panchang', fromStr],
-    queryFn: () => authFetch(`${base}/api/panchang/calendar?from=${fromStr}&to=${toStr}`).then(r => { if (!r.ok) throw new Error(r.status.toString()); return r.json(); }),
+    queryFn: () => fetchPanchangCalendar(fromStr, toStr),
     retry: 1, staleTime: 3600_000,
   });
+
+  const { data: todayPanchang } = useQuery<TodayPanchang | null>({
+    queryKey: ['pcrm-panchang-today'],
+    queryFn: () => fetchTodayPanchang(),
+    retry: 1, staleTime: 3600_000,
+  });
+
   const { data: rawEvents, isLoading: eLoad, isError: eErr } = useQuery<CalendarEvent[]>({
     queryKey: ['pcrm-events'],
     queryFn: () => authFetch(`${base}/api/calendar/events`).then(r => { if (!r.ok) throw new Error(r.status.toString()); return r.json(); }),
     retry: 1, staleTime: 60_000,
   });
 
-  const panchang = rawPanchang ?? FB_PANCHANG;
+  const panchang = rawPanchang?.length ? rawPanchang : FB_PANCHANG;
   const events   = rawEvents   ?? FB_EVENTS;
   const bookings = useMemo(() => adaptBookings(events), [events]);
   const live = !pErr && !eErr;
@@ -450,8 +462,14 @@ function CalendarPage({ base, authFetch }: PageProps) {
   let _trail = 1;
   while (days.length % 7 !== 0) days.push({ muted: true, n: -(_trail++) });
 
-  const tithiName = (n: number) =>
-    panchang.find(p => parseInt(p.gregorian_date.slice(8, 10), 10) === n)?.tithis?.name?.slice(0, 3) ?? '';
+  const panchangByDay = useMemo(() => {
+    const m: Record<number, PanchangCalendarRow> = {};
+    panchang.forEach(p => { m[parseInt(p.gregorian_date.slice(8,10), 10)] = p; });
+    return m;
+  }, [panchang]);
+
+  const tithiName = (n: number) => panchangByDay[n]?.tithis?.name?.slice(0, 3) ?? '';
+  const specialFlag = (n: number) => panchangByDay[n]?.special_flag ?? null;
 
   return (
     <>
@@ -463,22 +481,39 @@ function CalendarPage({ base, authFetch }: PageProps) {
         </>}
       />
 
+      {todayPanchang && (
+        <div className="pcrm-card" style={{marginBottom:16,padding:'14px 18px',background:'var(--pcrm-saffron-tint)',border:'1px solid rgba(212,154,31,0.35)',display:'flex',gap:18,alignItems:'center',flexWrap:'wrap'}}>
+          <div>
+            <div className="pcrm-eyebrow" style={{fontSize:10,letterSpacing:'0.15em'}}>TODAY · Prokerala Panchang</div>
+            <div className="pcrm-serif" style={{fontWeight:600,fontSize:16,marginTop:3}}>
+              {todayPanchang.tithi?.name ?? '—'} · {todayPanchang.paksha === 'shukla' ? 'Shukla' : 'Krishna'} Paksha
+            </div>
+          </div>
+          {todayPanchang.nakshatra && <span className="pcrm-tag pcrm-tag-gold" style={{fontSize:11}}>★ {todayPanchang.nakshatra}</span>}
+          {todayPanchang.yoga      && <span className="pcrm-tag pcrm-tag-mute"  style={{fontSize:11}}>{todayPanchang.yoga} Yoga</span>}
+          {todayPanchang.special_flag && <span className="pcrm-tag pcrm-tag-saffron" style={{fontSize:11}}>🪔 {todayPanchang.special_flag}</span>}
+          {todayPanchang.masa && <span className="pcrm-mono pcrm-muted" style={{fontSize:11}}>{todayPanchang.masa}</span>}
+        </div>
+      )}
+
       <div className="pcrm-cols-2">
         <section className="pcrm-card">
           <div className="pcrm-card-head">
             <div>
               <div className="pcrm-card-title">{monthLabel}</div>
-              <div className="pcrm-card-sub pcrm-mono">GET /api/panchang/calendar?from={fromStr}&to={toStr}</div>
+              <div className="pcrm-card-sub pcrm-mono">Prokerala API → /api/panchang/calendar</div>
             </div>
           </div>
           <div className="pcrm-cal pcrm-mb-3">
             {['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map(h => <div key={h} className="pcrm-cal-head">{h}</div>)}
             {days.map((d, i) => {
               const ev = eventDays[d.n] ?? [];
+              const flag = !d.muted ? specialFlag(d.n) : null;
               return (
-                <div key={i} className={`pcrm-cal-cell${d.muted?' muted':''}${d.n===todayNum&&!d.muted?' today':''}${ev.length?' has-event':''}`}>
+                <div key={i} className={`pcrm-cal-cell${d.muted?' muted':''}${d.n===todayNum&&!d.muted?' today':''}${ev.length||flag?' has-event':''}`}>
                   {!d.muted && <span className="pcrm-cal-cell-num">{d.n}</span>}
                   {!d.muted && <span className="pcrm-cal-cell-tithi">{tithiName(d.n)}</span>}
+                  {flag && <span className="pcrm-cal-cell-tithi" style={{color:'var(--pcrm-saffron-dk)',fontSize:8}}>🪔</span>}
                   {ev.length > 0 && (
                     <div className="pcrm-cal-events">
                       {ev.slice(0,3).map((c, k) => (

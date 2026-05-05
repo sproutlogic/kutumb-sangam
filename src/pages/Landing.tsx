@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { fetchLeaderboard, type LeaderboardEntry } from '@/services/api';
 import KutumbFooter from '@/components/shells/KutumbFooter';
 
 /* ── Mandala SVG backdrop ────────────────────────────────── */
@@ -38,12 +37,6 @@ const Landing = () => {
   const [animScore, setAnimScore] = useState(0);
   const [finalScore, setFinalScore] = useState(0);
   const [region, setRegion] = useState('');
-  const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
-
-  useEffect(() => {
-    fetchLeaderboard(undefined, 5).then(setLeaderboard).catch(() => {});
-  }, []);
-
   useEffect(() => {
     if (!revealed) return;
     let i = 0;
@@ -101,14 +94,7 @@ const Landing = () => {
         <div style={{ maxWidth: 1240, margin: '0 auto', padding: '0 24px', position: 'relative', zIndex: 2 }}>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 0.9fr', gap: 60, alignItems: 'center' }} className="landing-hero-grid">
             <div>
-              <div className="ds-rise" style={{ animationDelay: '0ms' }}>
-                <span className="ds-tag ds-tag-gold" style={{ background: 'rgba(212,154,31,0.16)', color: 'var(--ds-gold-light)', borderColor: 'rgba(212,154,31,0.4)' }}>
-                  <span className="ds-pill-dot live" />
-                  Founding family invitation · 2,847 of 10,000 left
-                </span>
-              </div>
-
-              <p className="ds-sanskrit ds-rise" style={{ animationDelay: '80ms', marginTop: 28, fontSize: 34, color: 'var(--ds-gold-light)', letterSpacing: '0.04em' }}>
+              <p className="ds-sanskrit ds-rise" style={{ animationDelay: '80ms', marginTop: 0, fontSize: 34, color: 'var(--ds-gold-light)', letterSpacing: '0.04em' }}>
                 हर परिवार एक वृक्ष है।
               </p>
               <h1 className="ds-rise" style={{ animationDelay: '140ms', fontFamily: 'var(--ds-serif)', fontSize: 'clamp(40px,5.5vw,72px)', marginTop: 8, lineHeight: 1.02, color: 'var(--ds-paper)' }}>
@@ -308,7 +294,7 @@ const Landing = () => {
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 24 }} className="landing-trust-arch-grid">
             {[
               { icon: '🪔', title: 'Pandit verification', desc: '1,200+ verified Pandits across India stamp your gotra, ceremonies, and lineage. Every node traceable to a human expert.', tag: 'Human layer' },
-              { icon: '🔐', title: 'Cryptographic roots', desc: 'Every family tree stored with SHA-256 node hashes. Tampering is mathematically impossible. Your lineage is immutable.', tag: 'Cryptographic layer' },
+              { icon: '🔒', title: 'Your Privacy', desc: 'You control exactly who sees what. Set per-member privacy levels — hide dates, blur photos, restrict elders\' profiles. Your tree, your rules. No one outside your family can see your data.', tag: 'Your Privacy' },
               { icon: '🏛️', title: 'Community governance', desc: "No AI hallucination. No central control. Your family's karta and elders own the write access. Your data, your rules.", tag: 'Community layer' },
             ].map(t => (
               <div key={t.title} style={{ padding: 28, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(212,154,31,0.2)', borderRadius: 8 }}>
@@ -322,48 +308,32 @@ const Landing = () => {
         </div>
       </section>
 
-      {/* ── Sachet Pricing ───────────────────────────────────────── */}
+      {/* ── Features ─────────────────────────────────────────────── */}
       <section style={{ padding: '120px 0', background: 'var(--ds-ivory-warm)', position: 'relative' }}>
         <div style={{ maxWidth: 1240, margin: '0 auto', padding: '0 24px' }}>
           <div style={{ textAlign: 'center', maxWidth: 720, margin: '0 auto 56px' }}>
             <h2 style={{ fontFamily: 'var(--ds-serif)', fontSize: 'clamp(36px,4vw,56px)', marginTop: 0, color: 'var(--ds-ink)' }}>
-              Like an <em style={{ color: 'var(--ds-saffron)' }}>AstroTalk consultation</em>.<br />Not a Netflix subscription.
+              It's your own <em style={{ color: 'var(--ds-saffron)' }}>Family Account</em>.<br />Not a social media chat group.
             </h2>
             <p style={{ marginTop: 18, fontSize: 17, color: 'var(--ds-ink-soft)', maxWidth: 600, margin: '18px auto 0' }}>
-              One person doesn't pay for the whole tree. Each family member pays only for what they need — when they need it.
+              A private, secure space that belongs to your parivar — with tools built for the way Indian families actually work.
             </p>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 18 }} className="landing-sachet-grid">
             {[
-              { name: 'Add a relative', price: 29, unit: 'one-time', desc: 'Build your tree freely. No bulk subscription.', icon: '➕', popular: false, color: 'var(--ds-ink-soft)' },
-              { name: 'Pandit-verify a member', price: 49, unit: 'per member', desc: 'Lock gotra, vanshavali. Permanent expert stamp.', icon: '🪔', popular: true, color: 'var(--ds-saffron)' },
-              { name: 'Smriti voice recording', price: 9, unit: 'per minute', desc: "Record dadaji's stories. Stored for 100 years.", icon: '🎙️', popular: false, color: 'var(--ds-plum-rose)' },
-              { name: 'Log a ceremony', price: 19, unit: 'per ceremony', desc: 'Mundan, vivah, shraddh. Stamps your Prakriti.', icon: '🪷', popular: false, color: 'var(--ds-gold-deep)' },
-              { name: 'Kundali matching', price: 99, unit: 'per match', desc: 'For matrimony. Gotra + nakshatra + 36-guna.', icon: '⊛', popular: false, color: 'var(--ds-plum)' },
-              { name: 'Generate vanshavali PDF', price: 149, unit: 'per tree', desc: 'Print-ready, pandit-stamped, Sanskrit + English.', icon: '📜', popular: false, color: 'var(--ds-gold-deep)' },
+              { name: 'Add a relative', desc: 'Build your family tree freely. Invite parents, grandparents, cousins — each on their own branch.', icon: '➕' },
+              { name: 'Pandit-verify a member', desc: 'Lock gotra, vanshavali. A verified Pandit stamps your lineage permanently.', icon: '🪔' },
+              { name: 'Smriti voice recording', desc: "Record dadaji's stories and blessings. Preserved for generations to come.", icon: '🎙️' },
+              { name: 'Log a ceremony', desc: 'Mundan, vivah, shraddh — every ritual stamped and stored in your family timeline.', icon: '🪷' },
+              { name: 'Kundali matching', desc: 'For matrimony. Gotra + nakshatra + 36-guna — done the traditional way.', icon: '⊛' },
+              { name: 'Generate vanshavali PDF', desc: 'Print-ready vanshavali in Sanskrit + English — pandit-stamped, shareable.', icon: '📜' },
             ].map(s => (
-              <div key={s.name} className="ds-card" style={{ padding: 24, position: 'relative', borderColor: s.popular ? 'var(--ds-saffron)' : 'var(--ds-hairline)', boxShadow: s.popular ? '0 12px 32px -12px rgba(232,116,34,0.35)' : undefined }}>
-                {s.popular && <div style={{ position: 'absolute', top: -10, right: 18, background: 'var(--ds-saffron)', color: '#fff', fontSize: 10, fontFamily: 'var(--ds-mono)', letterSpacing: '0.15em', textTransform: 'uppercase', padding: '4px 10px', borderRadius: 4, fontWeight: 600 }}>Most chosen</div>}
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                  <div style={{ width: 48, height: 48, borderRadius: 10, background: 'var(--ds-ivory-warm)', border: '1px solid var(--ds-hairline-strong)', display: 'grid', placeItems: 'center', fontSize: 24 }}>{s.icon}</div>
-                  <div style={{ textAlign: 'right' }}>
-                    <div className="ds-score-num" style={{ fontSize: 34, color: s.color, lineHeight: 1 }}>₹{s.price}</div>
-                    <div style={{ fontSize: 11, color: 'var(--ds-ink-mute)', marginTop: 2 }}>{s.unit}</div>
-                  </div>
-                </div>
+              <div key={s.name} className="ds-card" style={{ padding: 24 }}>
+                <div style={{ width: 48, height: 48, borderRadius: 10, background: 'var(--ds-ivory-warm)', border: '1px solid var(--ds-hairline-strong)', display: 'grid', placeItems: 'center', fontSize: 24 }}>{s.icon}</div>
                 <h3 style={{ fontFamily: 'var(--ds-serif)', fontSize: 18, marginTop: 18, color: 'var(--ds-ink)' }}>{s.name}</h3>
                 <p style={{ fontSize: 13, color: 'var(--ds-ink-soft)', marginTop: 8, lineHeight: 1.6 }}>{s.desc}</p>
-                <div style={{ marginTop: 16, paddingTop: 16, borderTop: '1px solid var(--ds-hairline)', fontSize: 12, color: 'var(--ds-ink-mute)' }}>✓ Anyone in your tree can pay this</div>
               </div>
             ))}
-          </div>
-          <div className="ds-card" style={{ marginTop: 32, padding: '24px 28px', background: 'var(--ds-plum)', color: 'var(--ds-paper)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 16, border: 'none' }}>
-            <div>
-              <div className="ds-eyebrow" style={{ color: 'var(--ds-gold-light)' }}>Math check · Average parivar</div>
-              <div style={{ fontFamily: 'var(--ds-serif)', fontSize: 20, marginTop: 6, color: 'var(--ds-paper)' }}>15 members · 1 verification each · 1 Smriti · 1 PDF = <span style={{ color: 'var(--ds-gold-light)' }}>₹999 (GST inclusive)</span></div>
-              <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.6)', marginTop: 4 }}>Spread across 15 family members. ₹60 average per person. Forever.</div>
-            </div>
-            <button onClick={() => navigate('/onboarding')} className="ds-btn ds-btn-gold">See cost calculator →</button>
           </div>
         </div>
       </section>
@@ -673,73 +643,6 @@ const Landing = () => {
                 </div>
                 <button onClick={() => navigate('/upgrade')} className="ds-btn ds-btn-sm ds-btn-gold" style={{ whiteSpace: 'nowrap' }}>Enable →</button>
               </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* ── Smriti · Voice archives ───────────────────────────────── */}
-      <section style={{ background: '#0d0716', color: 'var(--ds-paper)', padding: '120px 0', position: 'relative', overflow: 'hidden' }}>
-        <div style={{ position: 'absolute', inset: 0, background: 'radial-gradient(circle at 30% 50%, rgba(232,116,34,0.12), transparent 50%)', pointerEvents: 'none' }} />
-        <div style={{ maxWidth: 1240, margin: '0 auto', padding: '0 24px', position: 'relative' }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 60, alignItems: 'center' }} className="landing-smriti-grid">
-            <div style={{ maxWidth: 680, margin: '0 auto' }}>
-              <span className="ds-eyebrow" style={{ color: 'var(--ds-gold-light)' }}>Prakriti Smriti · Voice archives</span>
-              <p className="ds-sanskrit" style={{ fontSize: 32, marginTop: 20, color: 'var(--ds-gold-light)', lineHeight: 1.3 }}>घर के बुज़ुर्ग,<br />परिवार की जड़ हैं।</p>
-              <h2 style={{ fontFamily: 'var(--ds-serif)', fontSize: 'clamp(36px,4.5vw,60px)', marginTop: 18, color: 'var(--ds-paper)', lineHeight: 1.05 }}>
-                The last member from your family <em style={{ color: '#ff8a4a' }}>has already left.</em>
-              </h2>
-              <p style={{ marginTop: 20, fontSize: 18, color: 'rgba(255,255,255,0.7)', lineHeight: 1.6, maxWidth: 520 }}>
-                Don't let the next one go unrecorded. Smriti captures everyone's stories, blessings and love in their language and their voice — for generations who are yet to come.
-              </p>
-              <div style={{ display: 'flex', gap: 12, marginTop: 32 }}>
-                <button className="ds-btn ds-btn-gold ds-btn-lg" disabled style={{ opacity: 0.7, cursor: 'not-allowed' }}>🎙️ Coming soon</button>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* ── Leaderboard ──────────────────────────────────────────── */}
-      <section style={{ background: 'var(--ds-ivory-warm)', borderTop: '1px solid var(--ds-hairline)', borderBottom: '1px solid var(--ds-hairline)', padding: '80px 0' }}>
-        <div style={{ maxWidth: 720, margin: '0 auto', padding: '0 24px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24, flexWrap: 'wrap', gap: 12 }}>
-            <div>
-              <span className="ds-eyebrow">Greenest families · This week</span>
-              <h2 style={{ fontFamily: 'var(--ds-serif)', fontSize: 32, marginTop: 6, color: 'var(--ds-ink)' }}>India leaderboard</h2>
-            </div>
-            <span className="ds-pill"><span className="ds-pill-dot live" />Updated live</span>
-          </div>
-          <div className="ds-card" style={{ padding: 0, overflow: 'hidden' }}>
-            {(leaderboard.length > 0 ? leaderboard.map((e, i) => ({
-              rank: i + 1,
-              family: e.family_name,
-              loc: e.location,
-              score: e.score,
-              change: '+' + Math.floor(Math.random() * 12 + 2),
-            })) : [
-              { rank: 1, family: 'Mishra–Vatsa',     loc: 'Kanpur · UP',     score: 148, change: '+12' },
-              { rank: 2, family: 'Agarwal–Garg',     loc: 'Lucknow · UP',    score: 142, change: '+8' },
-              { rank: 3, family: 'Verma–Kashyap',    loc: 'Prayagraj · UP',  score: 139, change: '+5' },
-              { rank: 4, family: 'Tiwari–Atri',      loc: 'Varanasi · UP',   score: 128, change: '+3' },
-              { rank: 5, family: 'Dubey–Bharadwaj',  loc: 'Lucknow · UP',    score: 124, change: '+9' },
-            ]).map(r => (
-              <div key={r.rank} style={{ display: 'grid', gridTemplateColumns: '40px 1fr auto auto', gap: 14, padding: '14px 20px', borderBottom: '1px solid var(--ds-hairline)', alignItems: 'center' }}>
-                <div style={{ fontFamily: 'var(--ds-serif)', fontSize: 22, fontWeight: 700, color: r.rank <= 3 ? 'var(--ds-gold-deep)' : 'var(--ds-ink-mute)' }}>
-                  {r.rank <= 3 ? ['🥇', '🥈', '🥉'][r.rank - 1] : `#${r.rank}`}
-                </div>
-                <div>
-                  <div style={{ fontWeight: 600, color: 'var(--ds-ink)' }}>{r.family}</div>
-                  <div style={{ fontSize: 12, color: 'var(--ds-ink-mute)' }}>{r.loc}</div>
-                </div>
-                <div style={{ fontSize: 12, color: '#2aa86b', fontWeight: 600 }}>{r.change}</div>
-                <div className="ds-score-num" style={{ fontSize: 24, color: 'var(--ds-plum)' }}>{r.score}</div>
-              </div>
-            ))}
-            <div style={{ padding: '16px 20px', background: 'var(--ds-ivory-warm)', textAlign: 'center' }}>
-              <button onClick={() => navigate('/onboarding')} className="ds-btn ds-btn-plum ds-btn-sm">
-                See where your family stands →
-              </button>
             </div>
           </div>
         </div>
