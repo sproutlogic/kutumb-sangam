@@ -16,7 +16,8 @@ const Index = () => {
     if (!session) return;
     // appUser may still be loading — wait for it
     if (appUser === null) return;
-    if (!appUser.vansha_id) {
+    const onboardingExempt = new Set(["margdarshak", "admin", "superadmin", "office", "finance"]);
+    if (!appUser.vansha_id && !onboardingExempt.has(appUser.role)) {
       navigate("/onboarding", { replace: true });
     } else {
       const roleHome: Record<string, string> = {
