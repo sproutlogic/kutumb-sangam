@@ -19,7 +19,14 @@ const Index = () => {
     if (!appUser.vansha_id) {
       navigate("/onboarding", { replace: true });
     } else {
-      navigate("/dashboard", { replace: true });
+      const roleHome: Record<string, string> = {
+        superadmin:  '/sales',
+        admin:       '/sales',
+        office:      '/org/my',
+        finance:     '/org/my',
+        margdarshak: '/margdarshak',
+      };
+      navigate(roleHome[appUser.role] ?? '/dashboard', { replace: true });
     }
   }, [session, appUser, loading, navigate]);
 
