@@ -2,18 +2,21 @@ import React, { useMemo } from "react";
 import { useSearchParams } from "react-router-dom";
 import TreeCanvasV2 from "@/components/tree/TreeCanvasV2";
 import { getPersistedVanshaId } from "@/services/api";
+import { useAuth } from "@/contexts/AuthContext";
 
 const TreePageV2: React.FC = () => {
   const [searchParams] = useSearchParams();
+  const { appUser } = useAuth();
   const vanshaId = useMemo(
     () =>
       (
         searchParams.get("vansha_id") ??
+        appUser?.vansha_id ??
         import.meta.env.VITE_DEFAULT_VANSHA_ID ??
         getPersistedVanshaId() ??
         ""
       ).trim(),
-    [searchParams],
+    [searchParams, appUser?.vansha_id],
   );
 
   if (!vanshaId) {
