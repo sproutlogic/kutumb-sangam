@@ -14,7 +14,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from routers import (
     admin, approval, auth_router, calendar, content, eco_services, eco_sewa, gaurav_gatha, green_legacy,
     kutumb_pro, legacy_box, matrimony,
-    node_claim, node_relation_labels, notifications, pandit, panchang, payments, person, prakriti, radar, sales, time_bank, tree, union, verification,
+    node_claim, node_relation_labels, notifications, pandit, panchang, payments, person, prakriti, radar, sales, time_bank, tree, tree_v2, union, verification,
 )
 from workers.care_reminder import create_care_reminder_scheduler
 from workers.content_gen import create_content_gen_scheduler
@@ -68,6 +68,7 @@ app.include_router(admin.router)
 app.include_router(approval.router)
 app.include_router(auth_router.router)
 app.include_router(tree.router)
+app.include_router(tree_v2.router)
 app.include_router(person.router)
 app.include_router(node_claim.router)
 app.include_router(node_relation_labels.router)

@@ -23,6 +23,7 @@ import {
   isSpouseRelation,
 } from '@/constants/vrukshaRelations';
 import { PersonNode } from '@/components/tree/PersonNode';
+import TreeCanvasV2 from '@/components/tree/TreeCanvasV2';
 import {
   SpouseCoupleFrame,
   SpousePlusMark,
@@ -308,6 +309,12 @@ const TreePage = () => {
     () => (searchParams.get('vansha_id') ?? import.meta.env.VITE_DEFAULT_VANSHA_ID ?? getPersistedVanshaId() ?? '').trim(),
     [searchParams],
   );
+
+  // Tree v2 (edge-model) is opt-in via ?v2=1 — renders new TreeCanvasV2 component.
+  const useV2Canvas = searchParams.get('v2') === '1';
+  if (useV2Canvas && vanshaId) {
+    return <TreeCanvasV2 vanshaId={vanshaId} />;
+  }
   const defaultVanshaFromEnv = useMemo(
     () => (import.meta.env.VITE_DEFAULT_VANSHA_ID ?? '').trim(),
     [],
