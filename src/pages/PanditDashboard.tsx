@@ -1,25 +1,14 @@
 import './pandit-crm.css';
-import 'leaflet/dist/leaflet.css';
 import { useState, useMemo, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Home, Calendar, Shield, Users, Map, BarChart3, Network,
   Search, Bell, Settings, RefreshCw, Plus, Phone, Copy,
-  CheckCircle2, XCircle, Lock, TrendingUp, Clock,
+  CheckCircle2, XCircle, Lock, TrendingUp, Clock, LogOut,
 } from 'lucide-react';
-import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
-import L from 'leaflet';
 import { useAuth } from '@/contexts/AuthContext';
 import { getApiBaseUrl } from '@/services/api';
 import { useToast } from '@/hooks/use-toast';
-
-// Fix Leaflet default marker icon (Vite bundler issue)
-L.Marker.prototype.options.icon = L.icon({
-  iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
-  iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
-  shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
-  iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34], shadowSize: [41, 41],
-});
 
 // ── Types ────────────────────────────────────────────────────────────
 interface CalendarEvent {
@@ -117,11 +106,18 @@ const FB_PEERS: PeerPandit[] = [
   { id:'p-dev',  full_name:'Pt. Devdatt Joshi',   status:'active',    deva:'हरिद्वार', city:'Haridwar',         spec:'Asthi Visarjan', verified:true  },
   { id:'p-ana',  full_name:'Pt. Anand Sharma',    status:'verifying', deva:'उज्जैन',   city:'Ujjain',           spec:'Kaal Sarp Dosh', verified:false },
 ];
-const FB_PANCHANG: PanchangDay[] = Array.from({ length: 31 }, (_, i) => ({
-  gregorian_date: `2026-05-${String(i+1).padStart(2,'0')}`,
-  tithis: { name: ['Pratipada','Dwitiya','Tritiya','Chaturthi','Panchami','Shashthi','Saptami','Ashtami','Navami','Dashami','Ekadashi','Dwadashi','Trayodashi','Chaturdashi','Purnima'][(i*3)%15] },
-  paksha: i < 15 ? 'shukla' : 'krishna',
-}));
+function makeFbPanchang(): PanchangDay[] {
+  const now = new Date();
+  const y = now.getFullYear(); const m = now.getMonth();
+  const days = new Date(y, m + 1, 0).getDate();
+  const mm = String(m + 1).padStart(2, '0');
+  return Array.from({ length: days }, (_, i) => ({
+    gregorian_date: `${y}-${mm}-${String(i+1).padStart(2,'0')}`,
+    tithis: { name: ['Pratipada','Dwitiya','Tritiya','Chaturthi','Panchami','Shashthi','Saptami','Ashtami','Navami','Dashami','Ekadashi','Dwadashi','Trayodashi','Chaturdashi','Purnima'][(i*3)%15] },
+    paksha: i < 15 ? 'shukla' : 'krishna',
+  }));
+}
+const FB_PANCHANG = makeFbPanchang();
 const YAJMAN_MARKERS = [
   { lat: 28.6139, lng: 77.2090, label: 'Sharma · Noida' },
   { lat: 28.5355, lng: 77.3910, label: 'Joshi · Vasant Vihar' },
@@ -410,9 +406,17 @@ function TodayPage({ base, authFetch, onNav }: PageProps) {
 }
 
 function CalendarPage({ base, authFetch }: PageProps) {
+  const _now = new Date();
+  const _y = _now.getFullYear(); const _m = _now.getMonth();
+  const _dim = new Date(_y, _m + 1, 0).getDate();
+  const _mm = String(_m + 1).padStart(2, '0');
+  const fromStr = `${_y}-${_mm}-01`;
+  const toStr   = `${_y}-${_mm}-${String(_dim).padStart(2,'0')}`;
+  const monthLabel = _now.toLocaleDateString('en-IN', { month: 'long', year: 'numeric' });
+
   const { data: rawPanchang, isLoading: pLoad, isError: pErr } = useQuery<PanchangDay[]>({
-    queryKey: ['pcrm-panchang'],
-    queryFn: () => authFetch(`${base}/api/panchang/calendar?from=2026-05-01&to=2026-05-31`).then(r => { if (!r.ok) throw new Error(r.status.toString()); return r.json(); }),
+    queryKey: ['pcrm-panchang', fromStr],
+    queryFn: () => authFetch(`${base}/api/panchang/calendar?from=${fromStr}&to=${toStr}`).then(r => { if (!r.ok) throw new Error(r.status.toString()); return r.json(); }),
     retry: 1, staleTime: 3600_000,
   });
   const { data: rawEvents, isLoading: eLoad, isError: eErr } = useQuery<CalendarEvent[]>({
@@ -437,11 +441,14 @@ function CalendarPage({ base, authFetch }: PageProps) {
     return map;
   }, [events]);
 
-  const todayNum = new Date().getDate();
+  const todayNum = _now.getDate();
   const days: { n: number; muted: boolean }[] = [];
-  for (let i = 0; i < 4; i++) days.push({ muted: true, n: 27 + i });
-  for (let d = 1; d <= 31; d++) days.push({ n: d, muted: false });
-  while (days.length % 7 !== 0) days.push({ muted: true, n: days.length - 30 });
+  const _firstDow = new Date(_y, _m, 1).getDay();
+  const _prevDays = new Date(_y, _m, 0).getDate();
+  for (let i = _firstDow - 1; i >= 0; i--) days.push({ muted: true, n: _prevDays - i });
+  for (let d = 1; d <= _dim; d++) days.push({ n: d, muted: false });
+  let _trail = 1;
+  while (days.length % 7 !== 0) days.push({ muted: true, n: -(_trail++) });
 
   const tithiName = (n: number) =>
     panchang.find(p => parseInt(p.gregorian_date.slice(8, 10), 10) === n)?.tithis?.name?.slice(0, 3) ?? '';
@@ -460,8 +467,8 @@ function CalendarPage({ base, authFetch }: PageProps) {
         <section className="pcrm-card">
           <div className="pcrm-card-head">
             <div>
-              <div className="pcrm-card-title">May 2026</div>
-              <div className="pcrm-card-sub pcrm-mono">GET /api/panchang/calendar?from=2026-05-01&to=2026-05-31</div>
+              <div className="pcrm-card-title">{monthLabel}</div>
+              <div className="pcrm-card-sub pcrm-mono">GET /api/panchang/calendar?from={fromStr}&to={toStr}</div>
             </div>
           </div>
           <div className="pcrm-cal pcrm-mb-3">
@@ -1003,20 +1010,27 @@ function HeritagePage({ base, authFetch }: PageProps) {
           <div className="pcrm-card-head">
             <div>
               <div className="pcrm-card-title">Yajman Map</div>
-              <div className="pcrm-card-sub pcrm-mono">persons[].current_residence → OpenStreetMap</div>
+              <div className="pcrm-card-sub pcrm-mono">persons[].current_residence → Google Maps</div>
             </div>
           </div>
-          <MapContainer center={[22.5, 80.5]} zoom={5} style={{height:320}} scrollWheelZoom={false}>
-            <TileLayer
-              attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-            />
+          <div className="pcrm-stack" style={{gap:8, minHeight:280}}>
             {YAJMAN_MARKERS.map((m, i) => (
-              <Marker key={i} position={[m.lat, m.lng]}>
-                <Popup>{m.label}</Popup>
-              </Marker>
+              <a key={i}
+                href={`https://www.google.com/maps/search/?api=1&query=${m.lat},${m.lng}`}
+                target="_blank" rel="noopener noreferrer"
+                className="pcrm-row"
+                style={{padding:'10px 12px', textDecoration:'none', border:'1px solid var(--pcrm-hair)', borderRadius:8, color:'inherit'}}>
+                <div className="pcrm-row-avatar" style={{background:'var(--pcrm-saffron-tint)'}}>
+                  <Map size={16} color="var(--pcrm-saffron-dk)"/>
+                </div>
+                <div className="pcrm-grow">
+                  <div className="pcrm-row-name">{m.label}</div>
+                  <div className="pcrm-row-meta pcrm-mono" style={{fontSize:11}}>{m.lat.toFixed(4)}, {m.lng.toFixed(4)}</div>
+                </div>
+                <span className="pcrm-tag pcrm-tag-saffron" style={{fontSize:11}}>Open ↗</span>
+              </a>
             ))}
-          </MapContainer>
+          </div>
           <div className="pcrm-flex pcrm-gap-2 pcrm-mt-3">
             <button className="pcrm-btn pcrm-btn-ghost pcrm-btn-sm">Today's route</button>
             <button className="pcrm-btn pcrm-btn-ghost pcrm-btn-sm">Cluster by gotra</button>
@@ -1048,7 +1062,7 @@ function HeritagePage({ base, authFetch }: PageProps) {
 
 // ── Main Dashboard ────────────────────────────────────────────────────
 export default function PanditDashboard() {
-  const { appUser } = useAuth();
+  const { appUser, signOut } = useAuth();
   const base       = getApiBaseUrl();
   const authFetch  = useAuthFetch();
   const [route, setRoute] = useState<RouteId>('today');
@@ -1105,10 +1119,16 @@ export default function PanditDashboard() {
 
           <div className="pcrm-user-card">
             <div className="pcrm-avatar">{initials}</div>
-            <div style={{minWidth:0}}>
+            <div style={{minWidth:0,flex:1}}>
               <div className="pcrm-user-name">{appUser ? `${appUser.first_name ?? ''} ${appUser.last_name ?? ''}`.trim() : 'Acharya Ji'}</div>
               <div className="pcrm-user-role">★ Verified · Margdarshak</div>
             </div>
+            <button onClick={() => signOut()} title="Sign out"
+              style={{background:'none',border:'none',cursor:'pointer',padding:4,color:'var(--pcrm-ink-mute)',flexShrink:0}}
+              onMouseOver={e => (e.currentTarget.style.color='var(--pcrm-red)')}
+              onMouseOut={e  => (e.currentTarget.style.color='var(--pcrm-ink-mute)')}>
+              <LogOut size={15}/>
+            </button>
           </div>
         </aside>
 

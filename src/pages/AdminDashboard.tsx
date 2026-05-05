@@ -18,7 +18,7 @@ import {
   ChevronDown, ChevronUp, ToggleLeft, ToggleRight, Tag, TreePine, Droplets,
   IndianRupee, AlertCircle, Settings2, BadgeIndianRupee,
   Loader2, CheckCircle2, XCircle, Send, RefreshCw, Instagram, Youtube,
-  ShieldAlert, Menu, X,
+  ShieldAlert, Menu, X, LogOut,
 } from "lucide-react";
 
 // ─── Tab config ───────────────────────────────────────────────────────────────
@@ -845,7 +845,7 @@ function KYCSupportTab({ token }: { token: string }) {
 // ─── Main AdminDashboard ──────────────────────────────────────────────────────
 
 export default function AdminDashboard() {
-  const { session, appUser, loading: authLoading } = useAuth();
+  const { session, appUser, loading: authLoading, signOut } = useAuth();
   const navigate = useNavigate();
   const qc = useQueryClient();
   const { toast } = useToast();
@@ -925,8 +925,14 @@ export default function AdminDashboard() {
             </button>
           ))}
         </nav>
-        <div className="p-4 border-t border-border/50 text-xs text-muted-foreground truncate">
-          {appUser.full_name ?? appUser.phone ?? appUser.id.slice(0, 12)}
+        <div className="p-4 border-t border-border/50 flex items-center gap-2">
+          <span className="text-xs text-muted-foreground truncate flex-1">
+            {appUser.full_name ?? appUser.phone ?? appUser.id.slice(0, 12)}
+          </span>
+          <button onClick={() => signOut()} title="Sign out"
+            className="flex-shrink-0 p-1.5 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors">
+            <LogOut className="w-3.5 h-3.5" />
+          </button>
         </div>
       </aside>
 
