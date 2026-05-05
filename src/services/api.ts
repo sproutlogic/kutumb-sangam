@@ -1217,6 +1217,32 @@ export async function fetchPublishedContent(params?: {
   }
 }
 
+// ── Calendar Events ───────────────────────────────────────────────────────────
+
+export interface CalendarEvent {
+  id: string;
+  vansha_id: string;
+  created_by: string;
+  title: string;
+  event_date: string;
+  event_type: "birthday" | "anniversary" | "event" | "announcement";
+  description?: string | null;
+  recurs_yearly: boolean;
+  is_announcement: boolean;
+  created_at: string;
+}
+
+export async function fetchCalendarEvents(vansha_id: string): Promise<CalendarEvent[]> {
+  try {
+    const res = await fetchApi(
+      `${getApiBaseUrl()}/api/calendar/events?vansha_id=${encodeURIComponent(vansha_id)}`,
+    );
+    return (await parseJsonOrThrow(res)) as CalendarEvent[];
+  } catch {
+    return [];
+  }
+}
+
 // ── Notifications ─────────────────────────────────────────────────────────────
 
 export interface AppNotification {

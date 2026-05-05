@@ -23,9 +23,7 @@ const KutumbFooter: React.FC = () => {
             <ul style={{ listStyle: 'none', display: 'flex', flexDirection: 'column', gap: 10 }}>
               <li><button onClick={() => navigate('/dashboard')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.55)', fontSize: 14 }}>Dashboard</button></li>
               <li><button onClick={() => navigate('/tree')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.55)', fontSize: 14 }}>Family tree</button></li>
-              <li><button onClick={() => navigate('/upgrade')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.55)', fontSize: 14 }}>Sachet pricing</button></li>
               <li><button onClick={() => navigate('/verification')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.55)', fontSize: 14 }}>Verification</button></li>
-              <li><button onClick={() => navigate('/legacy-box')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.55)', fontSize: 14 }}>Smriti</button></li>
             </ul>
           </div>
           <div>

@@ -16,6 +16,7 @@ import {
   fetchRadarNearby, type RadarMember,
   fetchGreenLegacyTimeline, type GreenLegacyEvent,
   fetchGauravGatha, submitGauravGatha, type GauravGathaEntry,
+  fetchCalendarEvents, type CalendarEvent,
   fetchVanshaTree, getApiBaseUrl,
 } from '@/services/api';
 import { computeTithiIdToday, getPaksha } from '@/lib/panchangUtils';
@@ -126,72 +127,15 @@ const CommunityPulseBar = ({ streak }: { streak: number }) => {
 };
 
 /* ─────────────────────────────────────────────────────────────
-   2. Right Now Moment — panchang urgency with live countdown
-   High CRO: scarcity + free action + score multiplier
-───────────────────────────────────────────────────────────── */
-const RightNowMoment = ({ panchang }: { panchang: LivePanchang | null }) => {
-  const navigate = useNavigate();
-  const [secs, setSecs] = useState(() => {
-    const now = new Date();
-    const end = new Date(now);
-    end.setHours(18, 30, 0, 0); // default sunset for India
-    return Math.max(0, Math.floor((end.getTime() - now.getTime()) / 1000));
-  });
-  useEffect(() => {
-    const id = setInterval(() => setSecs(s => Math.max(0, s - 1)), 1000);
-    return () => clearInterval(id);
-  }, []);
-  const h = Math.floor(secs / 3600);
-  const m = Math.floor((secs % 3600) / 60);
-  const s = secs % 60;
-  const pad = (n: number) => String(n).padStart(2, '0');
-  const tithiLabel = panchang ? panchang.tithiName : '—';
-  const subLabel = panchang ? `${panchang.pakshaLabel} · ${panchang.tithiEn}`.toUpperCase() : 'LOADING…';
-  return (
-    <section style={{ background: 'linear-gradient(90deg,#0d1f14,#142822,#0d1f14)', color: 'var(--ds-paper)', borderBottom: '1px solid rgba(122,219,160,0.15)', padding: '18px 0' }}>
-      <div style={{ maxWidth: 1240, margin: '0 auto', padding: '0 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 18 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-          <div style={{ fontSize: 34 }}>🌾</div>
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-              <span className="ds-pill" style={{ background: 'rgba(122,219,160,0.15)', borderColor: 'rgba(122,219,160,0.35)', color: '#7adba0' }}>
-                <span className="ds-pill-dot live" />Live · {tithiLabel}
-              </span>
-              <span style={{ fontSize: 10, fontFamily: 'var(--ds-mono)', color: 'rgba(255,255,255,0.35)', letterSpacing: '0.1em' }}>{subLabel}</span>
-            </div>
-            <div style={{ fontFamily: 'var(--ds-serif)', fontSize: 19, marginTop: 4, lineHeight: 1.2 }}>
-              {panchang?.isSpecial
-                ? <>Most auspicious day. <span style={{ color: '#7adba0', fontWeight: 600 }}>2× Prakriti</span> on every eco-action.</>
-                : <>Eco window open until sunset. Every action logged today counts.</>}
-            </div>
-          </div>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 20, flexWrap: 'wrap' }}>
-          <div style={{ textAlign: 'center' }}>
-            <div style={{ fontFamily: 'var(--ds-mono)', fontSize: 10, color: 'rgba(255,255,255,0.4)', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 4 }}>Window closes</div>
-            <div style={{ fontFamily: 'var(--ds-serif)', fontSize: 34, color: secs > 3600 ? '#7adba0' : 'var(--ds-saffron)', fontWeight: 700, letterSpacing: '-0.02em', lineHeight: 1 }}>
-              {pad(h)}:{pad(m)}:{pad(s)}
-            </div>
-          </div>
-          <button onClick={() => navigate('/eco-panchang')} className="ds-btn ds-btn-sm" style={{ background: '#7adba0', color: '#0a1f17', fontWeight: 700, whiteSpace: 'nowrap' }}>
-            Log eco-action — free →
-          </button>
-        </div>
-      </div>
-    </section>
-  );
-};
-
-/* ─────────────────────────────────────────────────────────────
    3. Community Hero — score + gotra comparison + rank + todo
    CRO: social comparison drives action + aspiration
 ───────────────────────────────────────────────────────────── */
 const GG_FEATURE_CARDS = [
   { who: 'Kutumb Map', kind: 'वंश वृक्ष', title: 'अपने परिवार का डिजिटल वंश वृक्ष बनाएं — पीढ़ियों की विरासत एक जगह सुरक्षित', img: '🌳', when: 'Feature', tone: '#2a8068' },
   { who: 'Time Bank', kind: 'सेवा चक्र', title: 'समय दें, समय पाएं — समुदाय की मदद करें और अपना सेवा खाता बनाएं', img: '🤝', when: 'Feature', tone: 'var(--ds-plum-rose)' },
-  { who: 'Eco Actions', kind: 'प्राकृति स्कोर', title: 'हर पर्यावरण कार्य पर अंक अर्जित करें — पंचांग के अनुसार दोगुना पुण्य', img: '🌿', when: 'Feature', tone: '#2a8068' },
+  { who: 'Eco Actions', kind: 'प्राकृति स्कोर', title: 'Har sadaya ke naam par vruksha lagayein aur samajik dayitva ka nirvahan karein.', img: '🌿', when: 'Feature', tone: '#2a8068' },
   { who: 'Family Calendar', kind: 'कुटुम्ब पंचांग', title: 'परिवार के जन्मदिन, वर्षगांठ और पुण्य तिथियां — पंचांग से जुड़ी एक जगह', img: '📅', when: 'Feature', tone: 'var(--ds-saffron)' },
-  { who: 'Nearby Kin', kind: 'कुटुम्ब राडार', title: 'आस-पास के परिवारजन खोजें — एक ही शहर में बिछड़े रिश्तेदार मिलाएं', img: '📡', when: 'Feature', tone: '#a64a8e' },
+  { who: 'Family Radar', kind: 'कुटुम्ब राडार', title: 'आस-पास के परिवारजन खोजें — एक ही शहर में बिछड़े रिश्तेदार मिलाएं', img: '📡', when: 'Feature', tone: '#a64a8e' },
   { who: 'Heritage Wall', kind: 'गौरव गाथा', title: 'परिवार की उपलब्धियां हमेशा के लिए — हर साल इसी तारीख को स्मरण करें', img: '🪔', when: 'Feature', tone: 'var(--ds-gold-deep)' },
 ];
 
@@ -301,9 +245,10 @@ function fmtDayMonth(dateStr: string): string {
   } catch { return ''; }
 }
 
-const DashboardInfoRow = ({ persons, panchang }: {
+const DashboardInfoRow = ({ persons, panchang, announcements }: {
   persons: Record<string, unknown>[];
   panchang: LivePanchang | null;
+  announcements: CalendarEvent[];
 }) => {
   const navigate = useNavigate();
   const today = new Date();
@@ -350,19 +295,40 @@ const DashboardInfoRow = ({ persons, panchang }: {
     <section style={{ padding: '20px 0', background: 'var(--ds-ivory)', borderBottom: '1px solid var(--ds-hairline)' }}>
       <div style={{ maxWidth: 1240, margin: '0 auto', padding: '0 24px', display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }} className="dash-info-grid">
 
-        {/* Tile 1: Notice — from broadcast */}
-        <div className="ds-card" style={{ padding: 20 }}>
+        {/* Tile 1: Notice — from calendar announcements API */}
+        <div className="ds-card" style={{ padding: 20, display: 'flex', flexDirection: 'column' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
             <span className="ds-eyebrow">📢 Notice</span>
-            <span className="ds-pill"><span className="ds-pill-dot live" />Live</span>
+            {announcements.length > 0 && <span className="ds-pill"><span className="ds-pill-dot live" />Live</span>}
           </div>
-          <div style={{ fontFamily: 'var(--ds-serif)', fontSize: 15, color: 'var(--ds-ink)', lineHeight: 1.4 }}>
-            सामुदायिक सूचना
-          </div>
-          <p style={{ fontSize: 13, color: 'var(--ds-ink-soft)', marginTop: 6, lineHeight: 1.5 }}>
-            Kutumb Sangam वार्षिक उत्सव 15 जून को। अपने परिवार को आमंत्रित करें।
-          </p>
-          <div style={{ fontSize: 11, color: 'var(--ds-ink-mute)', marginTop: 10 }}>2 hours ago · Community</div>
+          {announcements.length > 0 ? (
+            <>
+              <div style={{ fontFamily: 'var(--ds-serif)', fontSize: 15, color: 'var(--ds-ink)', lineHeight: 1.4 }}>
+                {announcements[0].title}
+              </div>
+              {announcements[0].description && (
+                <p style={{ fontSize: 13, color: 'var(--ds-ink-soft)', marginTop: 6, lineHeight: 1.5 }}>
+                  {announcements[0].description}
+                </p>
+              )}
+              <div style={{ fontSize: 11, color: 'var(--ds-ink-mute)', marginTop: 10 }}>
+                {new Date(announcements[0].created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })} · Community
+              </div>
+              {announcements.length > 1 && (
+                <div style={{ marginTop: 8, fontSize: 11, color: 'var(--ds-ink-mute)' }}>+{announcements.length - 1} more notice{announcements.length > 2 ? 's' : ''}</div>
+              )}
+            </>
+          ) : (
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', padding: '12px 0' }}>
+              <div style={{ fontSize: 28, marginBottom: 8 }}>📅</div>
+              <p style={{ fontSize: 13, color: 'var(--ds-ink-mute)', lineHeight: 1.5, marginBottom: 10 }}>
+                No upcoming events. Add birthdays, anniversaries, or events.
+              </p>
+              <button onClick={() => navigate('/eco-panchang')} className="ds-btn ds-btn-sm ds-btn-ghost" style={{ fontSize: 12 }}>
+                Add your first event →
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Tile 2: Date in History */}
@@ -419,7 +385,7 @@ const DashboardInfoRow = ({ persons, panchang }: {
               <p style={{ fontSize: 12, color: 'var(--ds-ink-mute)', fontStyle: 'italic' }}>Add family dates to see upcoming events.</p>
             )}
           </div>
-          <button onClick={() => navigate('/calendar')} className="ds-btn ds-btn-sm ds-btn-ghost" style={{ marginTop: 14, width: '100%', justifyContent: 'center' }}>Open calendar →</button>
+          <button onClick={() => navigate('/eco-panchang')} className="ds-btn ds-btn-sm ds-btn-ghost" style={{ marginTop: 14, width: '100%', justifyContent: 'center' }}>Open calendar →</button>
         </div>
       </div>
     </section>
@@ -1038,6 +1004,7 @@ const Dashboard = () => {
   const [userPersonNode, setUserPersonNode] = useState<Record<string, unknown> | null>(null);
   const [vanshaPersons, setVanshaPersons] = useState<Record<string, unknown>[]>([]);
   const [myMargdarshaks, setMyMargdarshaks] = useState<{ id: string; full_name: string; status: string }[]>([]);
+  const [calendarEvents, setCalendarEvents] = useState<CalendarEvent[]>([]);
 
   const streak = (() => {
     try { return parseInt(localStorage.getItem('prakriti_streak') ?? '0', 10) || 0; } catch { return 0; }
@@ -1062,6 +1029,7 @@ const Dashboard = () => {
     fetchRadarNearby(vid, 10).then(setNearby).catch(() => {});
     fetchGreenLegacyTimeline(vid, 5).then(setTimeline).catch(() => {});
     fetchGauravGatha(vid).then(setGauravGatha).catch(() => {});
+    fetchCalendarEvents(vid).then(setCalendarEvents).catch(() => {});
     (() => {
       let token = '';
       try { for (const k of Object.keys(localStorage).filter(k => k.endsWith('-auth-token'))) { const p = JSON.parse(localStorage.getItem(k) || '{}'); if (p?.access_token) { token = p.access_token; break; } } } catch { /* */ }
@@ -1089,9 +1057,8 @@ const Dashboard = () => {
   return (
     <AppShell>
       <div style={{ background: 'var(--ds-ivory)', minHeight: '100vh' }}>
-        {panchang?.isSpecial && <RightNowMoment panchang={panchang} />}
         <CommunityHero appUser={appUser} score={prakritiScore} familyRank={familyRank} panchang={panchang} userPersonNode={userPersonNode} gauravGatha={gauravGatha} />
-        <DashboardInfoRow persons={vanshaPersons} panchang={panchang} />
+        <DashboardInfoRow persons={vanshaPersons} panchang={panchang} announcements={calendarEvents.filter(e => e.is_announcement)} />
         {myMargdarshaks.filter(m => m.status === 'active').length > 0 && (
           <section style={{ padding: '16px 0', background: 'linear-gradient(90deg,rgba(34,197,94,0.06),rgba(34,197,94,0.03))', borderBottom: '1px solid rgba(34,197,94,0.15)' }}>
             <div style={{ maxWidth: 1240, margin: '0 auto', padding: '0 24px', display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
@@ -1147,8 +1114,8 @@ const Dashboard = () => {
                   <div style={{ fontSize: 48 }}>🦁</div>
                   <div>
                     <div style={{ fontFamily: 'var(--ds-serif)', fontSize: 22, color: 'var(--ds-plum)', fontWeight: 700 }}>Chote Sheron Ki Duniya</div>
-                    <p style={{ fontSize: 14, color: 'var(--ds-ink-soft)', marginTop: 6, lineHeight: 1.5 }}>Your children's space — stories, milestones, heritage passed forward. <em>Wiring in progress — add a child to your tree to activate.</em></p>
-                    <button onClick={() => {}} className="ds-btn ds-btn-sm ds-btn-plum" style={{ marginTop: 12 }}>Add child to tree →</button>
+                    <p style={{ fontSize: 14, color: 'var(--ds-ink-soft)', marginTop: 6, lineHeight: 1.5 }}>Your children's space — stories, milestones, heritage passed forward.</p>
+                    <div style={{ marginTop: 12, display: 'inline-flex', alignItems: 'center', gap: 6, padding: '7px 14px', borderRadius: 8, background: 'rgba(212,154,31,0.1)', border: '1px solid rgba(212,154,31,0.3)', fontSize: 13, color: 'var(--ds-gold-deep)', fontWeight: 600 }}>🔜 Coming Soon</div>
                   </div>
                 </div>
               </div>
