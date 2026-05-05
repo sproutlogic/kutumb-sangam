@@ -221,6 +221,15 @@ const NodePage = () => {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [form.relation]);
 
+  // Auto-set gender when a gendered title is chosen (#8)
+  useEffect(() => {
+    const femaleTitle = new Set(['Smt.', 'Kumari', 'Mrs.', 'Ms.']);
+    const maleTitle   = new Set(['Shri', 'Mr.']);
+    if (femaleTitle.has(form.title)) set('gender', 'female');
+    else if (maleTitle.has(form.title)) set('gender', 'male');
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form.title]);
+
   // Auto-fill ancestralPlace from anchor/tree for non-spouse new members
   useEffect(() => {
     if (isEdit || form.ancestralPlace.trim()) return; // don't overwrite if already set or editing
@@ -439,15 +448,6 @@ const NodePage = () => {
       });
       return;
     }
-    if (!form.personalLabel.trim()) {
-      toast({
-        title: 'आप इन्हें क्या कहते हैं?',
-        description: 'Please enter what you call this person (e.g. पिताजी, बप्पा, Chachu)',
-        variant: 'destructive',
-      });
-      return;
-    }
-
     if (anchorNodeId && !anchorNode) {
       toast({
         title: tr('errorGeneric'),
@@ -641,6 +641,40 @@ const NodePage = () => {
         {isEdit && isOwnNode && <NodeSovereigntyBadge />}
 
         <div className="bg-card rounded-xl p-8 shadow-card border border-border/50 space-y-5">
+          {/* Relation — shown first so context is set before personal fields */}
+          <div>
+            <label className="block text-sm font-medium font-body mb-1.5">{tr('relation')}</label>
+            <RelationDropdown
+              value={form.relation}
+              onChange={(v) => set('relation', v)}
+              options={isEdit ? undefined : ANCESTRAL_ADD_RELATION_OPTIONS}
+              placeholder={tr('selectRelation')}
+            />
+            {!isEdit &&
+              lineageReferenceNode &&
+              form.relation &&
+              ANCESTRAL_ADD_RELATION_OPTIONS.includes(form.relation) && (
+                <p className="text-xs text-muted-foreground font-body mt-2">
+                  {tr('vrukshaLineageIndex')}:{' '}
+                  <span className="font-medium text-foreground">
+                    {computeVrukshaGeneration(lineageReferenceNode.generation, form.relation)}
+                  </span>
+                  {hasKutumbAnchor && anchorNode && (
+                    <>
+                      {' '}
+                      ({tr('anchorLabel')}: {anchorNode.name}, {tr('generation')}: {anchorNode.generation})
+                    </>
+                  )}
+                </p>
+              )}
+            {isEdit && existingNode && (
+              <p className="text-xs text-muted-foreground font-body mt-2">
+                {tr('generation')}:{' '}
+                <span className="font-medium text-foreground">{existingNode.generation}</span>
+              </p>
+            )}
+          </div>
+
           {/* Title / Honorific */}
           <div>
             <label className="block text-sm font-medium font-body mb-1.5">
@@ -725,44 +759,11 @@ const NodePage = () => {
             />
           </div>
 
-          <div>
-            <label className="block text-sm font-medium font-body mb-1.5">{tr('relation')}</label>
-            <RelationDropdown
-              value={form.relation}
-              onChange={(v) => set('relation', v)}
-              options={isEdit ? undefined : ANCESTRAL_ADD_RELATION_OPTIONS}
-              placeholder={tr('selectRelation')}
-            />
-            {!isEdit &&
-              lineageReferenceNode &&
-              form.relation &&
-              ANCESTRAL_ADD_RELATION_OPTIONS.includes(form.relation) && (
-                <p className="text-xs text-muted-foreground font-body mt-2">
-                  {tr('vrukshaLineageIndex')}:{' '}
-                  <span className="font-medium text-foreground">
-                    {computeVrukshaGeneration(lineageReferenceNode.generation, form.relation)}
-                  </span>
-                  {hasKutumbAnchor && anchorNode && (
-                    <>
-                      {' '}
-                      ({tr('anchorLabel')}: {anchorNode.name}, {tr('generation')}: {anchorNode.generation})
-                    </>
-                  )}
-                </p>
-              )}
-            {isEdit && existingNode && (
-              <p className="text-xs text-muted-foreground font-body mt-2">
-                {tr('generation')}:{' '}
-                <span className="font-medium text-foreground">{existingNode.generation}</span>
-              </p>
-            )}
-          </div>
-
-          {/* Personal label — compulsory on add, optional update on edit */}
+          {/* Personal label — optional on add */}
           {!isEdit && (
             <div>
               <label className="block text-sm font-semibold font-body mb-1">
-                आप इन्हें क्या कहते हैं? <span className="text-destructive">*</span>
+                आप इन्हें क्या कहते हैं? <span className="ml-2 text-[10px] text-muted-foreground font-normal">optional</span>
               </label>
               <p className="text-xs text-muted-foreground font-body mb-2">
                 Your personal name for this person — only you see this on hover.

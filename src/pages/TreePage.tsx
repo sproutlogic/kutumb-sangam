@@ -599,7 +599,6 @@ const TreePage = () => {
             onContextMenu={(e) => e.preventDefault()}
             onMouseMove={handleSvgMouseMove}
             onMouseUp={handleSvgMouseUp}
-            onMouseLeave={cancelDrag}
           >
             <defs>
               <linearGradient id="branch-grad" x1="0" y1="1" x2="0" y2="0">
@@ -992,7 +991,7 @@ const TreePage = () => {
     if (!from) return;
     const coords = toSvgCoords(e);
     if (coords) {
-      const HIT_R = 34;
+      const HIT_R = 50;
       const target = positionedNodes.find(n =>
         n.id !== from.id &&
         Math.sqrt((n.x - coords.x) ** 2 + (n.y - coords.y) ** 2) < HIT_R
@@ -1000,6 +999,32 @@ const TreePage = () => {
       if (target) triggerDragConnect(from.id, target.id);
     }
   }, [positionedNodes, toSvgCoords, triggerDragConnect]);
+
+  // Document-level mouseup: completes drag even when mouse leaves the SVG (#1)
+  useEffect(() => {
+    const onDocMouseUp = (ev: MouseEvent) => {
+      if (!dragFromRef.current) return;
+      const from = dragFromRef.current;
+      dragFromRef.current = null;
+      dragPotentialRef.current = null;
+      setDragPreview(null);
+      const svg = svgRef.current;
+      if (!svg) return;
+      const pt = svg.createSVGPoint();
+      pt.x = ev.clientX; pt.y = ev.clientY;
+      const inv = svg.getScreenCTM()?.inverse();
+      if (!inv) return;
+      const p = pt.matrixTransform(inv);
+      const HIT_R = 50;
+      const target = positionedNodes.find(n =>
+        n.id !== from.id &&
+        Math.sqrt((n.x - p.x) ** 2 + (n.y - p.y) ** 2) < HIT_R
+      );
+      if (target) triggerDragConnect(from.id, target.id);
+    };
+    document.addEventListener('mouseup', onDocMouseUp);
+    return () => document.removeEventListener('mouseup', onDocMouseUp);
+  }, [positionedNodes, triggerDragConnect]);
 
   const handleLinkSubmit = async () => {
     if (!connectPopup || !connectRelation || !connectingFromId) return;
@@ -1021,13 +1046,23 @@ const TreePage = () => {
   const handleDeleteNode = async (nodeId: string, name: string) => {
     if (!confirm(`Delete "${name}" from the tree? This cannot be undone.`)) return;
     setDeletingNodeId(nodeId);
+    setSelectedNodeId(null);
+    // Optimistic: remove from canvas immediately so user sees instant feedback
+    loadTreeState({
+      ...state,
+      nodes: state.nodes.filter(n => n.id !== nodeId),
+      edges: state.edges.filter(e => e.from !== nodeId && e.to !== nodeId),
+      unionRows: (state.unionRows ?? []).filter(
+        u => u.maleNodeId !== nodeId && u.femaleNodeId !== nodeId
+      ),
+    });
     try {
       await deletePerson(nodeId);
-      setSelectedNodeId(null);
-      setRetryToken(t => t + 1);
       toast({ title: `${name} removed from tree` });
+      setRetryToken(t => t + 1); // re-sync with server
     } catch (err) {
       toast({ title: 'Delete failed', description: err instanceof Error ? err.message : 'Error', variant: 'destructive' });
+      setRetryToken(t => t + 1); // re-fetch to restore on failure
     } finally {
       setDeletingNodeId(null);
     }
@@ -1217,7 +1252,14 @@ const TreePage = () => {
                   return state.nodes.find(n => n.id === sid);
                 }).filter(Boolean);
                 const myUnionIds = new Set(myUnions.map(u => u.id));
-                const childNodes = state.nodes.filter(n => n.parentUnionId && myUnionIds.has(n.parentUnionId));
+                const childNodes = state.nodes
+                  .filter(n => n.parentUnionId && myUnionIds.has(n.parentUnionId))
+                  .sort((a, b) => {
+                    if (!a.dateOfBirth && !b.dateOfBirth) return 0;
+                    if (!a.dateOfBirth) return 1;
+                    if (!b.dateOfBirth) return -1;
+                    return a.dateOfBirth.localeCompare(b.dateOfBirth);
+                  });
 
                 const row = (label: string, value: string | undefined) => value ? (
                   <div key={label} style={{ display: 'grid', gridTemplateColumns: '88px 1fr', gap: 4, padding: '4px 0', fontSize: 12, borderBottom: '1px solid rgba(74,33,104,0.06)' }}>
@@ -1226,7 +1268,8 @@ const TreePage = () => {
                   </div>
                 ) : null;
 
-                const inviteLink = `${window.location.origin}/code?type=node&nodeId=${selectedNode.id}`;
+                const refCode = appUser?.kutumb_id ?? '';
+                const inviteLink = `${window.location.origin}/code?type=node&nodeId=${selectedNode.id}${refCode ? `&ref=${encodeURIComponent(refCode)}` : ''}`;
 
                 return (
                   <>
