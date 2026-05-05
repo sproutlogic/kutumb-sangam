@@ -56,6 +56,7 @@ import LeaderboardPage from "@/pages/LeaderboardPage";
 import VendorPortalPage from "@/pages/VendorPortalPage";
 import ContentQueuePage from "@/pages/ContentQueuePage";
 import SettingsPage from "@/pages/SettingsPage";
+import AdminDashboard from "@/pages/AdminDashboard";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -139,6 +140,9 @@ const App = () => (
 
                     {/* ── Vendor portal (authenticated vendor) ── */}
                     <Route path="/vendor-portal" element={<ProtectedRoute><VendorPortalPage /></ProtectedRoute>} />
+
+                    {/* ── Unified admin dashboard ── */}
+                    <Route path="/admin" element={<ProtectedRoute><AdminDashboard /></ProtectedRoute>} />
 
                     {/* ── Admin content queue (admin / superadmin) ── */}
                     <Route path="/admin/content" element={<ProtectedRoute><ContentQueuePage /></ProtectedRoute>} />

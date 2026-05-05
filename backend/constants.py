@@ -118,3 +118,8 @@ UJJAIN_LON: float = 75.7771
 
 # ── Gaurav Gatha — community achievement wall ─────────────────────────────────
 GAURAV_GATHA_TABLE = "gaurav_gatha"
+
+# ── Admin operations ───────────────────────────────────────────────────────────
+# support_tickets: id, user_id, subject, status, priority, created_at, closed_by
+# Payouts are stored in the payments table with payment_type='payout'
+SUPPORT_TICKETS_TABLE = "support_tickets"
