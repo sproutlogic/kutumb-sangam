@@ -9,7 +9,7 @@ import { useTree } from '@/contexts/TreeContext';
 import AppShell from '@/components/shells/AppShell';
 import TreeCompletionScore from '@/components/ui/TreeCompletionScore';
 import TrustBadge from '@/components/ui/TrustBadge';
-import { createPerson, deletePerson, fetchMatrimonyProfile, fetchVanshaTree, fetchVanshaTreePage, getApiBaseUrl, getPersistedVanshaId, linkPersons, unlinkPersons, updatePerson, updateVanshaMetadata } from '@/services/api';
+import { deletePerson, fetchMatrimonyProfile, fetchVanshaTree, fetchVanshaTreePage, getApiBaseUrl, getPersistedVanshaId, linkPersons, unlinkPersons, updatePerson, updateVanshaMetadata } from '@/services/api';
 import { backendPayloadToTreeState } from '@/services/mapVanshaPayload';
 import { mergeMatrimonyProfile } from '@/engine/matrimonyDefaults';
 import { canViewerSeeNodeDetails } from '@/engine/privacy';
@@ -17,14 +17,11 @@ import { toast } from '@/hooks/use-toast';
 import type { PositionedTreeNode } from '@/engine/treeLayout';
 import { layoutTreeNodes, nodesForParentalUnionRow } from '@/engine/treeLayout';
 import {
-  ANCESTRAL_ADD_RELATION_OPTIONS,
-  computeVrukshaGeneration,
   getTreeNodeContainerVariant,
   idEqNodeIds,
   isAdoptedChildRelation,
   isSpouseRelation,
 } from '@/constants/vrukshaRelations';
-import { RelationDropdown } from '@/components/members/RelationDropdown';
 import { PersonNode } from '@/components/tree/PersonNode';
 import {
   SpouseCoupleFrame,
@@ -345,9 +342,6 @@ const TreePage = () => {
   const [unlinkingEdge, setUnlinkingEdge] = useState<string | null>(null);
   const [deletingNodeId, setDeletingNodeId] = useState<string | null>(null);
   const [inviteCopied, setInviteCopied] = useState(false);
-  const [addMemberOpen, setAddMemberOpen] = useState(false);
-  const [addMemberForm, setAddMemberForm] = useState<{ name: string; gender: 'male' | 'female' | 'other' | ''; relation: string }>({ name: '', gender: '', relation: '' });
-  const [addMemberSaving, setAddMemberSaving] = useState(false);
   const [isPaginated, setIsPaginated] = useState(false);
   const [genMin, setGenMin] = useState(-3);
   const [genMax, setGenMax] = useState(genMin + PAGE_SIZE - 1);
@@ -909,12 +903,6 @@ const TreePage = () => {
     }
   }, [isTreeInitialized, zoomFit]);
 
-  // Reset add-member form when selected node changes
-  useEffect(() => {
-    setAddMemberOpen(false);
-    setAddMemberForm({ name: '', gender: '', relation: '' });
-  }, [selectedNodeId]);
-
   // ESC cancels connect mode
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -1027,38 +1015,6 @@ const TreePage = () => {
       toast({ title: 'Link failed', description: err instanceof Error ? err.message : 'Could not connect.', variant: 'destructive' });
     } finally {
       setConnectLinking(false);
-    }
-  };
-
-  const handleAddMember = async () => {
-    if (!selectedNode || !addMemberForm.name.trim() || !addMemberForm.relation || !addMemberForm.gender) return;
-    const vid = vanshaId || defaultVanshaFromEnv || getPersistedVanshaId();
-    if (!vid) { toast({ title: 'No vansha ID', variant: 'destructive' }); return; }
-    setAddMemberSaving(true);
-    try {
-      const relGenIndex = computeVrukshaGeneration(selectedNode.generation, addMemberForm.relation);
-      const nameParts = addMemberForm.name.trim().split(' ');
-      const first_name = nameParts.slice(0, -1).join(' ') || nameParts[0];
-      const last_name = nameParts.length > 1 ? nameParts[nameParts.length - 1] : '';
-      await createPerson({
-        vansha_id: vid,
-        first_name,
-        last_name,
-        date_of_birth: '',
-        ancestral_place: '',
-        gender: addMemberForm.gender,
-        relation: addMemberForm.relation,
-        relative_gen_index: relGenIndex,
-        anchor_node_id: selectedNode.id,
-      });
-      setRetryToken(t => t + 1);
-      setAddMemberOpen(false);
-      setAddMemberForm({ name: '', gender: '', relation: '' });
-      toast({ title: `${addMemberForm.name.trim()} added to tree` });
-    } catch (err) {
-      toast({ title: 'Failed to add member', description: err instanceof Error ? err.message : 'Error', variant: 'destructive' });
-    } finally {
-      setAddMemberSaving(false);
     }
   };
 
@@ -1310,92 +1266,18 @@ const TreePage = () => {
                         <Pencil className="w-4 h-4" /> Edit profile
                       </button>
 
-                      {/* Add Member */}
+                      {/* Add Member — opens the full NodePage form with this node as anchor */}
                       <button
-                        onClick={() => setAddMemberOpen(o => !o)}
+                        onClick={() => {
+                          const vid = vanshaId || defaultVanshaFromEnv || getPersistedVanshaId();
+                          const params = new URLSearchParams({ anchor_node_id: selectedNode.id });
+                          if (vid) params.set('vansha_id', vid);
+                          navigate(`/node?${params.toString()}`);
+                        }}
                         style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', borderRadius: 8, border: 'none', background: '#2e1346', fontSize: 13, fontWeight: 600, color: '#fff', cursor: 'pointer' }}
                       >
                         <span style={{ fontSize: 16 }}>➕</span> Add member
-                        <span style={{ marginLeft: 'auto', opacity: 0.6, fontSize: 11 }}>{addMemberOpen ? '▲' : '▼'}</span>
                       </button>
-
-                      {/* Add Member inline form */}
-                      {addMemberOpen && (
-                        <div style={{ padding: '14px', borderRadius: 10, background: 'rgba(74,33,104,0.04)', border: '1px solid rgba(74,33,104,0.15)' }}>
-                          <div style={{ fontSize: 11, fontWeight: 700, color: '#2e1346', marginBottom: 10, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
-                            Add relative of {selectedNode.name}
-                          </div>
-
-                          {/* Relation */}
-                          <div style={{ marginBottom: 8 }}>
-                            <label style={{ fontSize: 11, color: 'rgba(74,33,104,0.55)', marginBottom: 4, display: 'block' }}>Relation</label>
-                            <RelationDropdown
-                              options={ANCESTRAL_ADD_RELATION_OPTIONS}
-                              value={addMemberForm.relation}
-                              onChange={(r) => {
-                                const autoGender: 'male' | 'female' | '' = isSpouseRelation(r)
-                                  ? (selectedNode.gender === 'male' ? 'female' : selectedNode.gender === 'female' ? 'male' : '')
-                                  : '';
-                                setAddMemberForm(f => ({ ...f, relation: r, gender: autoGender || f.gender }));
-                              }}
-                            />
-                          </div>
-
-                          {/* Name */}
-                          <div style={{ marginBottom: 8 }}>
-                            <label style={{ fontSize: 11, color: 'rgba(74,33,104,0.55)', marginBottom: 4, display: 'block' }}>Name</label>
-                            <input
-                              type="text"
-                              value={addMemberForm.name}
-                              onChange={e => setAddMemberForm(f => ({ ...f, name: e.target.value }))}
-                              onKeyDown={e => { if (e.key === 'Enter') handleAddMember(); }}
-                              placeholder="Enter full name"
-                              style={{ width: '100%', padding: '8px 10px', borderRadius: 7, border: '1px solid rgba(74,33,104,0.2)', background: '#fff', fontSize: 13, outline: 'none', boxSizing: 'border-box' }}
-                            />
-                          </div>
-
-                          {/* Gender — always shown; auto-set for spouse but still editable */}
-                          <div style={{ marginBottom: 12 }}>
-                            <label style={{ fontSize: 11, color: 'rgba(74,33,104,0.55)', marginBottom: 4, display: 'block' }}>
-                              Gender
-                              {isSpouseRelation(addMemberForm.relation) && addMemberForm.gender && (
-                                <span style={{ color: 'rgba(74,33,104,0.4)', fontWeight: 400, marginLeft: 4 }}>(auto)</span>
-                              )}
-                            </label>
-                            <div style={{ display: 'flex', gap: 6 }}>
-                              {(['male', 'female', 'other'] as const).map(g => (
-                                <button
-                                  key={g}
-                                  type="button"
-                                  onClick={() => setAddMemberForm(f => ({ ...f, gender: g }))}
-                                  style={{ flex: 1, padding: '7px 0', borderRadius: 6, border: `1.5px solid ${addMemberForm.gender === g ? '#2e1346' : 'rgba(74,33,104,0.18)'}`, background: addMemberForm.gender === g ? '#2e1346' : 'transparent', color: addMemberForm.gender === g ? '#fff' : '#2e1346', fontSize: 11, fontWeight: 600, cursor: 'pointer', textTransform: 'capitalize' }}
-                                >
-                                  {g}
-                                </button>
-                              ))}
-                            </div>
-                          </div>
-
-                          {/* Submit / Cancel */}
-                          <div style={{ display: 'flex', gap: 6 }}>
-                            <button
-                              type="button"
-                              onClick={handleAddMember}
-                              disabled={addMemberSaving || !addMemberForm.name.trim() || !addMemberForm.relation || !addMemberForm.gender}
-                              style={{ flex: 1, padding: '9px 0', borderRadius: 7, border: 'none', background: '#2e1346', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer', opacity: (addMemberSaving || !addMemberForm.name.trim() || !addMemberForm.relation || !addMemberForm.gender) ? 0.45 : 1 }}
-                            >
-                              {addMemberSaving ? 'Adding…' : 'Add member'}
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => { setAddMemberOpen(false); setAddMemberForm({ name: '', gender: '', relation: '' }); }}
-                              style={{ padding: '9px 14px', borderRadius: 7, border: '1px solid rgba(74,33,104,0.2)', background: 'transparent', color: '#2e1346', fontSize: 13, cursor: 'pointer' }}
-                            >
-                              Cancel
-                            </button>
-                          </div>
-                        </div>
-                      )}
 
                       {/* Delete (not self) */}
                       {!isSelf && (
