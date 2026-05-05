@@ -9,6 +9,7 @@ import {
 import { useAuth } from '@/contexts/AuthContext';
 import { getApiBaseUrl, fetchPanchangCalendar, fetchTodayPanchang, type PanchangCalendarRow, type TodayPanchang } from '@/services/api';
 import { useToast } from '@/hooks/use-toast';
+import PanchangCalendarView from '@/components/PanchangCalendarView';
 
 // ── Types ────────────────────────────────────────────────────────────
 interface CalendarEvent {
@@ -411,20 +412,6 @@ function TodayPage({ base, authFetch, onNav }: PageProps) {
 }
 
 function CalendarPage({ base, authFetch }: PageProps) {
-  const _now = new Date();
-  const _y = _now.getFullYear(); const _m = _now.getMonth();
-  const _dim = new Date(_y, _m + 1, 0).getDate();
-  const _mm = String(_m + 1).padStart(2, '0');
-  const fromStr = `${_y}-${_mm}-01`;
-  const toStr   = `${_y}-${_mm}-${String(_dim).padStart(2,'0')}`;
-  const monthLabel = _now.toLocaleDateString('en-IN', { month: 'long', year: 'numeric' });
-
-  const { data: rawPanchang, isLoading: pLoad, isError: pErr } = useQuery<PanchangCalendarRow[]>({
-    queryKey: ['pcrm-panchang', fromStr],
-    queryFn: () => fetchPanchangCalendar(fromStr, toStr),
-    retry: 1, staleTime: 3600_000,
-  });
-
   const { data: todayPanchang } = useQuery<TodayPanchang | null>({
     queryKey: ['pcrm-panchang-today'],
     queryFn: () => fetchTodayPanchang(),
@@ -437,46 +424,15 @@ function CalendarPage({ base, authFetch }: PageProps) {
     retry: 1, staleTime: 60_000,
   });
 
-  const panchang = rawPanchang?.length ? rawPanchang : FB_PANCHANG;
-  const events   = rawEvents   ?? FB_EVENTS;
+  const events   = rawEvents ?? FB_EVENTS;
   const bookings = useMemo(() => adaptBookings(events), [events]);
-  const live = !pErr && !eErr;
-
-  const eventDays = useMemo(() => {
-    const map: Record<number, string[]> = {};
-    events.forEach(e => {
-      const day = parseInt(e.event_date.slice(8, 10), 10);
-      if (!day) return;
-      const c: Record<string, string> = { event:'saffron', birthday:'plum', anniversary:'gold' };
-      (map[day] ??= []).push(c[e.event_type] ?? 'saffron');
-    });
-    return map;
-  }, [events]);
-
-  const todayNum = _now.getDate();
-  const days: { n: number; muted: boolean }[] = [];
-  const _firstDow = new Date(_y, _m, 1).getDay();
-  const _prevDays = new Date(_y, _m, 0).getDate();
-  for (let i = _firstDow - 1; i >= 0; i--) days.push({ muted: true, n: _prevDays - i });
-  for (let d = 1; d <= _dim; d++) days.push({ n: d, muted: false });
-  let _trail = 1;
-  while (days.length % 7 !== 0) days.push({ muted: true, n: -(_trail++) });
-
-  const panchangByDay = useMemo(() => {
-    const m: Record<number, PanchangCalendarRow> = {};
-    panchang.forEach(p => { m[parseInt(p.gregorian_date.slice(8,10), 10)] = p; });
-    return m;
-  }, [panchang]);
-
-  const tithiName = (n: number) => panchangByDay[n]?.tithis?.name?.slice(0, 3) ?? '';
-  const specialFlag = (n: number) => panchangByDay[n]?.special_flag ?? null;
 
   return (
     <>
       <PageHead eyebrow="Ritual Calendar" deva="पञ्चाङ्ग" title="Bookings & Sankalp"
-        subtitle="Lunar tithis from /api/panchang/calendar · bookings from /api/calendar/events"
+        subtitle="Lunar tithis from /api/panchang/calendar (Prokerala) · bookings from /api/calendar/events"
         actions={<>
-          <SourceBadge live={live} loading={pLoad || eLoad} error={pErr||eErr ? 'unreachable' : null} endpoint="panchang + calendar"/>
+          <SourceBadge live={!eErr} loading={eLoad} error={eErr ? 'unreachable' : null} endpoint="panchang + calendar"/>
           <button className="pcrm-btn pcrm-btn-primary pcrm-btn-sm"><Plus size={14}/> New booking</button>
         </>}
       />
@@ -500,31 +456,11 @@ function CalendarPage({ base, authFetch }: PageProps) {
         <section className="pcrm-card">
           <div className="pcrm-card-head">
             <div>
-              <div className="pcrm-card-title">{monthLabel}</div>
+              <div className="pcrm-card-title">Eco Panchang</div>
               <div className="pcrm-card-sub pcrm-mono">Prokerala API → /api/panchang/calendar</div>
             </div>
           </div>
-          <div className="pcrm-cal pcrm-mb-3">
-            {['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map(h => <div key={h} className="pcrm-cal-head">{h}</div>)}
-            {days.map((d, i) => {
-              const ev = eventDays[d.n] ?? [];
-              const flag = !d.muted ? specialFlag(d.n) : null;
-              return (
-                <div key={i} className={`pcrm-cal-cell${d.muted?' muted':''}${d.n===todayNum&&!d.muted?' today':''}${ev.length||flag?' has-event':''}`}>
-                  {!d.muted && <span className="pcrm-cal-cell-num">{d.n}</span>}
-                  {!d.muted && <span className="pcrm-cal-cell-tithi">{tithiName(d.n)}</span>}
-                  {flag && <span className="pcrm-cal-cell-tithi" style={{color:'var(--pcrm-saffron-dk)',fontSize:8}}>🪔</span>}
-                  {ev.length > 0 && (
-                    <div className="pcrm-cal-events">
-                      {ev.slice(0,3).map((c, k) => (
-                        <span key={k} className="pcrm-cal-event-dot" style={{background:`var(--pcrm-${c})`}}/>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
+          <PanchangCalendarView defaultYear={2026} defaultMonth={4} />
         </section>
 
         <aside className="pcrm-stack">
