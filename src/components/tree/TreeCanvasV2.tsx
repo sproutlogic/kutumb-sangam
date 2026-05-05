@@ -1,161 +1,176 @@
 /**
- * TreeCanvasV2 — edge-driven tree canvas (Path B).
- *
- * Source of truth: `relationships` edge table (parent_of / spouse_of).
- * Layout: BFS from roots (no parent_of incoming) → generation rows.
- * Per-node manual offset persisted via canvas_offset_x/y.
- *
- * This component is rendered when TreePage detects `?v2=1` in the URL.
- * Old TreePage rendering is untouched.
+ * TreeCanvasV2 — React Flow powered family tree canvas.
+ * Drag-drop, pan, zoom, click-to-select, right-click context menu, edge delete.
  */
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { fetchVanshaTree } from "@/services/api";
+import {
+  ReactFlow,
+  Background,
+  Controls,
+  MiniMap,
+  addEdge,
+  useNodesState,
+  useEdgesState,
+  type Node,
+  type Edge,
+  type NodeMouseHandler,
+  type EdgeMouseHandler,
+  type OnConnect,
+  MarkerType,
+  Panel,
+} from "@xyflow/react";
+import "@xyflow/react/dist/style.css";
+import { toast } from "sonner";
+import { fetchVanshaTree, deletePerson } from "@/services/api";
 import {
   listRelationships,
   deleteRelationship,
+  createRelationship,
   setNodeOffset,
-  clearNodeOffset,
-  getIntegrity,
   getVansha,
+  getIntegrity,
   type Relationship,
   type VanshaMeta,
 } from "@/services/treeV2Api";
-import { deletePerson } from "@/services/api";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { toast } from "sonner";
+import { Badge } from "@/components/ui/badge";
+
+// ─── Types ────────────────────────────────────────────────────────────────────
 
 type RawPerson = Record<string, unknown> & {
   node_id: string;
-  kutumb_id?: string | null;
-  vansha_id: string;
   first_name?: string;
   last_name?: string;
   gender?: string;
+  kutumb_id?: string | null;
   canvas_offset_x?: number | null;
   canvas_offset_y?: number | null;
+  relation?: string;
 };
 
-interface Props {
-  vanshaId: string;
-}
+type ContextMenu =
+  | { kind: "node"; x: number; y: number; nodeId: string; name: string }
+  | { kind: "edge"; x: number; y: number; edgeId: string; relId: string };
 
-const NODE_W = 150;
-const NODE_H = 60;
-const ROW_GAP = 140;
-const COL_GAP = 30;
+// ─── Layout constants ─────────────────────────────────────────────────────────
 
-type Position = { x: number; y: number; gen: number };
+const NODE_WIDTH = 160;
+const NODE_HEIGHT = 70;
+const H_GAP = 60;
+const V_GAP = 120;
 
-function computeGenerations(persons: RawPerson[], rels: Relationship[]): Map<string, number> {
+// ─── Layout: BFS from roots via parent_of edges ───────────────────────────────
+
+function buildLayout(
+  persons: RawPerson[],
+  rels: Relationship[],
+): Map<string, { x: number; y: number }> {
   const parentOf = rels.filter((r) => r.type === "parent_of");
-  const incomingParents = new Map<string, string[]>();
-  parentOf.forEach((r) => {
-    const arr = incomingParents.get(r.to_node_id) ?? [];
-    arr.push(r.from_node_id);
-    incomingParents.set(r.to_node_id, arr);
+  const spouseOf = rels.filter((r) => r.type === "spouse_of");
+
+  // Build partner map.
+  const partnerOf = new Map<string, string>();
+  spouseOf.forEach((r) => {
+    partnerOf.set(r.from_node_id, r.to_node_id);
+    partnerOf.set(r.to_node_id, r.from_node_id);
   });
 
-  // Roots = persons with no parent_of incoming.
-  const roots = persons.filter((p) => !(incomingParents.get(p.node_id)?.length));
-  const gen = new Map<string, number>();
-  roots.forEach((r) => gen.set(r.node_id, 0));
+  // Children per node.
+  const childrenOf = new Map<string, string[]>();
+  const hasParent = new Set<string>();
+  parentOf.forEach((r) => {
+    const arr = childrenOf.get(r.from_node_id) ?? [];
+    arr.push(r.to_node_id);
+    childrenOf.set(r.from_node_id, arr);
+    hasParent.add(r.to_node_id);
+  });
 
-  // BFS down the parent_of edges.
-  const queue: string[] = roots.map((r) => r.node_id);
+  // Roots = persons with no incoming parent_of.
+  const roots = persons.filter((p) => !hasParent.has(p.node_id));
+
+  // BFS assigns generation.
+  const gen = new Map<string, number>();
+  const queue: string[] = [];
+  roots.forEach((r) => { gen.set(r.node_id, 0); queue.push(r.node_id); });
   while (queue.length) {
     const id = queue.shift()!;
     const g = gen.get(id) ?? 0;
-    parentOf
-      .filter((r) => r.from_node_id === id)
-      .forEach((r) => {
-        const childG = g + 1;
-        if (!gen.has(r.to_node_id) || (gen.get(r.to_node_id)! < childG)) {
-          gen.set(r.to_node_id, childG);
-          queue.push(r.to_node_id);
-        }
-      });
+    (childrenOf.get(id) ?? []).forEach((cid) => {
+      if (!gen.has(cid)) { gen.set(cid, g + 1); queue.push(cid); }
+    });
   }
+  persons.forEach((p) => { if (!gen.has(p.node_id)) gen.set(p.node_id, 0); });
 
-  // Anyone unreached (orphan with no parent edges and no children) → gen 0.
-  persons.forEach((p) => {
-    if (!gen.has(p.node_id)) gen.set(p.node_id, 0);
-  });
-  return gen;
-}
-
-function computeAutoPositions(persons: RawPerson[], rels: Relationship[]): Map<string, Position> {
-  const gen = computeGenerations(persons, rels);
-  const byGen = new Map<number, RawPerson[]>();
+  // Group by generation, order so spouses sit adjacent.
+  const byGen = new Map<number, string[]>();
   persons.forEach((p) => {
     const g = gen.get(p.node_id) ?? 0;
     const arr = byGen.get(g) ?? [];
-    arr.push(p);
+    arr.push(p.node_id);
     byGen.set(g, arr);
   });
 
-  // Couple awareness: place spouses adjacent.
-  const spouseOf = rels.filter((r) => r.type === "spouse_of");
-  const partnerOf = new Map<string, string>();
-  spouseOf.forEach((s) => {
-    partnerOf.set(s.from_node_id, s.to_node_id);
-    partnerOf.set(s.to_node_id, s.from_node_id);
-  });
-
-  const out = new Map<string, Position>();
+  const positions = new Map<string, { x: number; y: number }>();
   Array.from(byGen.entries())
     .sort(([a], [b]) => a - b)
-    .forEach(([g, members]) => {
-      // Order members so couples sit next to each other.
-      const ordered: RawPerson[] = [];
+    .forEach(([g, ids]) => {
+      // Order: place spouses next to each other.
+      const ordered: string[] = [];
       const seen = new Set<string>();
-      members.forEach((p) => {
-        if (seen.has(p.node_id)) return;
-        ordered.push(p);
-        seen.add(p.node_id);
-        const partner = partnerOf.get(p.node_id);
-        if (partner) {
-          const partnerRow = members.find((m) => m.node_id === partner);
-          if (partnerRow && !seen.has(partner)) {
-            ordered.push(partnerRow);
-            seen.add(partner);
-          }
+      ids.forEach((id) => {
+        if (seen.has(id)) return;
+        ordered.push(id);
+        seen.add(id);
+        const partner = partnerOf.get(id);
+        if (partner && ids.includes(partner) && !seen.has(partner)) {
+          ordered.push(partner);
+          seen.add(partner);
         }
       });
-
-      const totalWidth = ordered.length * (NODE_W + COL_GAP);
-      ordered.forEach((p, i) => {
-        out.set(p.node_id, {
-          x: i * (NODE_W + COL_GAP) - totalWidth / 2 + NODE_W / 2,
-          y: g * ROW_GAP,
-          gen: g,
+      const totalW = ordered.length * (NODE_WIDTH + H_GAP);
+      ordered.forEach((id, i) => {
+        positions.set(id, {
+          x: i * (NODE_WIDTH + H_GAP) - totalW / 2 + NODE_WIDTH / 2,
+          y: g * (NODE_HEIGHT + V_GAP),
         });
       });
     });
 
-  return out;
+  return positions;
 }
+
+// ─── Node colour ─────────────────────────────────────────────────────────────
+
+function nodeColor(gender?: string) {
+  if (gender === "male") return "#dbeafe";
+  if (gender === "female") return "#fce7f3";
+  return "#f3f4f6";
+}
+
+// ─── Main component ───────────────────────────────────────────────────────────
+
+interface Props { vanshaId: string }
 
 const TreeCanvasV2: React.FC<Props> = ({ vanshaId }) => {
   const navigate = useNavigate();
+
+  const [rfNodes, setRfNodes, onNodesChange] = useNodesState<Node>([]);
+  const [rfEdges, setRfEdges, onEdgesChange] = useEdgesState<Edge>([]);
+
   const [persons, setPersons] = useState<RawPerson[]>([]);
   const [rels, setRels] = useState<Relationship[]>([]);
   const [vansha, setVansha] = useState<VanshaMeta | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [offsets, setOffsets] = useState<Map<string, { x: number; y: number }>>(new Map());
-  const [draggingId, setDraggingId] = useState<string | null>(null);
-  const [contextMenu, setContextMenu] = useState<
-    | { kind: "node"; x: number; y: number; nodeId: string }
-    | { kind: "edge"; x: number; y: number; edgeId: string }
-    | null
-  >(null);
-  const [integrityFor, setIntegrityFor] = useState<string | null>(null);
-  const [integrityData, setIntegrityData] = useState<Awaited<ReturnType<typeof getIntegrity>> | null>(null);
-  const [zoom, setZoom] = useState(1);
-  const [pan, setPan] = useState({ x: 0, y: 0 });
-  const dragStartRef = useRef<{ x: number; y: number; nodeOrigX: number; nodeOrigY: number } | null>(null);
+  const [contextMenu, setContextMenu] = useState<ContextMenu | null>(null);
+  const [integrityPanel, setIntegrityPanel] = useState<Awaited<ReturnType<typeof getIntegrity>> | null>(null);
+
+  // Save drag offset after node drag ends (debounced 600ms).
+  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // ── Fetch ──────────────────────────────────────────────────────────────────
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -170,330 +185,271 @@ const TreeCanvasV2: React.FC<Props> = ({ vanshaId }) => {
       setPersons(rawPersons);
       setRels(edges);
       setVansha(meta);
-      // Seed offsets from server-side canvas_offset.
-      const seeded = new Map<string, { x: number; y: number }>();
-      rawPersons.forEach((p) => {
-        if (p.canvas_offset_x != null && p.canvas_offset_y != null) {
-          seeded.set(p.node_id, { x: Number(p.canvas_offset_x), y: Number(p.canvas_offset_y) });
-        }
-      });
-      setOffsets(seeded);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to load tree");
+      setError(e instanceof Error ? e.message : "Failed to load");
     } finally {
       setLoading(false);
     }
   }, [vanshaId]);
 
+  useEffect(() => { void refresh(); }, [refresh]);
+
+  // ── Build React Flow nodes + edges from persons + relationships ────────────
+
   useEffect(() => {
-    void refresh();
-  }, [refresh]);
+    if (!persons.length) return;
+    const layout = buildLayout(persons, rels);
 
-  const positions = useMemo(() => computeAutoPositions(persons, rels), [persons, rels]);
+    const nodes: Node[] = persons.map((p) => {
+      const auto = layout.get(p.node_id) ?? { x: 0, y: 0 };
+      const ox = Number(p.canvas_offset_x ?? 0);
+      const oy = Number(p.canvas_offset_y ?? 0);
+      const name = `${p.first_name ?? ""} ${p.last_name ?? ""}`.trim() || "(unnamed)";
+      return {
+        id: p.node_id,
+        position: { x: auto.x + ox, y: auto.y + oy },
+        data: {
+          label: (
+            <div style={{ textAlign: "center", padding: "4px 8px" }}>
+              <div style={{ fontWeight: 600, fontSize: 13 }}>{name}</div>
+              <div style={{ fontSize: 10, color: "#64748b" }}>{p.kutumb_id ?? ""}</div>
+              {p.relation && (
+                <div style={{ fontSize: 9, color: "#94a3b8", marginTop: 2 }}>{p.relation}</div>
+              )}
+            </div>
+          ),
+          nodeId: p.node_id,
+          name,
+        },
+        style: {
+          background: nodeColor(p.gender as string),
+          border: "1px solid #94a3b8",
+          borderRadius: 8,
+          width: NODE_WIDTH,
+          minHeight: NODE_HEIGHT,
+          cursor: "grab",
+        },
+      };
+    });
 
-  const finalPos = useCallback(
-    (id: string): Position | null => {
-      const auto = positions.get(id);
-      if (!auto) return null;
-      const off = offsets.get(id);
-      return off ? { ...auto, x: auto.x + off.x, y: auto.y + off.y } : auto;
+    const edges: Edge[] = rels.map((r) => {
+      const isSpouse = r.type === "spouse_of";
+      const isAdopted = r.subtype === "adopted";
+      const isStep = r.subtype === "step";
+      return {
+        id: r.id,
+        source: r.from_node_id,
+        target: r.to_node_id,
+        data: { relId: r.id, type: r.type, subtype: r.subtype },
+        type: isSpouse ? "straight" : "smoothstep",
+        style: {
+          stroke: isSpouse ? "#ec4899" : isAdopted ? "#a855f7" : isStep ? "#f59e0b" : "#475569",
+          strokeWidth: isSpouse ? 2 : 1.5,
+          strokeDasharray: isAdopted ? "6 3" : undefined,
+        },
+        markerEnd: isSpouse ? undefined : { type: MarkerType.ArrowClosed, width: 12, height: 12 },
+        label: isAdopted ? "adopted" : isStep ? "step" : undefined,
+        labelStyle: { fontSize: 9, fill: "#94a3b8" },
+      };
+    });
+
+    setRfNodes(nodes);
+    setRfEdges(edges);
+  }, [persons, rels, setRfNodes, setRfEdges]);
+
+  // ── Save position after drag ───────────────────────────────────────────────
+
+  const onNodeDragStop = useCallback(
+    (_: React.MouseEvent, node: Node) => {
+      if (saveTimer.current) clearTimeout(saveTimer.current);
+      saveTimer.current = setTimeout(() => {
+        void setNodeOffset(node.id, node.position.x, node.position.y).catch(() =>
+          toast.error("Could not save position"),
+        );
+      }, 600);
     },
-    [positions, offsets],
+    [],
   );
 
-  // Drag handlers (document-level so we catch releases outside SVG).
-  useEffect(() => {
-    if (!draggingId) return;
-    const onMove = (e: MouseEvent) => {
-      if (!dragStartRef.current) return;
-      const dx = (e.clientX - dragStartRef.current.x) / zoom;
-      const dy = (e.clientY - dragStartRef.current.y) / zoom;
-      setOffsets((prev) => {
-        const next = new Map(prev);
-        next.set(draggingId, {
-          x: dragStartRef.current!.nodeOrigX + dx,
-          y: dragStartRef.current!.nodeOrigY + dy,
-        });
-        return next;
-      });
-    };
-    const onUp = async () => {
-      const id = draggingId;
-      setDraggingId(null);
-      const off = offsets.get(id);
-      if (off) {
-        try {
-          await setNodeOffset(id, off.x, off.y);
-        } catch {
-          toast.error("Could not save position");
-        }
-      }
-    };
-    document.addEventListener("mousemove", onMove);
-    document.addEventListener("mouseup", onUp);
-    return () => {
-      document.removeEventListener("mousemove", onMove);
-      document.removeEventListener("mouseup", onUp);
-    };
-  }, [draggingId, zoom, offsets]);
+  // ── Context menus ──────────────────────────────────────────────────────────
 
-  const startDrag = (e: React.MouseEvent, nodeId: string) => {
-    if (e.button !== 0) return;
-    e.stopPropagation();
-    const off = offsets.get(nodeId) ?? { x: 0, y: 0 };
-    dragStartRef.current = { x: e.clientX, y: e.clientY, nodeOrigX: off.x, nodeOrigY: off.y };
-    setDraggingId(nodeId);
-  };
-
-  const onNodeContext = (e: React.MouseEvent, nodeId: string) => {
+  const onNodeContextMenu: NodeMouseHandler = useCallback((e, node) => {
     e.preventDefault();
-    setContextMenu({ kind: "node", x: e.clientX, y: e.clientY, nodeId });
-  };
-  const onEdgeContext = (e: React.MouseEvent, edgeId: string) => {
+    setContextMenu({
+      kind: "node",
+      x: e.clientX,
+      y: e.clientY,
+      nodeId: node.id,
+      name: (node.data.name as string) ?? "",
+    });
+  }, []);
+
+  const onEdgeContextMenu: EdgeMouseHandler = useCallback((e, edge) => {
     e.preventDefault();
-    setContextMenu({ kind: "edge", x: e.clientX, y: e.clientY, edgeId });
-  };
+    setContextMenu({
+      kind: "edge",
+      x: e.clientX,
+      y: e.clientY,
+      edgeId: edge.id,
+      relId: (edge.data?.relId as string) ?? edge.id,
+    });
+  }, []);
 
-  // Close context menu on any outside click.
-  useEffect(() => {
-    if (!contextMenu) return;
-    const onClick = () => setContextMenu(null);
-    document.addEventListener("click", onClick);
-    return () => document.removeEventListener("click", onClick);
-  }, [contextMenu]);
+  const closeMenu = useCallback(() => setContextMenu(null), []);
 
-  const handleResetOffset = async (id: string) => {
+  // ── Actions ────────────────────────────────────────────────────────────────
+
+  const handleDeleteNode = async (nodeId: string) => {
+    closeMenu();
+    if (!window.confirm("Delete this person and all their relationships?")) return;
     try {
-      await clearNodeOffset(id);
-      setOffsets((prev) => {
-        const next = new Map(prev);
-        next.delete(id);
-        return next;
-      });
-      toast.success("Position reset");
-    } catch {
-      toast.error("Reset failed");
-    }
-  };
-
-  const handleDeletePerson = async (id: string) => {
-    if (!window.confirm("Delete this person and all their relationship edges?")) return;
-    try {
-      await deletePerson(id);
-      setPersons((p) => p.filter((x) => x.node_id !== id));
-      setRels((r) => r.filter((e) => e.from_node_id !== id && e.to_node_id !== id));
+      await deletePerson(nodeId);
+      setRfNodes((ns) => ns.filter((n) => n.id !== nodeId));
+      setRfEdges((es) => es.filter((e) => e.source !== nodeId && e.target !== nodeId));
+      setPersons((ps) => ps.filter((p) => p.node_id !== nodeId));
+      setRels((rs) => rs.filter((r) => r.from_node_id !== nodeId && r.to_node_id !== nodeId));
       toast.success("Deleted");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Delete failed");
     }
   };
 
-  const handleDeleteEdge = async (edgeId: string) => {
+  const handleDeleteEdge = async (relId: string) => {
+    closeMenu();
     try {
-      await deleteRelationship(edgeId);
-      setRels((r) => r.filter((e) => e.id !== edgeId));
+      await deleteRelationship(relId);
+      setRfEdges((es) => es.filter((e) => e.id !== relId));
+      setRels((rs) => rs.filter((r) => r.id !== relId));
       toast.success("Relationship removed");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Delete failed");
     }
   };
 
-  const handleViewIntegrity = async (id: string) => {
-    setIntegrityFor(id);
-    setIntegrityData(null);
+  const handleViewIntegrity = async (nodeId: string) => {
+    closeMenu();
     try {
-      const r = await getIntegrity(id);
-      setIntegrityData(r);
+      const r = await getIntegrity(nodeId);
+      setIntegrityPanel(r);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Integrity check failed");
-      setIntegrityFor(null);
     }
   };
 
-  if (loading) return <div className="p-8 text-center">Loading tree…</div>;
-  if (error) return <div className="p-8 text-center text-destructive">{error}</div>;
+  // ── Render ─────────────────────────────────────────────────────────────────
 
-  // Compute SVG viewport.
-  const allPositions = persons.map((p) => finalPos(p.node_id)).filter(Boolean) as Position[];
-  const minX = Math.min(...allPositions.map((p) => p.x), 0) - NODE_W;
-  const maxX = Math.max(...allPositions.map((p) => p.x), 0) + NODE_W * 2;
-  const minY = Math.min(...allPositions.map((p) => p.y), 0) - NODE_H;
-  const maxY = Math.max(...allPositions.map((p) => p.y), 0) + NODE_H * 2;
-  const vbW = Math.max(maxX - minX, 800);
-  const vbH = Math.max(maxY - minY, 600);
+  if (loading) return <div className="flex items-center justify-center h-screen text-muted-foreground">Loading tree…</div>;
+  if (error) return <div className="flex items-center justify-center h-screen text-destructive">{error}</div>;
 
   return (
-    <div className="relative w-full h-[calc(100vh-100px)] bg-muted/20 overflow-hidden">
-      <div className="absolute top-2 left-2 z-10 bg-background/95 rounded-md px-3 py-2 shadow border text-sm">
-        <div className="font-semibold">Tree v2 (edge-model)</div>
-        {vansha && (
-          <div className="text-xs text-muted-foreground">
-            Vansh code: <span className="font-mono">{vansha.vansh_code}</span>
-            {vansha.vansh_name ? ` · ${vansha.vansh_name}` : ""}
-          </div>
-        )}
-        <div className="flex gap-1 mt-1">
-          <Button size="sm" variant="outline" onClick={() => setZoom((z) => Math.min(2, z + 0.1))}>+</Button>
-          <Button size="sm" variant="outline" onClick={() => setZoom((z) => Math.max(0.4, z - 0.1))}>−</Button>
-          <Button size="sm" variant="outline" onClick={() => { setZoom(1); setPan({ x: 0, y: 0 }); }}>Fit</Button>
-          <Button size="sm" variant="outline" onClick={() => void refresh()}>Reload</Button>
-        </div>
-      </div>
-
-      <svg
-        width="100%"
-        height="100%"
-        viewBox={`${minX + pan.x} ${minY + pan.y} ${vbW / zoom} ${vbH / zoom}`}
-        style={{ cursor: draggingId ? "grabbing" : "default" }}
+    <div className="w-full h-screen" onClick={closeMenu}>
+      <ReactFlow
+        nodes={rfNodes}
+        edges={rfEdges}
+        onNodesChange={onNodesChange}
+        onEdgesChange={onEdgesChange}
+        onNodeDragStop={onNodeDragStop}
+        onNodeContextMenu={onNodeContextMenu}
+        onEdgeContextMenu={onEdgeContextMenu}
+        onPaneClick={closeMenu}
+        fitView
+        fitViewOptions={{ padding: 0.2 }}
+        minZoom={0.2}
+        maxZoom={2}
+        deleteKeyCode={null}
       >
-        {/* parent_of edges */}
-        {rels
-          .filter((r) => r.type === "parent_of")
-          .map((r) => {
-            const from = finalPos(r.from_node_id);
-            const to = finalPos(r.to_node_id);
-            if (!from || !to) return null;
-            const x1 = from.x;
-            const y1 = from.y + NODE_H / 2;
-            const x2 = to.x;
-            const y2 = to.y - NODE_H / 2;
-            const midY = (y1 + y2) / 2;
-            const stroke = r.subtype === "adopted" ? "#a855f7" : r.subtype === "step" ? "#f59e0b" : "#475569";
-            const dash = r.subtype === "adopted" ? "6 3" : "0";
-            return (
-              <g key={r.id} onContextMenu={(e) => onEdgeContext(e, r.id)} style={{ cursor: "context-menu" }}>
-                <path
-                  d={`M ${x1} ${y1} V ${midY} H ${x2} V ${y2}`}
-                  stroke={stroke}
-                  strokeWidth={1.5}
-                  strokeDasharray={dash}
-                  fill="none"
-                />
-              </g>
-            );
-          })}
+        <Background gap={20} color="#e2e8f0" />
+        <Controls />
+        <MiniMap nodeColor={(n) => nodeColor((n.data as { gender?: string }).gender)} zoomable pannable />
 
-        {/* spouse_of edges */}
-        {rels
-          .filter((r) => r.type === "spouse_of")
-          .map((r) => {
-            const a = finalPos(r.from_node_id);
-            const b = finalPos(r.to_node_id);
-            if (!a || !b) return null;
-            return (
-              <line
-                key={r.id}
-                x1={a.x}
-                y1={a.y}
-                x2={b.x}
-                y2={b.y}
-                stroke="#ec4899"
-                strokeWidth={2}
-                onContextMenu={(e) => onEdgeContext(e, r.id)}
-                style={{ cursor: "context-menu" }}
-              />
-            );
-          })}
-
-        {/* nodes */}
-        {persons.map((p) => {
-          const pos = finalPos(p.node_id);
-          if (!pos) return null;
-          const fill =
-            p.gender === "male" ? "#dbeafe" : p.gender === "female" ? "#fce7f3" : "#f3f4f6";
-          const isDragging = draggingId === p.node_id;
-          return (
-            <g
-              key={p.node_id}
-              transform={`translate(${pos.x - NODE_W / 2}, ${pos.y - NODE_H / 2})`}
-              onMouseDown={(e) => startDrag(e, p.node_id)}
-              onContextMenu={(e) => onNodeContext(e, p.node_id)}
-              style={{ cursor: isDragging ? "grabbing" : "grab" }}
-            >
-              <rect
-                width={NODE_W}
-                height={NODE_H}
-                rx={8}
-                fill={fill}
-                stroke={isDragging ? "#0ea5e9" : "#94a3b8"}
-                strokeWidth={isDragging ? 2 : 1}
-              />
-              <text x={NODE_W / 2} y={22} textAnchor="middle" fontSize={13} fontWeight={600}>
-                {`${p.first_name ?? ""} ${p.last_name ?? ""}`.trim() || "(unnamed)"}
-              </text>
-              <text x={NODE_W / 2} y={40} textAnchor="middle" fontSize={10} fill="#64748b">
-                {p.kutumb_id ?? "—"}
-              </text>
-              {offsets.has(p.node_id) && (
-                <circle cx={NODE_W - 8} cy={8} r={4} fill="#0ea5e9">
-                  <title>Manual position (right-click → Reset position)</title>
-                </circle>
-              )}
-            </g>
-          );
-        })}
-      </svg>
+        <Panel position="top-left">
+          <div className="bg-background/95 border rounded-lg shadow px-3 py-2 text-sm space-y-1">
+            {vansha && (
+              <>
+                <div className="font-semibold">{vansha.vansh_name ?? "वंश वृक्ष"}</div>
+                <div className="text-xs text-muted-foreground font-mono">{vansha.vansh_code}</div>
+              </>
+            )}
+            <div className="flex gap-1 pt-1 flex-wrap">
+              <Button size="sm" variant="outline" onClick={() => void refresh()}>↺ Reload</Button>
+              <Button size="sm" variant="outline" onClick={() => navigate("/tree")}>← Old view</Button>
+            </div>
+            <div className="text-xs text-muted-foreground pt-1">
+              Right-click node or line to edit/delete
+            </div>
+          </div>
+        </Panel>
+      </ReactFlow>
 
       {/* Context menu */}
       {contextMenu && (
         <div
-          className="fixed z-50 bg-background border rounded-md shadow-lg py-1 text-sm min-w-[180px]"
+          className="fixed z-50 bg-background border rounded-lg shadow-xl py-1 min-w-[180px] text-sm"
           style={{ left: contextMenu.x, top: contextMenu.y }}
           onClick={(e) => e.stopPropagation()}
         >
           {contextMenu.kind === "node" && (
             <>
-              <button className="w-full text-left px-3 py-1.5 hover:bg-muted" onClick={() => { navigate(`/node/${contextMenu.nodeId}`); setContextMenu(null); }}>
-                Open profile
+              <div className="px-3 py-1.5 text-xs text-muted-foreground font-medium border-b mb-1 truncate">
+                {contextMenu.name}
+              </div>
+              <button
+                className="w-full text-left px-3 py-2 hover:bg-muted"
+                onClick={() => { navigate(`/node/${contextMenu.nodeId}`); closeMenu(); }}
+              >
+                ✏️ Open & edit profile
               </button>
-              <button className="w-full text-left px-3 py-1.5 hover:bg-muted" onClick={() => { void handleViewIntegrity(contextMenu.nodeId); setContextMenu(null); }}>
-                View integrity
-              </button>
-              <button className="w-full text-left px-3 py-1.5 hover:bg-muted" onClick={() => { void handleResetOffset(contextMenu.nodeId); setContextMenu(null); }}>
-                Reset position
+              <button
+                className="w-full text-left px-3 py-2 hover:bg-muted"
+                onClick={() => void handleViewIntegrity(contextMenu.nodeId)}
+              >
+                🔍 Check integrity
               </button>
               <div className="border-t my-1" />
-              <button className="w-full text-left px-3 py-1.5 hover:bg-destructive/10 text-destructive" onClick={() => { void handleDeletePerson(contextMenu.nodeId); setContextMenu(null); }}>
-                Delete person
+              <button
+                className="w-full text-left px-3 py-2 hover:bg-destructive/10 text-destructive"
+                onClick={() => void handleDeleteNode(contextMenu.nodeId)}
+              >
+                🗑 Delete person
               </button>
             </>
           )}
           {contextMenu.kind === "edge" && (
-            <button className="w-full text-left px-3 py-1.5 hover:bg-destructive/10 text-destructive" onClick={() => { void handleDeleteEdge(contextMenu.edgeId); setContextMenu(null); }}>
-              Delete relationship
-            </button>
+            <>
+              <div className="px-3 py-1.5 text-xs text-muted-foreground font-medium border-b mb-1">
+                Relationship
+              </div>
+              <button
+                className="w-full text-left px-3 py-2 hover:bg-destructive/10 text-destructive"
+                onClick={() => void handleDeleteEdge(contextMenu.relId)}
+              >
+                🗑 Delete this relationship
+              </button>
+            </>
           )}
         </div>
       )}
 
-      {/* Integrity drawer */}
-      {integrityFor && (
-        <div className="fixed right-4 top-20 z-40 w-[360px]">
-          <Card className="p-4">
-            <div className="flex items-center justify-between mb-2">
-              <div className="font-semibold">Integrity</div>
-              <Button size="sm" variant="ghost" onClick={() => setIntegrityFor(null)}>Close</Button>
+      {/* Integrity panel */}
+      {integrityPanel && (
+        <div className="fixed right-4 top-20 z-40 w-[320px]">
+          <Card className="p-4 shadow-xl">
+            <div className="flex justify-between items-center mb-3">
+              <div className="font-semibold text-sm">Integrity Check</div>
+              <Button size="sm" variant="ghost" onClick={() => setIntegrityPanel(null)}>✕</Button>
             </div>
-            {!integrityData ? (
-              <div className="text-sm text-muted-foreground">Checking…</div>
-            ) : (
-              <div className="space-y-2 text-sm">
-                <div>
-                  <span className="font-medium">{integrityData.person.name}</span>
-                  <span className="ml-2 text-xs text-muted-foreground">{integrityData.person.kutumb_id}</span>
-                </div>
-                {integrityData.issues.length > 0 ? (
-                  <div className="rounded bg-destructive/10 text-destructive p-2 text-xs">
-                    {integrityData.issues.map((i) => <div key={i}>• {i}</div>)}
-                  </div>
-                ) : (
-                  <div className="rounded bg-emerald-50 text-emerald-700 p-2 text-xs">No issues detected.</div>
-                )}
-                <div className="text-xs text-muted-foreground">
-                  Edges: {integrityData.incoming.length} in · {integrityData.outgoing.length} out
-                </div>
+            <div className="text-sm font-medium">{integrityPanel.person.name}</div>
+            <div className="text-xs text-muted-foreground mb-2 font-mono">{integrityPanel.person.kutumb_id}</div>
+            {integrityPanel.issues.length > 0 ? (
+              <div className="bg-destructive/10 text-destructive rounded p-2 text-xs space-y-1">
+                {integrityPanel.issues.map((i) => <div key={i}>⚠ {i}</div>)}
               </div>
+            ) : (
+              <div className="bg-emerald-50 text-emerald-700 rounded p-2 text-xs">✓ No issues found</div>
             )}
+            <div className="text-xs text-muted-foreground mt-2">
+              {integrityPanel.incoming.length} incoming · {integrityPanel.outgoing.length} outgoing edges
+            </div>
           </Card>
         </div>
       )}

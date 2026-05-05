@@ -92,7 +92,7 @@ const App = () => (
                     {/* Protected — any authenticated user */}
                     <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
                     <Route path="/tree" element={<ProtectedRoute><TreePage /></ProtectedRoute>} />
-                    <Route path="/tree-v2" element={<ProtectedRoute><TreePageV2 /></ProtectedRoute>} />
+                    <Route path="/tree-v2" element={<TreePageV2 />} />
                     <Route path="/invite" element={<ProtectedRoute><InvitePage /></ProtectedRoute>} />
                     <Route path="/verification" element={<ProtectedRoute><VerificationPage /></ProtectedRoute>} />
                     <Route path="/discovery" element={<ProtectedRoute><DiscoveryPage /></ProtectedRoute>} />
