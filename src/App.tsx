@@ -15,6 +15,7 @@ import SignIn from "@/pages/SignIn";
 import Onboarding from "@/pages/Onboarding";
 import Dashboard from "@/pages/Dashboard";
 import TreePage from "@/pages/TreePage";
+import TreePageV2 from "@/pages/TreePageV2";
 import InvitePage from "@/pages/InvitePage";
 import VerificationPage from "@/pages/VerificationPage";
 import DiscoveryPage from "@/pages/DiscoveryPage";
@@ -91,6 +92,7 @@ const App = () => (
                     {/* Protected — any authenticated user */}
                     <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
                     <Route path="/tree" element={<ProtectedRoute><TreePage /></ProtectedRoute>} />
+                    <Route path="/tree-v2" element={<ProtectedRoute><TreePageV2 /></ProtectedRoute>} />
                     <Route path="/invite" element={<ProtectedRoute><InvitePage /></ProtectedRoute>} />
                     <Route path="/verification" element={<ProtectedRoute><VerificationPage /></ProtectedRoute>} />
                     <Route path="/discovery" element={<ProtectedRoute><DiscoveryPage /></ProtectedRoute>} />
