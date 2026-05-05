@@ -81,6 +81,51 @@ def get_family_margdarshaks(user: CurrentUser) -> list[dict[str, Any]]:
     ]
 
 
+@router.get("/verified")
+def get_verified_families(pandit: MargdarshakUser) -> list[dict[str, Any]]:
+    """Return all vanshas/persons this Margdarshak has approved."""
+    sb = get_supabase()
+    audits = (
+        sb.table(VERIFICATION_AUDIT_TABLE)
+        .select("verification_request_id,action,created_at")
+        .eq("pandit_user_id", pandit["id"])
+        .eq("action", "approved")
+        .execute()
+    )
+    if not audits.data:
+        return []
+
+    req_ids = [a["verification_request_id"] for a in audits.data]
+    reqs = (
+        sb.table(VERIFICATION_REQUESTS_TABLE)
+        .select("id,node_id,vansha_id,created_at")
+        .in_("id", req_ids)
+        .execute()
+    )
+    if not reqs.data:
+        return []
+
+    node_ids = list({r["node_id"] for r in reqs.data})
+    persons_res = (
+        sb.table(PERSONS_TABLE)
+        .select("node_id,first_name,last_name,gotra,verification_tier,vansha_id")
+        .in_("node_id", node_ids)
+        .execute()
+    )
+    person_map: dict[str, dict[str, Any]] = {p["node_id"]: p for p in (persons_res.data or [])}
+
+    audit_ts: dict[str, str] = {a["verification_request_id"]: a["created_at"] for a in audits.data}
+
+    return [
+        {
+            **req,
+            "person": person_map.get(req["node_id"]),
+            "approved_at": audit_ts.get(req["id"]),
+        }
+        for req in reqs.data
+    ]
+
+
 @router.get("/queue")
 def get_queue(pandit: MargdarshakUser) -> list[dict[str, Any]]:
     """Return all pending verification requests with person snapshot."""

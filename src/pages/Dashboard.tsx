@@ -16,7 +16,7 @@ import {
   fetchRadarNearby, type RadarMember,
   fetchGreenLegacyTimeline, type GreenLegacyEvent,
   fetchGauravGatha, submitGauravGatha, type GauravGathaEntry,
-  fetchVanshaTree,
+  fetchVanshaTree, getApiBaseUrl,
 } from '@/services/api';
 import { computeTithiIdToday, getPaksha } from '@/lib/panchangUtils';
 import { mergeTithiWithFallback } from '@/lib/tithiFallback';
@@ -1037,6 +1037,7 @@ const Dashboard = () => {
   const [treeSize, setTreeSize] = useState(0);
   const [userPersonNode, setUserPersonNode] = useState<Record<string, unknown> | null>(null);
   const [vanshaPersons, setVanshaPersons] = useState<Record<string, unknown>[]>([]);
+  const [myMargdarshaks, setMyMargdarshaks] = useState<{ id: string; full_name: string; status: string }[]>([]);
 
   const streak = (() => {
     try { return parseInt(localStorage.getItem('prakriti_streak') ?? '0', 10) || 0; } catch { return 0; }
@@ -1061,6 +1062,12 @@ const Dashboard = () => {
     fetchRadarNearby(vid, 10).then(setNearby).catch(() => {});
     fetchGreenLegacyTimeline(vid, 5).then(setTimeline).catch(() => {});
     fetchGauravGatha(vid).then(setGauravGatha).catch(() => {});
+    (() => {
+      let token = '';
+      try { for (const k of Object.keys(localStorage).filter(k => k.endsWith('-auth-token'))) { const p = JSON.parse(localStorage.getItem(k) || '{}'); if (p?.access_token) { token = p.access_token; break; } } } catch { /* */ }
+      fetch(`${getApiBaseUrl()}/api/margdarshak/family`, { headers: token ? { Authorization: `Bearer ${token}` } : {} })
+        .then(r => r.ok ? r.json() : []).then(setMyMargdarshaks).catch(() => {});
+    })();
     fetchVanshaTree(vid).then(d => {
       const persons = d.persons as Record<string, unknown>[];
       setTreeSize(persons.length ?? 0);
@@ -1085,6 +1092,26 @@ const Dashboard = () => {
         {panchang?.isSpecial && <RightNowMoment panchang={panchang} />}
         <CommunityHero appUser={appUser} score={prakritiScore} familyRank={familyRank} panchang={panchang} userPersonNode={userPersonNode} gauravGatha={gauravGatha} />
         <DashboardInfoRow persons={vanshaPersons} panchang={panchang} />
+        {myMargdarshaks.filter(m => m.status === 'active').length > 0 && (
+          <section style={{ padding: '16px 0', background: 'linear-gradient(90deg,rgba(34,197,94,0.06),rgba(34,197,94,0.03))', borderBottom: '1px solid rgba(34,197,94,0.15)' }}>
+            <div style={{ maxWidth: 1240, margin: '0 auto', padding: '0 24px', display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ fontSize: 20 }}>🪔</span>
+                <div>
+                  <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--ds-green, #16a34a)', opacity: 0.7 }}>Your Margdarshak</div>
+                  <div style={{ fontSize: 13, fontWeight: 600 }}>Gold Seal granted by</div>
+                </div>
+              </div>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                {myMargdarshaks.filter(m => m.status === 'active').map(m => (
+                  <span key={m.id} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '5px 12px', borderRadius: 20, background: 'rgba(34,197,94,0.12)', border: '1px solid rgba(34,197,94,0.25)', fontSize: 13, fontWeight: 600 }}>
+                    <span style={{ color: '#16a34a' }}>✓</span> {m.full_name}
+                  </span>
+                ))}
+              </div>
+            </div>
+          </section>
+        )}
         <SewaEngine samayProfile={samayProfile} samayRequests={samayRequests} />
         <PrideWall entries={gauravGatha} onSubmitSuccess={refreshGauravGatha} />
         <KutumbRadar nearby={nearby} />

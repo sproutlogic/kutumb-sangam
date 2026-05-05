@@ -130,9 +130,11 @@ interface Props {
   /** Default month to show on first render (0-indexed). Defaults to May 2026. */
   defaultYear?: number;
   defaultMonth?: number;
+  /** Show the eco-detail panel below the calendar. Default true. */
+  showDetail?: boolean;
 }
 
-export default function PanchangCalendarView({ defaultYear = 2026, defaultMonth = 4 }: Props) {
+export default function PanchangCalendarView({ defaultYear = 2026, defaultMonth = 4, showDetail = true }: Props) {
   const today = todayStr();
 
   const [viewMode, setViewMode] = useState<"week" | "month">("month");
@@ -295,11 +297,11 @@ export default function PanchangCalendarView({ defaultYear = 2026, defaultMonth 
       )}
 
       {/* Detail panel */}
-      {tithi ? (
+      {showDetail && (tithi ? (
         <DetailPanel selected={selected!} tithi={tithi} />
       ) : (
         <div className="text-center text-muted-foreground py-4 text-sm">कोई तिथि चुनें।</div>
-      )}
+      ))}
     </div>
   );
 }

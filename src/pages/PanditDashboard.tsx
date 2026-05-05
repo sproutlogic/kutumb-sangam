@@ -32,6 +32,7 @@ interface TransactionsResponse {
   transactions: Transaction[];
 }
 interface PeerPandit { id: string; full_name: string; status: string; deva: string; city: string; spec: string; verified: boolean; }
+interface VerifiedFamily { id: string; vansha_id: string; approved_at: string; person: { first_name: string; last_name: string; gotra?: string; vansha_id?: string } | null; }
 
 // UI shapes
 interface Milestone { id: string; type: 'bday'|'anniv'|'tithi'; name: string; family: string; detail: string; vansha: string; when: string; phone: string; }
@@ -291,6 +292,11 @@ function TodayPage({ base, authFetch, onNav }: PageProps) {
     queryFn: () => authFetch(`${base}/api/margdarshak/queue`).then(r => { if (!r.ok) throw new Error(r.status.toString()); return r.json(); }),
     retry: 1, staleTime: 30_000,
   });
+  const { data: verifiedFamilies = [], isLoading: vfLoad } = useQuery<VerifiedFamily[]>({
+    queryKey: ['pcrm-verified'],
+    queryFn: () => authFetch(`${base}/api/margdarshak/verified`).then(r => r.ok ? r.json() : []),
+    retry: 1, staleTime: 120_000,
+  });
   const { data: rawTxn } = useQuery<TransactionsResponse>({
     queryKey: ['pcrm-txn'],
     queryFn: () => authFetch(`${base}/api/payments/transactions`).then(r => { if (!r.ok) throw new Error(r.status.toString()); return r.json(); }),
@@ -331,6 +337,11 @@ function TodayPage({ base, authFetch, onNav }: PageProps) {
           <div className="pcrm-kpi-label">Pending Verifications</div>
           <div className="pcrm-kpi-value"><span className="pcrm-shimmer-gold">{queue.length}</span></div>
           <div className="pcrm-kpi-trend flat"><Shield size={11}/> /api/margdarshak/queue</div>
+        </div>
+        <div className="pcrm-kpi">
+          <div className="pcrm-kpi-label">Verified Families</div>
+          <div className="pcrm-kpi-value">{vfLoad ? '…' : verifiedFamilies.length}</div>
+          <div className="pcrm-kpi-trend"><CheckCircle2 size={11}/> Gold Seal approved</div>
         </div>
         <div className="pcrm-kpi">
           <div className="pcrm-kpi-label">May Earnings · Net</div>
@@ -405,6 +416,37 @@ function TodayPage({ base, authFetch, onNav }: PageProps) {
               Review requests →
             </button>
           </section>
+
+          <section className="pcrm-card">
+            <div className="pcrm-card-head">
+              <div className="pcrm-card-title">Verified Families</div>
+              <span className="pcrm-tag pcrm-tag-green">{verifiedFamilies.length} sealed</span>
+            </div>
+            <ApiState loading={vfLoad} empty={!vfLoad && verifiedFamilies.length === 0} emptyText="No families approved yet." />
+            <div className="pcrm-stack" style={{gap:8, maxHeight:240, overflowY:'auto'}}>
+              {verifiedFamilies.map(f => {
+                const p = f.person;
+                const name = p ? `${p.first_name} ${p.last_name}`.trim() : '—';
+                const approvedDate = f.approved_at
+                  ? new Date(f.approved_at).toLocaleDateString('en-IN', { day:'numeric', month:'short', year:'numeric' })
+                  : '';
+                return (
+                  <div key={f.id} className="pcrm-row" style={{padding:'8px 0'}}>
+                    <div className="pcrm-row-avatar" style={{background:'rgba(34,197,94,0.12)'}}>
+                      <CheckCircle2 size={15} color="var(--pcrm-green, #16a34a)" />
+                    </div>
+                    <div className="pcrm-grow">
+                      <div className="pcrm-row-name" style={{fontSize:13}}>{name}</div>
+                      <div className="pcrm-row-meta pcrm-mono" style={{fontSize:10}}>
+                        {p?.gotra ? `Gotra: ${p.gotra} · ` : ''}{approvedDate}
+                      </div>
+                    </div>
+                    <span className="pcrm-tag pcrm-tag-green" style={{fontSize:9}}>✓ Sealed</span>
+                  </div>
+                );
+              })}
+            </div>
+          </section>
         </aside>
       </div>
     </>
@@ -455,12 +497,9 @@ function CalendarPage({ base, authFetch }: PageProps) {
       <div className="pcrm-cols-2">
         <section className="pcrm-card">
           <div className="pcrm-card-head">
-            <div>
-              <div className="pcrm-card-title">Eco Panchang</div>
-              <div className="pcrm-card-sub pcrm-mono">Prokerala API → /api/panchang/calendar</div>
-            </div>
+            <div className="pcrm-card-title">Eco Panchang</div>
           </div>
-          <PanchangCalendarView defaultYear={2026} defaultMonth={4} />
+          <PanchangCalendarView defaultYear={2026} defaultMonth={4} showDetail={false} />
         </section>
 
         <aside className="pcrm-stack">
