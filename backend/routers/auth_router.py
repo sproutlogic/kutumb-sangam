@@ -1,19 +1,21 @@
 """
 Auth session management.
 
-POST /api/auth/session             — upsert public.users row after Supabase sign-in.
-GET  /api/auth/me                  — returns authenticated user's profile row.
-PATCH /api/auth/me                 — update display name / link vansha_id after onboarding.
-POST /api/auth/complete-onboarding — mark onboarding_complete = true (called at end of onboarding form).
+POST /api/auth/session                — upsert public.users row after Supabase sign-in.
+GET  /api/auth/me                     — returns authenticated user's profile row.
+PATCH /api/auth/me                    — update display name / link vansha_id after onboarding.
+POST /api/auth/complete-onboarding    — mark onboarding_complete = true (called at end of onboarding form).
+GET  /api/auth/referral/validate      — check if a kutumb_id referral code is valid.
+POST /api/auth/referral/record        — record a referral event (registration / invite_accepted).
 """
 
 from __future__ import annotations
 
 import logging
-from typing import Any
+from typing import Any, Optional
 from uuid import UUID
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel
 
@@ -111,6 +113,77 @@ def delete_account(user: CurrentUser) -> dict[str, bool]:
         logger.exception("Failed to delete Supabase auth user uid=%s", uid)
         raise HTTPException(status_code=502, detail="Account deletion failed.")
     return {"ok": True}
+
+
+class ReferralRecordBody(BaseModel):
+    kutumb_id_used: str
+    event_type: str = "registration"  # registration | invite_accepted | se_application
+    metadata: Optional[dict] = None
+
+
+@router.get("/referral/validate")
+def validate_referral_code(
+    code: str = Query(..., description="Kutumb ID referral code (KMxxxxxxxx)"),
+    user: CurrentUser = None,
+) -> dict[str, Any]:
+    """Return referrer info if the code is a valid kutumb_id; 404 otherwise."""
+    sb = get_supabase()
+    clean = code.strip().upper()
+    if not clean:
+        raise HTTPException(status_code=400, detail="Code is required")
+    res = (
+        sb.table(USERS_TABLE)
+        .select("id, full_name, kutumb_id")
+        .eq("kutumb_id", clean)
+        .limit(1)
+        .execute()
+    )
+    if not res.data:
+        raise HTTPException(status_code=404, detail="Invalid referral code — no matching member found")
+    row = res.data[0]
+    return {
+        "valid": True,
+        "referrer_id": row.get("id"),
+        "referrer_name": row.get("full_name") or "Member",
+        "kutumb_id": row.get("kutumb_id"),
+    }
+
+
+@router.post("/referral/record")
+def record_referral_event(body: ReferralRecordBody, user: CurrentUser) -> dict[str, Any]:
+    """Record that the authenticated user used a referral code.  Idempotent on duplicate inserts."""
+    sb = get_supabase()
+    uid = user["id"]
+    code = (body.kutumb_id_used or "").strip().upper()
+
+    referrer_id = None
+    if code:
+        res = (
+            sb.table(USERS_TABLE)
+            .select("id")
+            .eq("kutumb_id", code)
+            .limit(1)
+            .execute()
+        )
+        if res.data:
+            referrer_id = res.data[0].get("id")
+
+    allowed = {"registration", "se_application", "invite_accepted"}
+    event_type = body.event_type if body.event_type in allowed else "registration"
+
+    try:
+        sb.table("referral_events").insert({
+            "kutumb_id_used": code,
+            "referrer_id": referrer_id,
+            "referred_id": uid,
+            "event_type": event_type,
+            "metadata": body.metadata or {},
+        }).execute()
+    except Exception:
+        logger.exception("Failed to record referral event uid=%s code=%s", uid, code)
+        raise HTTPException(status_code=502, detail="Could not record referral event")
+
+    return {"ok": True, "referrer_id": referrer_id}
 
 
 @router.post("/complete-onboarding")

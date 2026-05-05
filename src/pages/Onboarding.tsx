@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useTree } from '@/contexts/TreeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { backendPayloadToTreeState } from '@/services/mapVanshaPayload';
-import { bootstrapOnboardingTree, fetchPrakritiScore, getApiBaseUrl } from '@/services/api';
+import { bootstrapOnboardingTree, fetchPrakritiScore, getApiBaseUrl, validateReferralCode, recordReferralEvent } from '@/services/api';
 import { toast } from '@/hooks/use-toast';
 import { supabase } from '@/lib/supabase';
 import { Loader2, Mail, ChevronDown, ChevronUp, CheckCircle2 } from 'lucide-react';
@@ -130,6 +130,12 @@ const Onboarding = () => {
   const [creating, setCreating] = useState(false);
   const [finalScore, setFinalScore] = useState<number | null>(null);
 
+  // Referral code — pre-filled from ?ref= URL param; required for joining
+  const [referralCode, setReferralCode] = useState(() => (searchParams.get('ref') ?? '').toUpperCase());
+  const [referralValid, setReferralValid] = useState<boolean | null>(null);
+  const [referralName, setReferralName] = useState('');
+  const [referralChecking, setReferralChecking] = useState(false);
+
   // Auth step state
   const [showEmail, setShowEmail] = useState(false);
   const [email, setEmail] = useState('');
@@ -208,6 +214,24 @@ const Onboarding = () => {
   // Full gate for create (step 3)
   const identityComplete = step1Complete && String(form.ancestralPlace ?? '').trim().length > 0;
 
+  const handleCheckReferral = async () => {
+    const code = referralCode.trim().toUpperCase();
+    if (!code) return;
+    setReferralChecking(true);
+    try {
+      const res = await validateReferralCode(code);
+      setReferralValid(true);
+      setReferralName(res.referrer_name);
+      toast({ title: `Referral code valid! Referred by ${res.referrer_name}` });
+    } catch {
+      setReferralValid(false);
+      setReferralName('');
+      toast({ title: 'Invalid referral code', description: 'No member found with this code. Please check and try again.', variant: 'destructive' });
+    } finally {
+      setReferralChecking(false);
+    }
+  };
+
   const handleCreate = async () => {
     // Never use disabled + pointer-events-none on this button: users get zero feedback when validation fails.
     if (!identityComplete) {
@@ -222,6 +246,25 @@ const Onboarding = () => {
         variant: 'destructive',
       });
       return;
+    }
+
+    // Referral code is required
+    const code = referralCode.trim().toUpperCase();
+    if (!code) {
+      toast({ title: 'Referral code required', description: 'Please enter the referral code you received from a family member.', variant: 'destructive' });
+      return;
+    }
+    // Validate if not already done
+    if (referralValid !== true) {
+      try {
+        const res = await validateReferralCode(code);
+        setReferralValid(true);
+        setReferralName(res.referrer_name);
+      } catch {
+        setReferralValid(false);
+        toast({ title: 'Invalid referral code', description: 'Please enter a valid referral code to continue.', variant: 'destructive' });
+        return;
+      }
     }
 
     try {
@@ -269,6 +312,15 @@ const Onboarding = () => {
             method: 'POST',
             headers: { Authorization: `Bearer ${token}` },
           });
+          // Record referral event after onboarding completes
+          const usedCode = referralCode.trim().toUpperCase();
+          if (usedCode) {
+            await recordReferralEvent({
+              kutumb_id_used: usedCode,
+              event_type: 'registration',
+              metadata: { vansha_id: payload.vansha_id },
+            }).catch(() => { /* non-fatal */ });
+          }
           await refreshAppUser();
         }
       } catch {
@@ -392,6 +444,39 @@ const Onboarding = () => {
                 <h2 className="font-heading text-2xl font-bold">What is your family's name?</h2>
                 <p className="text-muted-foreground font-body mt-1 text-sm">Your surname and gotra are your family's identity</p>
               </div>
+
+              {/* Referral code — required to join (#5/#6) */}
+              <div className="rounded-xl border border-primary/30 bg-primary/4 p-4 space-y-2">
+                <label className="block text-sm font-semibold font-body">
+                  Referral Code <span className="text-destructive">*</span>
+                </label>
+                <p className="text-xs text-muted-foreground font-body">Enter the code you received from a family member or Paryavaran Mitra.</p>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={referralCode}
+                    onChange={e => { setReferralCode(e.target.value.toUpperCase()); setReferralValid(null); setReferralName(''); }}
+                    placeholder="KMxxxxxxxx"
+                    className="flex-1 px-3 py-2 rounded-lg border border-input bg-background font-mono text-sm focus:outline-none focus:ring-2 focus:ring-ring/30 uppercase"
+                    maxLength={20}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => void handleCheckReferral()}
+                    disabled={!referralCode.trim() || referralChecking}
+                    className="px-3 py-2 rounded-lg border border-primary text-primary text-sm font-semibold font-body hover:bg-primary/10 transition-colors disabled:opacity-50 whitespace-nowrap"
+                  >
+                    {referralChecking ? '…' : 'Verify'}
+                  </button>
+                </div>
+                {referralValid === true && (
+                  <p className="text-xs text-emerald-600 font-body">✓ Valid — referred by <strong>{referralName}</strong></p>
+                )}
+                {referralValid === false && (
+                  <p className="text-xs text-destructive font-body">✗ Invalid code — please check with the person who invited you</p>
+                )}
+              </div>
+
               <div>
                 <label className="block text-sm font-medium font-body mb-1.5">Surname <span className="text-destructive">*</span></label>
                 <input value={form.surname} onChange={(e) => set('surname', e.target.value)} className={inputClass} placeholder="e.g. Sharma" required />

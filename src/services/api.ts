@@ -400,6 +400,25 @@ export async function familyEndorseNode(vanshaId: string, nodeId: string): Promi
   return { ok: !!data.ok, tier: data.tier };
 }
 
+/** Validate a Kutumb ID referral code — returns referrer info or throws on invalid code. */
+export async function validateReferralCode(code: string): Promise<{ valid: boolean; referrer_name: string; referrer_id: string; kutumb_id: string }> {
+  const res = await fetchApi(`${getApiBaseUrl()}/api/auth/referral/validate?code=${encodeURIComponent(code.trim().toUpperCase())}`, {
+    method: "GET",
+    headers: { Accept: "application/json" },
+  });
+  return (await parseJsonOrThrow(res)) as { valid: boolean; referrer_name: string; referrer_id: string; kutumb_id: string };
+}
+
+/** Record that the current user used a referral code (call after onboarding completes). */
+export async function recordReferralEvent(payload: { kutumb_id_used: string; event_type?: string; metadata?: Record<string, unknown> }): Promise<void> {
+  const res = await fetchApi(`${getApiBaseUrl()}/api/auth/referral/record`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify(payload),
+  });
+  await parseJsonOrThrow(res);
+}
+
 export async function fetchMatrimonialBridge(origin_vansha_id: string): Promise<VanshaTreePayload> {
   requireValidVanshaUuid(origin_vansha_id);
   const url = `${getApiBaseUrl()}/api/tree/bridge`;
