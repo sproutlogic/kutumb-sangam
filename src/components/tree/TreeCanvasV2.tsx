@@ -178,8 +178,6 @@ const TreeCanvasV2: React.FC<Props> = ({ vanshaId }) => {
   const [vansha,    setVansha]    = useState<VanshaMeta | null>(null);
   const [boundary,  setBoundary]  = useState<LockedBoundary[]>([]);
   const [ego,       setEgo]       = useState<{ node_id: string; generation: number } | null>(null);
-  const [onboardingRequired, setOnboardingRequired] = useState(false);
-
   const [loading,   setLoading]   = useState(true);
   const [error,     setError]     = useState<string | null>(null);
   const [contextMenu, setContextMenu] = useState<ContextMenu | null>(null);
@@ -205,7 +203,6 @@ const TreeCanvasV2: React.FC<Props> = ({ vanshaId }) => {
       setRels(tree.relationships ?? []);
       setBoundary(tree.locked_boundary ?? []);
       setEgo(tree.ego);
-      setOnboardingRequired(Boolean(tree.onboarding_required));
       setVansha(meta);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load");
@@ -409,25 +406,6 @@ const TreeCanvasV2: React.FC<Props> = ({ vanshaId }) => {
     </div>;
   if (error)
     return <div className="flex items-center justify-center h-screen text-destructive">{error}</div>;
-
-  // Onboarding state — user has no claimed node yet
-  if (onboardingRequired) {
-    return (
-      <div className="w-full h-screen flex items-center justify-center p-6">
-        <Card className="max-w-md w-full p-6 text-center">
-          <h2 className="text-xl font-bold mb-2">Welcome to your vansha</h2>
-          <p className="text-sm text-muted-foreground mb-4">
-            To begin viewing your tree, add yourself as a node. Your entitlement
-            window centres on your own node — once you claim a node, you'll see
-            your visible window of ancestors and descendants.
-          </p>
-          <Button onClick={() => navigate(`/node?vansha_id=${vanshaId}`)}>
-            Add yourself to the tree
-          </Button>
-        </Card>
-      </div>
-    );
-  }
 
   return (
     <div className="w-full h-screen p-2 bg-gradient-to-br from-amber-50 to-rose-50"
