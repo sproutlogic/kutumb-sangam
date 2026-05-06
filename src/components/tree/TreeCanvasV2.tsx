@@ -281,8 +281,28 @@ const TreeCanvasV2: React.FC<Props> = ({ vanshaId }) => {
 
   // ── Derived: layout, generations, gen range ────────────────────────────────
 
-  const autoLayout = useMemo(() => computeAutoLayout(persons, rels), [persons, rels]);
-  const generations = useMemo(() => computeGenerations(persons, rels), [persons, rels]);
+  // Back-compat: persons created via the old NodePage store their lineage in
+  // father_node_id / mother_node_id columns but never write to RELATIONSHIPS_TABLE.
+  // Synthesise those edges so TreeCanvasV2 can see them.
+  const allRels = useMemo(() => {
+    const nodeSet = new Set(persons.map((p) => p.node_id));
+    const relSet = new Set(rels.map((r) => `${r.from_node_id}:${r.to_node_id}`));
+    const synthetic: Relationship[] = [];
+    persons.forEach((p) => {
+      const fid = p.father_node_id as string | null | undefined;
+      const mid = p.mother_node_id as string | null | undefined;
+      if (fid && nodeSet.has(fid) && !relSet.has(`${fid}:${p.node_id}`)) {
+        synthetic.push({ id: `s-f-${p.node_id}`, vansha_id: vanshaId, from_node_id: fid, to_node_id: p.node_id, type: "parent_of", subtype: "biological" });
+      }
+      if (mid && nodeSet.has(mid) && !relSet.has(`${mid}:${p.node_id}`)) {
+        synthetic.push({ id: `s-m-${p.node_id}`, vansha_id: vanshaId, from_node_id: mid, to_node_id: p.node_id, type: "parent_of", subtype: "biological" });
+      }
+    });
+    return synthetic.length ? [...rels, ...synthetic] : rels;
+  }, [rels, persons, vanshaId]);
+
+  const autoLayout = useMemo(() => computeAutoLayout(persons, allRels), [persons, allRels]);
+  const generations = useMemo(() => computeGenerations(persons, allRels), [persons, allRels]);
 
   const genRange = useMemo<[number, number]>(() => {
     if (!persons.length) return [0, 0];
@@ -297,13 +317,13 @@ const TreeCanvasV2: React.FC<Props> = ({ vanshaId }) => {
     return [lo, hi];
   }, [persons, generations]);
 
-  // Initialize / clamp window when range changes.
+  // Keep window within range; expand hi automatically when new generations are added.
   useEffect(() => {
     setGenWindow((curr) => {
       if (!curr) return [genRange[0], genRange[1]];
       return [
         Math.max(genRange[0], Math.min(curr[0], genRange[1])),
-        Math.max(genRange[0], Math.min(curr[1], genRange[1])),
+        Math.max(curr[1], genRange[1]), // expand to include newly added generations
       ];
     });
   }, [genRange]);
@@ -371,7 +391,7 @@ const TreeCanvasV2: React.FC<Props> = ({ vanshaId }) => {
         };
       });
 
-    const edges: Edge[] = rels
+    const edges: Edge[] = allRels
       .filter((r) => visibleIds.has(r.from_node_id) && visibleIds.has(r.to_node_id))
       .map((r) => {
         const isSpouse = r.type === "spouse_of";
@@ -410,7 +430,7 @@ const TreeCanvasV2: React.FC<Props> = ({ vanshaId }) => {
 
     setRfNodes(nodes);
     setRfEdges(edges);
-  }, [persons, rels, autoLayout, generations, genWindow, genRange, edgeHandles, setRfNodes, setRfEdges]);
+  }, [persons, allRels, autoLayout, generations, genWindow, genRange, edgeHandles, setRfNodes, setRfEdges]);
 
   // ── Drag persistence: save absolute position ───────────────────────────────
 
