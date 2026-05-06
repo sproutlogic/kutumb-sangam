@@ -302,17 +302,38 @@ def get_visible_tree(vansha_id: UUID, user: CurrentUser) -> dict[str, Any]:
     e = _resolve_entitlement(sb, uid)
     ego = _ego_node(sb, uid, vansha_id)
 
-    # No ego node → return empty tree with onboarding prompt
     if not ego:
+        # No claimed node — return the full vansha without a generation window
+        all_persons_res = (
+            sb.table(PERSONS_TABLE)
+            .select("*")
+            .eq(VANSHA_ID_COLUMN, vansha_id)
+            .execute()
+        )
+        all_persons = all_persons_res.data or []
+        all_ids = [_str_id(p["node_id"]) for p in all_persons]
+        rels_res = (
+            sb.table("relationships")
+            .select("*")
+            .eq(VANSHA_ID_COLUMN, vansha_id)
+            .in_("from_node_id", all_ids)
+            .execute()
+        ) if all_ids else type("_", (), {"data": []})()
+        rels = [r for r in (rels_res.data or []) if _str_id(r.get("to_node_id")) in set(all_ids)]
+        unions_res = (
+            sb.table("unions")
+            .select("*")
+            .eq(VANSHA_ID_COLUMN, vansha_id)
+            .execute()
+        )
         return {
-            "entitlement": e,
-            "ego": None,
-            "persons": [],
-            "unions": [],
-            "relationships": [],
-            "locked_boundary": [],
-            "onboarding_required": True,
-            "message": "Add yourself to your vansha to begin viewing your tree.",
+            "entitlement":       e,
+            "ego":               None,
+            "persons":           all_persons,
+            "unions":            unions_res.data or [],
+            "relationships":     rels,
+            "locked_boundary":   [],
+            "onboarding_required": False,
         }
 
     ego_gen      = int(ego.get("generation") or 0)
