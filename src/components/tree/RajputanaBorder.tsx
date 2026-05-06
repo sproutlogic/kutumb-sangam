@@ -80,7 +80,7 @@ const ToranTop: React.FC = () => (
 const RajputanaBorder: React.FC<RajputanaBorderProps> = ({ children, className = "" }) => {
   return (
     <div
-      className={`relative rounded-2xl overflow-hidden ${className}`}
+      className={`relative rounded-2xl overflow-hidden h-full ${className}`}
       style={{
         // Outer frame — saffron / maroon double border with subtle inset shadow
         padding: "10px",
