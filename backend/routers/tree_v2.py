@@ -20,6 +20,7 @@ Endpoints:
 from __future__ import annotations
 
 import logging
+import uuid as _uuid
 from typing import Any, Literal, Optional
 from uuid import UUID
 
@@ -60,6 +61,14 @@ class VanshaPatch(BaseModel):
 class OffsetBody(BaseModel):
     canvas_offset_x: float = Field(..., ge=-100000, le=100000)
     canvas_offset_y: float = Field(..., ge=-100000, le=100000)
+
+
+class PersonCreateV2(BaseModel):
+    """Minimal person creation for tree-v2 canvas (bypasses old union model)."""
+    vansha_id: UUID
+    first_name: str = Field(min_length=1)
+    last_name: str = ""
+    gender: Literal["male", "female", "other"] = "other"
 
 
 # ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -228,6 +237,37 @@ def patch_vansha(vansha_id: UUID, body: VanshaPatch, user: CurrentUser) -> dict[
         logger.exception("Vansha patch failed id=%s", vansha_id)
         raise HTTPException(status_code=502, detail="Could not update vansha") from None
     return get_vansha(vansha_id, user)  # type: ignore[arg-type]
+
+
+# ─── Persons (v2 minimal create + profile read) ──────────────────────────────
+
+
+@router.post("/persons")
+def create_person_v2(body: PersonCreateV2, user: CurrentUser) -> dict[str, Any]:
+    """Create a person with minimal fields (name + gender). No union/lineage logic."""
+    sb = get_supabase()
+    node_id = str(_uuid.uuid4())
+    row: dict[str, Any] = {
+        "node_id": node_id,
+        VANSHA_ID_COLUMN: str(body.vansha_id),
+        "first_name": body.first_name.strip(),
+        "last_name": body.last_name.strip() or None,
+        "gender": body.gender,
+        "relation": "member",
+        "owner_id": str(user["id"]),
+    }
+    try:
+        ins = sb.table(PERSONS_TABLE).insert(row).execute()
+    except Exception:
+        logger.exception("create_person_v2 insert failed vansha=%s", body.vansha_id)
+        raise HTTPException(status_code=502, detail="Could not create person") from None
+    return ins.data[0] if ins.data else row
+
+
+@router.get("/persons/{node_id}/profile")
+def get_person_profile(node_id: UUID, user: CurrentUser) -> dict[str, Any]:
+    """Return person profile. Caller decides display based on owner_id."""
+    return _person_or_404(str(node_id))
 
 
 # ─── Canvas offsets ──────────────────────────────────────────────────────────

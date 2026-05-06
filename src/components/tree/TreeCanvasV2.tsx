@@ -50,6 +50,7 @@ import {
   listRelationships,
   deleteRelationship,
   createRelationship,
+  createPersonV2,
   setNodeOffset,
   clearNodeOffset,
   getVansha,
@@ -63,9 +64,12 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import FamilyNode from "./FamilyNode";
+import GhostNode from "./GhostNode";
+import NodeProfilePanel from "./NodeProfilePanel";
 import RajputanaBorder from "./RajputanaBorder";
 
-const nodeTypes = { familyNode: FamilyNode };
+// nodeTypes must be stable (defined outside component).
+const nodeTypes = { familyNode: FamilyNode, ghostNode: GhostNode };
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -90,6 +94,12 @@ interface PendingEdge {
   target: string;
   sourceName: string;
   targetName: string;
+}
+
+interface GhostState {
+  ghostId: string;       // temporary client-side node id
+  anchorId: string;      // existing node the ghost is connected to
+  dir: "child" | "parent" | "spouse";
 }
 
 // ─── Layout constants ─────────────────────────────────────────────────────────
@@ -248,6 +258,8 @@ const TreeCanvasV2: React.FC<Props> = ({ vanshaId }) => {
   const [contextMenu, setContextMenu] = useState<ContextMenu | null>(null);
   const [integrityPanel, setIntegrityPanel] = useState<IntegrityReport | null>(null);
   const [pendingEdge, setPendingEdge] = useState<PendingEdge | null>(null);
+  const [ghost, setGhost] = useState<GhostState | null>(null);
+  const [profileNodeId, setProfileNodeId] = useState<string | null>(null);
 
   // Generation window (clamped to actual range after fetch).
   const [genWindow, setGenWindow] = useState<[number, number] | null>(null);
@@ -387,6 +399,8 @@ const TreeCanvasV2: React.FC<Props> = ({ vanshaId }) => {
             generation: g,
             relation: p.relation,
             hasOffset,
+            onAddRelative: addRelativeFromNode,
+            onOpenProfile: (nodeId: string) => setProfileNodeId(nodeId),
           },
         };
       });
@@ -430,7 +444,7 @@ const TreeCanvasV2: React.FC<Props> = ({ vanshaId }) => {
 
     setRfNodes(nodes);
     setRfEdges(edges);
-  }, [persons, allRels, autoLayout, generations, genWindow, genRange, edgeHandles, setRfNodes, setRfEdges]);
+  }, [persons, allRels, autoLayout, generations, genWindow, genRange, edgeHandles, addRelativeFromNode, setRfNodes, setRfEdges]);
 
   // ── Drag persistence: save absolute position ───────────────────────────────
 
@@ -503,6 +517,124 @@ const TreeCanvasV2: React.FC<Props> = ({ vanshaId }) => {
     },
     [pendingEdge, vanshaId],
   );
+
+  // ── Ghost node: add-relative flow ─────────────────────────────────────────
+
+  const addRelativeFromNode = useCallback(
+    (anchorId: string, dir: "child" | "parent" | "spouse") => {
+      // Cancel any existing ghost first.
+      if (ghost) {
+        setRfNodes((ns) => ns.filter((n) => n.id !== ghost.ghostId));
+        setRfEdges((es) => es.filter((e) => e.id !== `ghost-edge-${ghost.ghostId}`));
+      }
+      const ghostId = `ghost-${Date.now()}`;
+      const anchorPos = autoLayout.get(anchorId) ?? { x: 200, y: 200 };
+
+      const ghostPos =
+        dir === "child"
+          ? { x: anchorPos.x, y: anchorPos.y - 220 }
+          : dir === "parent"
+            ? { x: anchorPos.x, y: anchorPos.y + 220 }
+            : { x: anchorPos.x + 220, y: anchorPos.y };
+
+      const ghostNode: Node = {
+        id: ghostId,
+        type: "ghostNode",
+        position: ghostPos,
+        draggable: false,
+        data: {
+          onConfirm: (name: string, gender: "male" | "female" | "other") =>
+            void confirmGhost(ghostId, anchorId, dir, name, gender),
+          onCancel: () => {
+            setRfNodes((ns) => ns.filter((n) => n.id !== ghostId));
+            setRfEdges((es) => es.filter((e) => e.id !== `ghost-edge-${ghostId}`));
+            setGhost(null);
+          },
+        },
+      };
+
+      const [src, tgt, srcH, tgtH] =
+        dir === "child"
+          ? [anchorId, ghostId, "s-top", "s-bottom"]
+          : dir === "parent"
+            ? [ghostId, anchorId, "s-top", "s-bottom"]
+            : [anchorId, ghostId, "s-right", "s-left"];
+
+      const ghostEdge: Edge = {
+        id: `ghost-edge-${ghostId}`,
+        source: src,
+        target: tgt,
+        sourceHandle: srcH,
+        targetHandle: tgtH,
+        type: dir === "spouse" ? "straight" : "smoothstep",
+        animated: true,
+        style: { stroke: dir === "spouse" ? "#ec4899" : "#6366f1", strokeDasharray: "6 3" },
+      };
+
+      setRfNodes((ns) => [...ns, ghostNode]);
+      setRfEdges((es) => [...es, ghostEdge]);
+      setGhost({ ghostId, anchorId, dir });
+    },
+    // confirmGhost is defined below — hoisted via useCallback ref pattern
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [ghost, autoLayout],
+  );
+
+  // Must be declared after addRelativeFromNode but referenced inside it via closure.
+  // Using a ref allows forward-reference without circular deps.
+  const confirmGhostRef = useRef<
+    (ghostId: string, anchorId: string, dir: "child" | "parent" | "spouse", name: string, gender: "male" | "female" | "other") => Promise<void>
+  >();
+
+  const confirmGhost = useCallback(
+    async (
+      ghostId: string,
+      anchorId: string,
+      dir: "child" | "parent" | "spouse",
+      name: string,
+      gender: "male" | "female" | "other",
+    ) => {
+      // 1. Create person
+      let newPerson;
+      try {
+        newPerson = await createPersonV2({ vansha_id: vanshaId, first_name: name, gender });
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "Could not create person");
+        return;
+      }
+
+      // 2. Create relationship
+      const relType: EdgeType = dir === "spouse" ? "spouse_of" : "parent_of";
+      const [from, to] =
+        dir === "child"   ? [anchorId, newPerson.node_id]
+        : dir === "parent"  ? [newPerson.node_id, anchorId]
+        : [anchorId, newPerson.node_id]; // spouse: anchor → new
+
+      try {
+        const rel = await createRelationship({
+          vansha_id: vanshaId,
+          from_node_id: from,
+          to_node_id: to,
+          type: relType,
+          subtype: "biological",
+        });
+        setRels((rs) => [...rs, rel]);
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "Could not create relationship");
+      }
+
+      // 3. Add person to local state + remove ghost
+      setPersons((ps) => [...ps, newPerson as RawPerson]);
+      setRfNodes((ns) => ns.filter((n) => n.id !== ghostId));
+      setRfEdges((es) => es.filter((e) => e.id !== `ghost-edge-${ghostId}`));
+      setGhost(null);
+      toast.success(`${name} added`);
+    },
+    [vanshaId],
+  );
+
+  // Keep ref in sync so addRelativeFromNode closure can call it.
+  confirmGhostRef.current = confirmGhost;
 
   // ── Context menus ──────────────────────────────────────────────────────────
 
@@ -628,7 +760,7 @@ const TreeCanvasV2: React.FC<Props> = ({ vanshaId }) => {
         elementsSelectable
         connectionMode={ConnectionMode.Loose}
       >
-        <Background gap={24} color="#e2e8f0" />
+        <Background gap={24} color="#d4b896" style={{ background: "#fdf8ee" }} />
         <Controls />
         <MiniMap
           nodeColor={(n) => {
@@ -857,6 +989,12 @@ const TreeCanvasV2: React.FC<Props> = ({ vanshaId }) => {
         </div>
       )}
       </RajputanaBorder>
+
+      {/* Profile side panel — rendered outside RajputanaBorder so Sheet portal works */}
+      <NodeProfilePanel
+        nodeId={profileNodeId}
+        onClose={() => setProfileNodeId(null)}
+      />
     </div>
   );
 };

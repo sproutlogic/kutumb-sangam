@@ -124,3 +124,36 @@ export async function clearNodeOffset(nodeId: string): Promise<void> {
 export async function getIntegrity(nodeId: string): Promise<IntegrityReport> {
   return call<IntegrityReport>(`/api/tree-v2/persons/${nodeId}/integrity`);
 }
+
+export interface PersonV2 {
+  node_id: string;
+  vansha_id: string;
+  first_name?: string;
+  last_name?: string;
+  gender?: string;
+  relation?: string;
+  generation?: number | null;
+  owner_id?: string | null;
+  kutumb_id?: string | null;
+  date_of_birth?: string | null;
+  ancestral_place?: string | null;
+  current_residence?: string | null;
+  gotra?: string | null;
+  [key: string]: unknown;
+}
+
+export async function createPersonV2(payload: {
+  vansha_id: string;
+  first_name: string;
+  last_name?: string;
+  gender: "male" | "female" | "other";
+}): Promise<PersonV2> {
+  return call<PersonV2>("/api/tree-v2/persons", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function getPersonProfile(nodeId: string): Promise<PersonV2> {
+  return call<PersonV2>(`/api/tree-v2/persons/${nodeId}/profile`);
+}
