@@ -561,3 +561,10 @@ body[data-density="spacious"]   { --density: 1.25; }
 @media (max-width: 480px) {
   .ds-footer-grid { grid-template-columns: 1fr; }
 }
+
+
+/* ── Family tree canvas ────────────────────────────────────────────────────── */
+/* Show connection handles only when hovering over a node.                     */
+.family-node:hover .react-flow__handle {
+  opacity: 1 !important;
+}
