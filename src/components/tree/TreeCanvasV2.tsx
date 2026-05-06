@@ -308,8 +308,25 @@ const TreeCanvasV2: React.FC<Props> = ({ vanshaId }) => {
     });
   }, [genRange]);
 
+  // Pick correct sourceHandle/targetHandle for rendered edges based on type + positions.
+  const edgeHandles = useCallback(
+    (r: Relationship): { sourceHandle: string; targetHandle: string } => {
+      if (r.type === "spouse_of") {
+        const srcPos = autoLayout.get(r.from_node_id);
+        const tgtPos = autoLayout.get(r.to_node_id);
+        const srcX = srcPos?.x ?? 0;
+        const tgtX = tgtPos?.x ?? 0;
+        return srcX <= tgtX
+          ? { sourceHandle: "s-right", targetHandle: "s-left" }
+          : { sourceHandle: "s-left",  targetHandle: "s-right" };
+      }
+      // parent_of: parent sends upward from top handle
+      return { sourceHandle: "s-top", targetHandle: "s-bottom" };
+    },
+    [autoLayout],
+  );
+
   // ── Build React Flow nodes + edges ─────────────────────────────────────────
-  // edgeHandles must be declared before this effect.
 
   useEffect(() => {
     if (!persons.length) {
@@ -465,24 +482,6 @@ const TreeCanvasV2: React.FC<Props> = ({ vanshaId }) => {
       }
     },
     [pendingEdge, vanshaId],
-  );
-
-  // Pick correct sourceHandle/targetHandle for rendered edges based on type + positions.
-  const edgeHandles = useCallback(
-    (r: Relationship): { sourceHandle: string; targetHandle: string } => {
-      if (r.type === "spouse_of") {
-        const srcPos = autoLayout.get(r.from_node_id);
-        const tgtPos = autoLayout.get(r.to_node_id);
-        const srcX = srcPos?.x ?? 0;
-        const tgtX = tgtPos?.x ?? 0;
-        return srcX <= tgtX
-          ? { sourceHandle: "s-right", targetHandle: "s-left" }
-          : { sourceHandle: "s-left",  targetHandle: "s-right" };
-      }
-      // parent_of: parent sends upward from top handle
-      return { sourceHandle: "s-top", targetHandle: "s-bottom" };
-    },
-    [autoLayout],
   );
 
   // ── Context menus ──────────────────────────────────────────────────────────
