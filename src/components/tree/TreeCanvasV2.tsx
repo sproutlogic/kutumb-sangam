@@ -456,6 +456,10 @@ const TreeCanvasV2: React.FC<Props> = ({ vanshaId }) => {
                 </div>
               </div>
             </Panel>
+
+            <Panel position="bottom-right">
+              <img src="/prakriti.svg" alt="Prakriti" className="w-8 h-8 opacity-80" />
+            </Panel>
           </ReactFlow>
         </div>
       </RajputanaBorder>
