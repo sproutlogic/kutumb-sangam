@@ -63,6 +63,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import FamilyNode from "./FamilyNode";
+import RajputanaBorder from "./RajputanaBorder";
 
 const nodeTypes = { familyNode: FamilyNode };
 
@@ -586,7 +587,8 @@ const TreeCanvasV2: React.FC<Props> = ({ vanshaId }) => {
 
   return (
     <div className="w-full h-screen" onClick={closeMenu}>
-      <ReactFlow
+      <RajputanaBorder>
+        <ReactFlow
         nodes={rfNodes}
         edges={rfEdges}
         nodeTypes={nodeTypes}
@@ -835,6 +837,7 @@ const TreeCanvasV2: React.FC<Props> = ({ vanshaId }) => {
           </Card>
         </div>
       )}
+      </RajputanaBorder>
     </div>
   );
 };
