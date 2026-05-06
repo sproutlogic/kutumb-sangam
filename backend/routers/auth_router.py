@@ -62,15 +62,44 @@ def upsert_session(body: SessionBody, user: CurrentUser) -> dict[str, Any]:
 
 @router.get("/me")
 def get_me(user: CurrentUser) -> dict[str, Any]:
-    # If user has a vansha_id they completed onboarding; ensure the flag is set
-    # (handles cases where migration 017 hasn't run yet or back-fill missed this row).
-    if user.get("vansha_id") and not user.get("onboarding_complete"):
-        sb = get_supabase()
+    uid = str(user["id"])
+    vansha_id = user.get("vansha_id")
+    sb = get_supabase()
+
+    if vansha_id and not user.get("onboarding_complete"):
         try:
-            sb.table(USERS_TABLE).update({"onboarding_complete": True}).eq("id", user["id"]).execute()
+            sb.table(USERS_TABLE).update({"onboarding_complete": True}).eq("id", uid).execute()
             user = {**user, "onboarding_complete": True}
         except Exception:
-            logger.exception("Failed to auto-set onboarding_complete for uid=%s", user.get("id"))
+            logger.exception("Failed to auto-set onboarding_complete for uid=%s", uid)
+
+    # Backfill: if user has a vansha but no claimed ego node, auto-claim the self node
+    if vansha_id:
+        try:
+            from constants import PERSONS_TABLE, VANSHA_ID_COLUMN
+            ego = (
+                sb.table(PERSONS_TABLE)
+                .select("node_id")
+                .eq("owner_id", uid)
+                .eq(VANSHA_ID_COLUMN, str(vansha_id))
+                .limit(1)
+                .execute()
+            )
+            if not ego.data:
+                self_node = (
+                    sb.table(PERSONS_TABLE)
+                    .select("node_id")
+                    .eq(VANSHA_ID_COLUMN, str(vansha_id))
+                    .eq("relation", "self")
+                    .is_("owner_id", "null")
+                    .limit(1)
+                    .execute()
+                )
+                if self_node.data:
+                    sb.table(PERSONS_TABLE).update({"owner_id": uid}).eq("node_id", self_node.data[0]["node_id"]).execute()
+        except Exception:
+            logger.exception("Failed to backfill ego owner_id for uid=%s vansha=%s", uid, vansha_id)
+
     return user
 
 
@@ -93,6 +122,34 @@ def patch_me(body: MePatch, user: CurrentUser) -> dict[str, Any]:
     except Exception:
         logger.exception("Failed to patch user row uid=%s", uid)
         raise HTTPException(status_code=502, detail="Profile update failed.")
+
+    # When vansha_id is being linked, claim the self node in that vansha
+    if body.vansha_id is not None:
+        try:
+            from constants import PERSONS_TABLE, VANSHA_ID_COLUMN
+            vid = str(body.vansha_id)
+            ego = (
+                sb.table(PERSONS_TABLE)
+                .select("node_id")
+                .eq("owner_id", uid)
+                .eq(VANSHA_ID_COLUMN, vid)
+                .limit(1)
+                .execute()
+            )
+            if not ego.data:
+                self_node = (
+                    sb.table(PERSONS_TABLE)
+                    .select("node_id")
+                    .eq(VANSHA_ID_COLUMN, vid)
+                    .eq("relation", "self")
+                    .is_("owner_id", "null")
+                    .limit(1)
+                    .execute()
+                )
+                if self_node.data:
+                    sb.table(PERSONS_TABLE).update({"owner_id": uid}).eq("node_id", self_node.data[0]["node_id"]).execute()
+        except Exception:
+            logger.exception("Failed to claim self node on vansha link uid=%s vansha=%s", uid, body.vansha_id)
 
     res = sb.table(USERS_TABLE).select("*").eq("id", uid).limit(1).execute()
     return res.data[0] if res.data else user
