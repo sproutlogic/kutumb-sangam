@@ -77,7 +77,7 @@ const ToranTop: React.FC = () => (
   </div>
 );
 
-export const RajputanaBorder: React.FC<RajputanaBorderProps> = ({ children, className = "" }) => {
+const RajputanaBorder: React.FC<RajputanaBorderProps> = ({ children, className = "" }) => {
   return (
     <div
       className={`relative rounded-2xl overflow-hidden ${className}`}
