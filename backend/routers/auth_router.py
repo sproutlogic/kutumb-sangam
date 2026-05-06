@@ -183,6 +183,58 @@ def record_referral_event(body: ReferralRecordBody, user: CurrentUser) -> dict[s
         logger.exception("Failed to record referral event uid=%s code=%s", uid, code)
         raise HTTPException(status_code=502, detail="Could not record referral event")
 
+    # ── Wire to tree-entitlement referral_unlocks ─────────────────────────────
+    # Each confirmed registration increments the referrer's referral_unlocks row.
+    # Bonus schedule: 1st referral → +1 gen_up; 2nd → +1 gen_down; 3rd → +1 gen_up.
+    # Cap: extra_gen_up ≤ 2, extra_gen_down ≤ 1 (per ENTITLEMENT_SYSTEM.md).
+    if referrer_id and event_type == "registration":
+        try:
+            cur = (
+                sb.table("referral_unlocks")
+                .select("*")
+                .eq("user_id", referrer_id)
+                .limit(1)
+                .execute()
+            )
+            row = cur.data[0] if cur.data else None
+            new_count = (row["referrals_count"] if row else 0) + 1
+            extra_up   = row["extra_gen_up"]   if row else 0
+            extra_down = row["extra_gen_down"] if row else 0
+            # Award bonus on referral count milestones
+            if new_count == 1 and extra_up < 2:
+                extra_up += 1
+            elif new_count == 2 and extra_down < 1:
+                extra_down += 1
+            elif new_count == 3 and extra_up < 2:
+                extra_up += 1
+            payload = {
+                "user_id":         referrer_id,
+                "referrals_count": new_count,
+                "extra_gen_up":    extra_up,
+                "extra_gen_down":  extra_down,
+            }
+            sb.table("referral_unlocks").upsert(payload, on_conflict="user_id").execute()
+
+            # Audit event in subscription_events for full visibility
+            sb.table("subscription_events").insert({
+                "user_id":    referrer_id,
+                "event_type": "referral_unlock",
+                "metadata":   {
+                    "referrals_count": new_count,
+                    "extra_gen_up":    extra_up,
+                    "extra_gen_down":  extra_down,
+                    "referred_user_id": uid,
+                    "kutumb_id_used":   code,
+                },
+                "created_by": referrer_id,
+            }).execute()
+
+            # Bust referrer's visibility cache so the bonus takes effect immediately
+            sb.table("user_visible_nodes").delete().eq("user_id", referrer_id).execute()
+        except Exception:
+            # Non-fatal — referral was recorded; entitlement bump is best-effort.
+            logger.exception("Failed to wire referral_unlocks for referrer=%s", referrer_id)
+
     return {"ok": True, "referrer_id": referrer_id}
 
 

@@ -31,6 +31,26 @@ SEVA_FUND_TABLE         = "seva_fund_entries"
 
 REFERRAL_EVENTS_TABLE  = "referral_events"
 
+# Tree entitlement system (037_entitlement_tables.sql)
+TREE_PLANS_TABLE          = "tree_plans"
+USER_SUBSCRIPTIONS_TABLE  = "user_subscriptions"
+SUBSCRIPTION_EVENTS_TABLE = "subscription_events"
+NODE_UNLOCKS_TABLE        = "node_unlocks"
+GEN_TOPUPS_TABLE          = "gen_topups"
+ENTITLEMENT_SHARES_TABLE  = "entitlement_shares"
+USER_VISIBLE_NODES_TABLE  = "user_visible_nodes"
+REFERRAL_UNLOCKS_TABLE    = "referral_unlocks"
+
+# Sachet pricing (INR — superadmin can override via tree_plans/feature flags later)
+SACHET_NODE_UNLOCK_PRICE      = 19    # single ghost node
+SACHET_NODE_BUNDLE_5_PRICE    = 49    # 5 ghost nodes
+SACHET_BRANCH_BUNDLE_PRICE    = 99    # entire subtree
+SACHET_GEN_TOPUP_PRICE        = 39    # +1 generation, 30 days
+SACHET_GEN_TOPUP_DAYS         = 30
+
+# Grace period after subscription lapse (days)
+SUBSCRIPTION_GRACE_DAYS = 7
+
 # Kutumb Pro — Community OS
 ORGANIZATIONS_TABLE    = "organizations"
 ORG_MEMBERS_TABLE      = "org_members"

@@ -8,6 +8,7 @@ import { TreeProvider } from "@/contexts/TreeContext";
 import { PlanProvider } from "@/contexts/PlanContext";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { WorkspaceProvider } from "@/contexts/WorkspaceContext";
+import { EntitlementProvider } from "@/contexts/EntitlementContext";
 import ProtectedRoute from "@/components/ProtectedRoute";
 
 import Index from "@/pages/Index";
@@ -58,6 +59,7 @@ import VendorPortalPage from "@/pages/VendorPortalPage";
 import ContentQueuePage from "@/pages/ContentQueuePage";
 import SettingsPage from "@/pages/SettingsPage";
 import AdminDashboard from "@/pages/AdminDashboard";
+import TreePackagesPage from "@/pages/admin/TreePackagesPage";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -74,6 +76,7 @@ const App = () => (
       <BrowserRouter>
         <LanguageProvider>
           <AuthProvider>
+            <EntitlementProvider>
             <TreeProvider>
               <PlanProvider>
                 <WorkspaceProvider>
@@ -149,6 +152,9 @@ const App = () => (
                     {/* ── Admin content queue (admin / superadmin) ── */}
                     <Route path="/admin/content" element={<ProtectedRoute><ContentQueuePage /></ProtectedRoute>} />
 
+                    {/* ── Tree plan / entitlement superadmin ── */}
+                    <Route path="/admin/tree-packages" element={<ProtectedRoute><TreePackagesPage /></ProtectedRoute>} />
+
                     {/* ── Settings ── */}
                     <Route path="/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
 
@@ -158,6 +164,7 @@ const App = () => (
                 </WorkspaceProvider>
               </PlanProvider>
             </TreeProvider>
+            </EntitlementProvider>
           </AuthProvider>
         </LanguageProvider>
       </BrowserRouter>

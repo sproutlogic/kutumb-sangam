@@ -1,6 +1,7 @@
 /**
- * TreeCanvasV2 — React Flow powered family tree canvas.
- * Drag-drop, pan, zoom, click-to-select, right-click context menu, edge delete.
+ * TreeCanvasV2 — React Flow powered family tree canvas with entitlement-aware
+ * visibility window, ghost-node ancestors/descendants at the boundary, and a
+ * Royal Rajputana border frame. Drag-drop, pan, zoom, right-click context menu.
  */
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
@@ -9,35 +10,37 @@ import {
   Background,
   Controls,
   MiniMap,
-  addEdge,
   useNodesState,
   useEdgesState,
   type Node,
   type Edge,
   type NodeMouseHandler,
   type EdgeMouseHandler,
-  type OnConnect,
   MarkerType,
   Panel,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { toast } from "sonner";
-import { fetchVanshaTree, deletePerson } from "@/services/api";
+import { deletePerson } from "@/services/api";
 import {
-  listRelationships,
   deleteRelationship,
-  createRelationship,
   setNodeOffset,
   getVansha,
   getIntegrity,
   type Relationship,
   type VanshaMeta,
 } from "@/services/treeV2Api";
+import { fetchVisibleTree, type LockedBoundary, type VisibleTreePayload } from "@/services/entitlementApi";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+import LockedNode from "@/components/tree/LockedNode";
+import RajputanaBorder from "@/components/tree/RajputanaBorder";
+import PlanBadge from "@/components/entitlement/PlanBadge";
+import UpgradeDrawer from "@/components/entitlement/UpgradeDrawer";
+import SachetModal from "@/components/entitlement/SachetModal";
+import { useEntitlement } from "@/contexts/EntitlementContext";
 
-// ─── Types ────────────────────────────────────────────────────────────────────
+// ─── Types ──────────────────────────────────────────────────────────────────
 
 type RawPerson = Record<string, unknown> & {
   node_id: string;
@@ -48,20 +51,21 @@ type RawPerson = Record<string, unknown> & {
   canvas_offset_x?: number | null;
   canvas_offset_y?: number | null;
   relation?: string;
+  generation?: number;
 };
 
 type ContextMenu =
   | { kind: "node"; x: number; y: number; nodeId: string; name: string }
   | { kind: "edge"; x: number; y: number; edgeId: string; relId: string };
 
-// ─── Layout constants ─────────────────────────────────────────────────────────
+// ─── Layout constants ───────────────────────────────────────────────────────
 
 const NODE_WIDTH = 160;
 const NODE_HEIGHT = 70;
 const H_GAP = 60;
 const V_GAP = 120;
 
-// ─── Layout: BFS from roots via parent_of edges ───────────────────────────────
+// ─── Layout: BFS from roots via parent_of edges ─────────────────────────────
 
 function buildLayout(
   persons: RawPerson[],
@@ -70,14 +74,12 @@ function buildLayout(
   const parentOf = rels.filter((r) => r.type === "parent_of");
   const spouseOf = rels.filter((r) => r.type === "spouse_of");
 
-  // Build partner map.
   const partnerOf = new Map<string, string>();
   spouseOf.forEach((r) => {
     partnerOf.set(r.from_node_id, r.to_node_id);
     partnerOf.set(r.to_node_id, r.from_node_id);
   });
 
-  // Children per node.
   const childrenOf = new Map<string, string[]>();
   const hasParent = new Set<string>();
   parentOf.forEach((r) => {
@@ -87,10 +89,8 @@ function buildLayout(
     hasParent.add(r.to_node_id);
   });
 
-  // Roots = persons with no incoming parent_of.
   const roots = persons.filter((p) => !hasParent.has(p.node_id));
 
-  // BFS assigns generation.
   const gen = new Map<string, number>();
   const queue: string[] = [];
   roots.forEach((r) => { gen.set(r.node_id, 0); queue.push(r.node_id); });
@@ -103,7 +103,6 @@ function buildLayout(
   }
   persons.forEach((p) => { if (!gen.has(p.node_id)) gen.set(p.node_id, 0); });
 
-  // Group by generation, order so spouses sit adjacent.
   const byGen = new Map<number, string[]>();
   persons.forEach((p) => {
     const g = gen.get(p.node_id) ?? 0;
@@ -116,7 +115,6 @@ function buildLayout(
   Array.from(byGen.entries())
     .sort(([a], [b]) => a - b)
     .forEach(([g, ids]) => {
-      // Order: place spouses next to each other.
       const ordered: string[] = [];
       const seen = new Set<string>();
       ids.forEach((id) => {
@@ -141,7 +139,7 @@ function buildLayout(
   return positions;
 }
 
-// ─── Node colour ─────────────────────────────────────────────────────────────
+// ─── Node colour ────────────────────────────────────────────────────────────
 
 function nodeColor(gender?: string) {
   if (gender === "male") return "#dbeafe";
@@ -149,41 +147,65 @@ function nodeColor(gender?: string) {
   return "#f3f4f6";
 }
 
-// ─── Main component ───────────────────────────────────────────────────────────
+// ─── Custom locked-node React Flow type ─────────────────────────────────────
+
+const lockedNodeTypes = {
+  locked: ({ data }: {
+    data: { generation: number; lockedCount: number; side: "ancestor" | "descendant"; onClick: () => void };
+  }) => (
+    <LockedNode
+      generation={data.generation}
+      lockedCount={data.lockedCount}
+      side={data.side}
+      onClick={data.onClick}
+    />
+  ),
+};
+
+// ─── Main component ─────────────────────────────────────────────────────────
 
 interface Props { vanshaId: string }
 
 const TreeCanvasV2: React.FC<Props> = ({ vanshaId }) => {
   const navigate = useNavigate();
+  const { entitlement, refresh: refreshEntitlement } = useEntitlement();
 
   const [rfNodes, setRfNodes, onNodesChange] = useNodesState<Node>([]);
   const [rfEdges, setRfEdges, onEdgesChange] = useEdgesState<Edge>([]);
 
-  const [persons, setPersons] = useState<RawPerson[]>([]);
-  const [rels, setRels] = useState<Relationship[]>([]);
-  const [vansha, setVansha] = useState<VanshaMeta | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [contextMenu, setContextMenu] = useState<ContextMenu | null>(null);
-  const [integrityPanel, setIntegrityPanel] = useState<Awaited<ReturnType<typeof getIntegrity>> | null>(null);
+  const [persons,   setPersons]   = useState<RawPerson[]>([]);
+  const [rels,      setRels]      = useState<Relationship[]>([]);
+  const [vansha,    setVansha]    = useState<VanshaMeta | null>(null);
+  const [boundary,  setBoundary]  = useState<LockedBoundary[]>([]);
+  const [ego,       setEgo]       = useState<{ node_id: string; generation: number } | null>(null);
+  const [onboardingRequired, setOnboardingRequired] = useState(false);
 
-  // Save drag offset after node drag ends (debounced 600ms).
+  const [loading,   setLoading]   = useState(true);
+  const [error,     setError]     = useState<string | null>(null);
+  const [contextMenu, setContextMenu] = useState<ContextMenu | null>(null);
+  const [integrityPanel, setIntegrityPanel] =
+    useState<Awaited<ReturnType<typeof getIntegrity>> | null>(null);
+
+  const [upgradeOpen, setUpgradeOpen] = useState(false);
+  const [sachetTarget, setSachetTarget] = useState<LockedBoundary | null>(null);
+
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // ── Fetch ──────────────────────────────────────────────────────────────────
+  // ── Fetch via entitlement endpoint (replaces fetchVanshaTree) ─────────────
 
   const refresh = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const [tree, edges, meta] = await Promise.all([
-        fetchVanshaTree(vanshaId),
-        listRelationships(vanshaId),
+      const [tree, meta] = await Promise.all([
+        fetchVisibleTree(vanshaId) as Promise<VisibleTreePayload>,
         getVansha(vanshaId).catch(() => null),
       ]);
-      const rawPersons = (tree.persons ?? []) as RawPerson[];
-      setPersons(rawPersons);
-      setRels(edges);
+      setPersons((tree.persons ?? []) as RawPerson[]);
+      setRels(tree.relationships ?? []);
+      setBoundary(tree.locked_boundary ?? []);
+      setEgo(tree.ego);
+      setOnboardingRequired(Boolean(tree.onboarding_required));
       setVansha(meta);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load");
@@ -194,23 +216,33 @@ const TreeCanvasV2: React.FC<Props> = ({ vanshaId }) => {
 
   useEffect(() => { void refresh(); }, [refresh]);
 
-  // ── Build React Flow nodes + edges from persons + relationships ────────────
+  // ── Build React Flow nodes (visible + locked boundaries) + edges ─────────
 
   useEffect(() => {
-    if (!persons.length) return;
+    if (!persons.length && !boundary.length) {
+      setRfNodes([]);
+      setRfEdges([]);
+      return;
+    }
     const layout = buildLayout(persons, rels);
 
-    const nodes: Node[] = persons.map((p) => {
+    const visibleNodes: Node[] = persons.map((p) => {
       const auto = layout.get(p.node_id) ?? { x: 0, y: 0 };
       const ox = Number(p.canvas_offset_x ?? 0);
       const oy = Number(p.canvas_offset_y ?? 0);
       const name = `${p.first_name ?? ""} ${p.last_name ?? ""}`.trim() || "(unnamed)";
+      const isEgo = ego && p.node_id === ego.node_id;
       return {
         id: p.node_id,
         position: { x: auto.x + ox, y: auto.y + oy },
         data: {
           label: (
             <div style={{ textAlign: "center", padding: "4px 8px" }}>
+              {isEgo && (
+                <div style={{ fontSize: 9, color: "#d97706", fontWeight: 700, marginBottom: 2 }}>
+                  ★ YOU
+                </div>
+              )}
               <div style={{ fontWeight: 600, fontSize: 13 }}>{name}</div>
               <div style={{ fontSize: 10, color: "#64748b" }}>{p.kutumb_id ?? ""}</div>
               {p.relation && (
@@ -220,17 +252,42 @@ const TreeCanvasV2: React.FC<Props> = ({ vanshaId }) => {
           ),
           nodeId: p.node_id,
           name,
+          gender: p.gender,
         },
         style: {
           background: nodeColor(p.gender as string),
-          border: "1px solid #94a3b8",
+          border: isEgo ? "2px solid #d97706" : "1px solid #94a3b8",
           borderRadius: 8,
           width: NODE_WIDTH,
           minHeight: NODE_HEIGHT,
           cursor: "grab",
+          boxShadow: isEgo ? "0 0 12px rgba(217,119,6,0.35)" : undefined,
         },
       };
     });
+
+    // Locked boundary nodes — positioned just beyond the visible window.
+    const lockedNodes: Node[] = boundary.map((b, i) => {
+      const y = b.generation * (NODE_HEIGHT + V_GAP);
+      // Spread sideways: stagger if there are several at same gen.
+      const x = -200 + i * 30;
+      return {
+        id: `locked-${b.generation}-${b.side}`,
+        type: "locked",
+        position: { x, y },
+        data: {
+          generation: b.generation,
+          lockedCount: b.locked_count,
+          side: b.side,
+          onClick: () => setSachetTarget(b),
+        },
+        draggable: false,
+        selectable: false,
+        style: { width: NODE_WIDTH, height: NODE_HEIGHT },
+      };
+    });
+
+    const allNodes = [...visibleNodes, ...lockedNodes];
 
     const edges: Edge[] = rels.map((r) => {
       const isSpouse = r.type === "spouse_of";
@@ -253,14 +310,16 @@ const TreeCanvasV2: React.FC<Props> = ({ vanshaId }) => {
       };
     });
 
-    setRfNodes(nodes);
+    setRfNodes(allNodes);
     setRfEdges(edges);
-  }, [persons, rels, setRfNodes, setRfEdges]);
+  }, [persons, rels, boundary, ego, setRfNodes, setRfEdges]);
 
-  // ── Save position after drag ───────────────────────────────────────────────
+  // ── Save position after drag ─────────────────────────────────────────────
 
   const onNodeDragStop = useCallback(
     (_: React.MouseEvent, node: Node) => {
+      // Locked nodes are not draggable, but skip just in case
+      if (node.id.startsWith("locked-")) return;
       if (saveTimer.current) clearTimeout(saveTimer.current);
       saveTimer.current = setTimeout(() => {
         void setNodeOffset(node.id, node.position.x, node.position.y).catch(() =>
@@ -271,9 +330,10 @@ const TreeCanvasV2: React.FC<Props> = ({ vanshaId }) => {
     [],
   );
 
-  // ── Context menus ──────────────────────────────────────────────────────────
+  // ── Context menus ────────────────────────────────────────────────────────
 
   const onNodeContextMenu: NodeMouseHandler = useCallback((e, node) => {
+    if (node.id.startsWith("locked-")) return;
     e.preventDefault();
     setContextMenu({
       kind: "node",
@@ -297,7 +357,7 @@ const TreeCanvasV2: React.FC<Props> = ({ vanshaId }) => {
 
   const closeMenu = useCallback(() => setContextMenu(null), []);
 
-  // ── Actions ────────────────────────────────────────────────────────────────
+  // ── Actions ──────────────────────────────────────────────────────────────
 
   const handleDeleteNode = async (nodeId: string) => {
     closeMenu();
@@ -336,50 +396,91 @@ const TreeCanvasV2: React.FC<Props> = ({ vanshaId }) => {
     }
   };
 
-  // ── Render ─────────────────────────────────────────────────────────────────
+  const handleSachetUnlocked = useCallback(async () => {
+    setSachetTarget(null);
+    await Promise.all([refresh(), refreshEntitlement()]);
+  }, [refresh, refreshEntitlement]);
 
-  if (loading) return <div className="flex items-center justify-center h-screen text-muted-foreground">Loading tree…</div>;
-  if (error) return <div className="flex items-center justify-center h-screen text-destructive">{error}</div>;
+  // ── Render ───────────────────────────────────────────────────────────────
+
+  if (loading)
+    return <div className="flex items-center justify-center h-screen text-muted-foreground">
+      Loading tree…
+    </div>;
+  if (error)
+    return <div className="flex items-center justify-center h-screen text-destructive">{error}</div>;
+
+  // Onboarding state — user has no claimed node yet
+  if (onboardingRequired) {
+    return (
+      <div className="w-full h-screen flex items-center justify-center p-6">
+        <Card className="max-w-md w-full p-6 text-center">
+          <h2 className="text-xl font-bold mb-2">Welcome to your vansha</h2>
+          <p className="text-sm text-muted-foreground mb-4">
+            To begin viewing your tree, add yourself as a node. Your entitlement
+            window centres on your own node — once you claim a node, you'll see
+            your visible window of ancestors and descendants.
+          </p>
+          <Button onClick={() => navigate(`/node?vansha_id=${vanshaId}`)}>
+            Add yourself to the tree
+          </Button>
+        </Card>
+      </div>
+    );
+  }
 
   return (
-    <div className="w-full h-screen" onClick={closeMenu}>
-      <ReactFlow
-        nodes={rfNodes}
-        edges={rfEdges}
-        onNodesChange={onNodesChange}
-        onEdgesChange={onEdgesChange}
-        onNodeDragStop={onNodeDragStop}
-        onNodeContextMenu={onNodeContextMenu}
-        onEdgeContextMenu={onEdgeContextMenu}
-        onPaneClick={closeMenu}
-        fitView
-        fitViewOptions={{ padding: 0.2 }}
-        minZoom={0.2}
-        maxZoom={2}
-        deleteKeyCode={null}
-      >
-        <Background gap={20} color="#e2e8f0" />
-        <Controls />
-        <MiniMap nodeColor={(n) => nodeColor((n.data as { gender?: string }).gender)} zoomable pannable />
+    <div className="w-full h-screen p-2 bg-gradient-to-br from-amber-50 to-rose-50"
+         onClick={closeMenu}>
+      <RajputanaBorder className="w-full h-full">
+        <div className="relative w-full h-full bg-background">
+          <ReactFlow
+            nodes={rfNodes}
+            edges={rfEdges}
+            nodeTypes={lockedNodeTypes}
+            onNodesChange={onNodesChange}
+            onEdgesChange={onEdgesChange}
+            onNodeDragStop={onNodeDragStop}
+            onNodeContextMenu={onNodeContextMenu}
+            onEdgeContextMenu={onEdgeContextMenu}
+            onPaneClick={closeMenu}
+            fitView
+            fitViewOptions={{ padding: 0.2 }}
+            minZoom={0.2}
+            maxZoom={2}
+            deleteKeyCode={null}
+          >
+            <Background gap={20} color="#e2e8f0" />
+            <Controls />
+            <MiniMap
+              nodeColor={(n) => {
+                if (n.id.startsWith("locked-")) return "#fbbf24";
+                return nodeColor((n.data as { gender?: string }).gender);
+              }}
+              zoomable pannable
+            />
 
-        <Panel position="top-left">
-          <div className="bg-background/95 border rounded-lg shadow px-3 py-2 text-sm space-y-1">
-            {vansha && (
-              <>
-                <div className="font-semibold">{vansha.vansh_name ?? "वंश वृक्ष"}</div>
-                <div className="text-xs text-muted-foreground font-mono">{vansha.vansh_code}</div>
-              </>
-            )}
-            <div className="flex gap-1 pt-1 flex-wrap">
-              <Button size="sm" variant="outline" onClick={() => void refresh()}>↺ Reload</Button>
-              <Button size="sm" variant="outline" onClick={() => navigate("/tree")}>← Old view</Button>
-            </div>
-            <div className="text-xs text-muted-foreground pt-1">
-              Right-click node or line to edit/delete
-            </div>
-          </div>
-        </Panel>
-      </ReactFlow>
+            <Panel position="top-left">
+              <div className="bg-background/95 border rounded-lg shadow px-3 py-2 text-sm space-y-2 max-w-md">
+                {vansha && (
+                  <div>
+                    <div className="font-semibold">{vansha.vansh_name ?? "वंश वृक्ष"}</div>
+                    <div className="text-xs text-muted-foreground font-mono">{vansha.vansh_code}</div>
+                  </div>
+                )}
+                <PlanBadge onUpgradeClick={() => setUpgradeOpen(true)} />
+                <div className="flex gap-1 pt-1 flex-wrap">
+                  <Button size="sm" variant="outline" onClick={() => void refresh()}>↺ Reload</Button>
+                  <Button size="sm" variant="outline" onClick={() => navigate("/tree")}>← Old view</Button>
+                </div>
+                <div className="text-xs text-muted-foreground">
+                  Right-click node or line to edit/delete · tap a 🔒 to unlock
+                </div>
+              </div>
+            </Panel>
+          </ReactFlow>
+        </div>
+      </RajputanaBorder>
 
       {/* Context menu */}
       {contextMenu && (
@@ -453,6 +554,19 @@ const TreeCanvasV2: React.FC<Props> = ({ vanshaId }) => {
           </Card>
         </div>
       )}
+
+      <UpgradeDrawer open={upgradeOpen} onClose={() => setUpgradeOpen(false)} />
+
+      <SachetModal
+        open={Boolean(sachetTarget)}
+        boundary={sachetTarget ? {
+          generation: sachetTarget.generation,
+          side: sachetTarget.side,
+          nodeIds: sachetTarget.node_ids,
+        } : undefined}
+        onClose={() => setSachetTarget(null)}
+        onUnlocked={handleSachetUnlocked}
+      />
     </div>
   );
 };

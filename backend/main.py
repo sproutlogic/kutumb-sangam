@@ -12,9 +12,11 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from routers import (
-    admin, approval, auth_router, calendar, content, eco_services, eco_sewa, gaurav_gatha, green_legacy,
+    admin, admin_plans, approval, auth_router, calendar, content, eco_services, eco_sewa,
+    entitlement, gaurav_gatha, green_legacy,
     kutumb_pro, legacy_box, matrimony,
-    node_claim, node_relation_labels, notifications, pandit, panchang, payments, person, prakriti, radar, sales, time_bank, tree, tree_v2, union, verification,
+    node_claim, node_relation_labels, notifications, pandit, panchang, payments, person, prakriti, radar, sachets,
+    sales, time_bank, tree, tree_subscriptions, tree_v2, union, verification,
 )
 from workers.care_reminder import create_care_reminder_scheduler
 from workers.content_gen import create_content_gen_scheduler
@@ -95,6 +97,12 @@ app.include_router(content.router)
 
 # Community achievement wall
 app.include_router(gaurav_gatha.router)
+
+# Tree entitlement & monetisation
+app.include_router(entitlement.router)
+app.include_router(tree_subscriptions.router)
+app.include_router(sachets.router)
+app.include_router(admin_plans.router)
 
 
 @app.api_route("/health", methods=["GET", "HEAD"])

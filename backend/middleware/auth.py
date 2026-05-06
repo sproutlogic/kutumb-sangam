@@ -64,5 +64,15 @@ async def require_margdarshak(
     return user
 
 
+async def require_superadmin(
+    user: Annotated[dict[str, Any], Depends(get_current_user)],
+) -> dict[str, Any]:
+    """Allow only admin or superadmin roles. Used for plan CRUD, reports, overrides."""
+    if user.get("role") not in ("admin", "superadmin"):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Superadmin role required.")
+    return user
+
+
 CurrentUser = Annotated[dict[str, Any], Depends(get_current_user)]
 MargdarshakUser = Annotated[dict[str, Any], Depends(require_margdarshak)]
+SuperadminUser = Annotated[dict[str, Any], Depends(require_superadmin)]
