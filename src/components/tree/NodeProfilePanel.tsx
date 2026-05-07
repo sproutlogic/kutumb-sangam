@@ -175,26 +175,14 @@ const NodeProfilePanel: React.FC<Props> = ({ nodeId, onClose }) => {
                   <Field label="Gotra"                 value={person.gotra as string} />
                 </div>
 
-                <div className="border-t pt-3 space-y-2">
+                <div className="border-t pt-3">
                   <Button
                     size="sm"
                     variant="default"
                     className="w-full"
-                    onClick={() => {
-                      onClose();
-                      const vid = person.vansha_id;
-                      navigate(`/node/${nodeId}${vid ? `?vansha_id=${encodeURIComponent(String(vid))}` : ""}`);
-                    }}
-                  >
-                    ✏️ Edit profile
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="w-full border-orange-300 text-orange-700 hover:bg-orange-50"
                     onClick={() => { onClose(); navigate(`/profile/${nodeId}`); }}
                   >
-                    🪬 Full Profile
+                    📋 View full profile
                   </Button>
                 </div>
               </>
