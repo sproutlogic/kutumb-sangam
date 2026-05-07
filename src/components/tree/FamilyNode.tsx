@@ -1,10 +1,17 @@
 /**
  * FamilyNode — redesigned tree node card.
  *
- * Displays first name only. Visual states:
- *   • Living   → gentle pulsing border ring
- *   • Deceased → 🪔 diya in bottom-left corner
- *   • Pandit-verified → rangoli badge (🔱) in top-right corner
+ * Visual states:
+ *   • Living         → gentle pulsing border ring
+ *   • Deceased       → 🪔 diya in bottom-left corner
+ *   • Pandit-verified → 🔱 rangoli badge top-right corner
+ *
+ * Add buttons sit ON the card border (centered on the edge line, half
+ * inside / half outside). This eliminates the hover-gap problem entirely:
+ * the mouse never fully exits the card before reaching a button.
+ * Buttons are only rendered for canEdit users (owner / tree-creator).
+ * Multiple spouse buttons are allowed (polygamy supported — each click
+ * on the right-border "+" creates a fresh spouse ghost node).
  *
  * Handles (all source, ConnectionMode=Loose):
  *   Top/Bottom → parent-child  |  Left/Right → spouse
@@ -19,6 +26,7 @@ export interface FamilyNodeData {
   hasOffset?: boolean;
   isDeceased?: boolean;
   isPanditVerified?: boolean;
+  canEdit?: boolean;
   onAddRelative?: (nodeId: string, dir: "child" | "parent" | "spouse") => void;
   onOpenProfile?: (nodeId: string) => void;
   [key: string]: unknown;
@@ -48,36 +56,37 @@ const handleDot: React.CSSProperties = {
   zIndex: 10,
 };
 
-const addBtn: React.CSSProperties = {
+// Button sits ON the border: translate by -50% of its own size so it straddles the edge.
+const BTN = 18; // diameter in px
+const btnBase: React.CSSProperties = {
   position: "absolute",
-  width: 22, height: 22,
+  width: BTN, height: BTN,
   borderRadius: "50%",
-  border: "2px solid #6366f1",
+  border: "1.5px solid #6366f1",
   background: "#fff",
   color: "#6366f1",
-  fontSize: 15,
+  fontSize: 13,
   cursor: "pointer",
   display: "flex",
   alignItems: "center",
   justifyContent: "center",
-  zIndex: 20,
-  transition: "background 0.12s, transform 0.12s",
-  boxShadow: "0 2px 6px rgba(99,102,241,0.3)",
+  zIndex: 25,
+  boxShadow: "0 1px 4px rgba(99,102,241,0.35)",
+  transition: "opacity 0.15s, background 0.1s",
+  userSelect: "none",
 };
 
-// Keyframe injected once at module load — keeps component self-contained.
 if (typeof document !== "undefined" && !document.getElementById("fn-pulse-style")) {
   const s = document.createElement("style");
   s.id = "fn-pulse-style";
   s.textContent = `
     @keyframes fn-pulse {
       0%   { transform: scale(1);    opacity: 0.6; }
-      60%  { transform: scale(1.07); opacity: 0;   }
-      100% { transform: scale(1.07); opacity: 0;   }
+      60%  { transform: scale(1.08); opacity: 0;   }
+      100% { transform: scale(1.08); opacity: 0;   }
     }
-    .fn-pulse-ring {
-      animation: fn-pulse 2.4s ease-out infinite;
-    }
+    .fn-pulse-ring { animation: fn-pulse 2.6s ease-out infinite; }
+    [data-add-btn]:hover { background: #6366f1 !important; color: #fff !important; }
   `;
   document.head.appendChild(s);
 }
@@ -87,7 +96,8 @@ const FamilyNode: React.FC<NodeProps> = ({ id, data, selected }) => {
   const [hovered, setHovered] = useState(false);
 
   const firstName = (d.name ?? "").split(" ")[0] || "(unnamed)";
-  const living = !d.isDeceased;
+  const living    = !d.isDeceased;
+  const showBtns  = d.canEdit && hovered;
 
   const fireAdd = (e: React.MouseEvent, dir: "child" | "parent" | "spouse") => {
     e.stopPropagation();
@@ -100,6 +110,9 @@ const FamilyNode: React.FC<NodeProps> = ({ id, data, selected }) => {
     d.onOpenProfile?.(id);
   };
 
+  // Centered on each card edge (half = BTN/2 px into card, half outside).
+  const half = BTN / 2;
+
   return (
     <div
       style={{ position: "relative" }}
@@ -107,93 +120,38 @@ const FamilyNode: React.FC<NodeProps> = ({ id, data, selected }) => {
       onMouseLeave={() => setHovered(false)}
       onClick={openProfile}
     >
-      {/* ── Living pulse ring ──────────────────────────────── */}
+      {/* ── Living pulse ring ────────────────────────────────── */}
       {living && (
-        <div
-          className="fn-pulse-ring"
-          style={{
-            position: "absolute",
-            inset: -3,
-            borderRadius: 14,
-            border: `2px solid ${pulseColor(d.gender)}`,
-            pointerEvents: "none",
-          }}
-        />
+        <div className="fn-pulse-ring" style={{
+          position: "absolute", inset: -3, borderRadius: 14,
+          border: `2px solid ${pulseColor(d.gender)}`, pointerEvents: "none",
+        }} />
       )}
 
-      {/* ── Pandit-verified rangoli badge ──────────────────── */}
-      {d.isPanditVerified && (
-        <div
-          title="Verified by Pandit ji"
-          style={{
-            position: "absolute",
-            top: -10, right: -10,
-            width: 20, height: 20,
-            borderRadius: "50%",
-            background: "linear-gradient(135deg,#f97316,#dc2626)",
-            display: "flex", alignItems: "center", justifyContent: "center",
-            fontSize: 11,
-            boxShadow: "0 1px 4px rgba(249,115,22,0.5)",
-            zIndex: 30,
-            pointerEvents: "none",
-          }}
-        >🔱</div>
-      )}
-
-      {/* ── Add buttons — always in DOM, opacity-toggled so the mouse
-           can travel from card edge to button without triggering onMouseLeave
-           on the wrapper and unmounting the target before it's reachable. ── */}
-      <div data-add-btn
-        style={{ ...addBtn, top: -28, left: "50%", transform: "translateX(-50%)",
-          opacity: hovered ? 1 : 0, pointerEvents: hovered ? "auto" : "none", transition: "opacity 0.12s" }}
-        onMouseEnter={() => setHovered(true)}
-        onMouseDown={(e) => e.stopPropagation()}
-        onClick={(e) => fireAdd(e, "child")}
-        title="Add child">+</div>
-
-      <div data-add-btn
-        style={{ ...addBtn, bottom: -28, left: "50%", transform: "translateX(-50%)",
-          opacity: hovered ? 1 : 0, pointerEvents: hovered ? "auto" : "none", transition: "opacity 0.12s" }}
-        onMouseEnter={() => setHovered(true)}
-        onMouseDown={(e) => e.stopPropagation()}
-        onClick={(e) => fireAdd(e, "parent")}
-        title="Add parent">+</div>
-
-      <div data-add-btn
-        style={{ ...addBtn, right: -28, top: "50%", transform: "translateY(-50%)",
-          opacity: hovered ? 1 : 0, pointerEvents: hovered ? "auto" : "none", transition: "opacity 0.12s" }}
-        onMouseEnter={() => setHovered(true)}
-        onMouseDown={(e) => e.stopPropagation()}
-        onClick={(e) => fireAdd(e, "spouse")}
-        title="Add spouse">+</div>
-
-      {/* ── Card ───────────────────────────────────────────── */}
-      <div
-        style={{
-          background: cardGradient(d.gender),
-          border: selected
-            ? "2px solid #6366f1"
-            : d.hasOffset
-              ? "1.5px dashed #6366f1"
-              : "1px solid rgba(148,163,184,0.6)",
-          borderRadius: 12,
-          width: 148,
-          minHeight: 60,
-          boxShadow: selected
-            ? "0 0 0 3px rgba(99,102,241,0.2), 0 2px 8px rgba(15,23,42,0.1)"
-            : "0 2px 8px rgba(15,23,42,0.08)",
-          cursor: "pointer",
-          position: "relative",
-          overflow: "hidden",
-        }}
-      >
+      {/* ── Card ─────────────────────────────────────────────── */}
+      <div style={{
+        background: cardGradient(d.gender),
+        border: selected
+          ? "2px solid #6366f1"
+          : d.hasOffset
+            ? "1.5px dashed #6366f1"
+            : "1px solid rgba(148,163,184,0.6)",
+        borderRadius: 12,
+        width: 148,
+        minHeight: 60,
+        boxShadow: selected
+          ? "0 0 0 3px rgba(99,102,241,0.2), 0 2px 8px rgba(15,23,42,0.1)"
+          : "0 2px 8px rgba(15,23,42,0.08)",
+        cursor: "pointer",
+        position: "relative",
+        overflow: "hidden",
+      }}>
         <Handle type="source" position={Position.Top}    id="s-top"    style={{ ...handleDot, top:    -6 }} />
         <Handle type="source" position={Position.Bottom} id="s-bottom" style={{ ...handleDot, bottom: -6 }} />
         <Handle type="source" position={Position.Left}   id="s-left"   style={{ ...handleDot, left:   -6 }} />
         <Handle type="source" position={Position.Right}  id="s-right"  style={{ ...handleDot, right:  -6 }} />
 
-        {/* Name + relation */}
-        <div style={{ padding: "10px 12px 10px", textAlign: "center" }}>
+        <div style={{ padding: "10px 12px", textAlign: "center" }}>
           <div style={{ fontWeight: 700, fontSize: 14, color: "#0f172a", letterSpacing: "-0.01em" }}>
             {firstName}
           </div>
@@ -204,20 +162,75 @@ const FamilyNode: React.FC<NodeProps> = ({ id, data, selected }) => {
           )}
         </div>
 
-        {/* ── Diya for deceased (bottom-left) ──────────────── */}
         {d.isDeceased && (
-          <div
-            title="Deceased"
-            style={{
-              position: "absolute",
-              bottom: 4, left: 6,
-              fontSize: 13,
-              lineHeight: 1,
-              pointerEvents: "none",
-            }}
-          >🪔</div>
+          <div title="Deceased" style={{
+            position: "absolute", bottom: 4, left: 6,
+            fontSize: 13, lineHeight: 1, pointerEvents: "none",
+          }}>🪔</div>
         )}
       </div>
+
+      {/* ── Pandit-verified badge ─────────────────────────────── */}
+      {d.isPanditVerified && (
+        <div title="Verified by Pandit ji" style={{
+          position: "absolute", top: -10, right: -10,
+          width: 20, height: 20, borderRadius: "50%",
+          background: "linear-gradient(135deg,#f97316,#dc2626)",
+          display: "flex", alignItems: "center", justifyContent: "center",
+          fontSize: 11, boxShadow: "0 1px 4px rgba(249,115,22,0.5)",
+          zIndex: 30, pointerEvents: "none",
+        }}>🔱</div>
+      )}
+
+      {/* ── Add buttons (owner / creator only, on card border) ── */}
+      {d.canEdit && (
+        <>
+          {/* Top-center → add child */}
+          <div data-add-btn
+            style={{
+              ...btnBase,
+              top: -half, left: "50%",
+              transform: "translateX(-50%)",
+              opacity: showBtns ? 1 : 0,
+              pointerEvents: showBtns ? "auto" : "none",
+            }}
+            onMouseEnter={() => setHovered(true)}
+            onMouseDown={(e) => e.stopPropagation()}
+            onClick={(e) => fireAdd(e, "child")}
+            title="Add child"
+          >+</div>
+
+          {/* Bottom-center → add parent */}
+          <div data-add-btn
+            style={{
+              ...btnBase,
+              bottom: -half, left: "50%",
+              transform: "translateX(-50%)",
+              opacity: showBtns ? 1 : 0,
+              pointerEvents: showBtns ? "auto" : "none",
+            }}
+            onMouseEnter={() => setHovered(true)}
+            onMouseDown={(e) => e.stopPropagation()}
+            onClick={(e) => fireAdd(e, "parent")}
+            title="Add parent"
+          >+</div>
+
+          {/* Right-center → add spouse (multiple allowed — polygamy) */}
+          <div data-add-btn
+            style={{
+              ...btnBase,
+              right: -half, top: "50%",
+              transform: "translateY(-50%)",
+              opacity: showBtns ? 1 : 0,
+              pointerEvents: showBtns ? "auto" : "none",
+            }}
+            onMouseEnter={() => setHovered(true)}
+            onMouseDown={(e) => e.stopPropagation()}
+            onClick={(e) => fireAdd(e, "spouse")}
+            title="Add spouse"
+          >+</div>
+        </>
+      )}
     </div>
   );
 };

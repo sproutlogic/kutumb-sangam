@@ -25,6 +25,7 @@
  */
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useAuth } from "@/contexts/AuthContext";
 import dagre from "dagre";
 import {
   ReactFlow,
@@ -249,6 +250,7 @@ interface Props {
 
 const TreeCanvasV2: React.FC<Props> = ({ vanshaId }) => {
   const navigate = useNavigate();
+  const { appUser } = useAuth();
 
   const [rfNodes, setRfNodes, onNodesChange] = useNodesState<Node>([]);
   const [rfEdges, setRfEdges, onEdgesChange] = useEdgesState<Edge>([]);
@@ -521,6 +523,8 @@ const TreeCanvasV2: React.FC<Props> = ({ vanshaId }) => {
             hasOffset,
             isDeceased: !!p.is_deceased,
             isPanditVerified: !!p.pandit_verified,
+            // canEdit: node owner, OR no owner (tree creator viewing their own tree)
+            canEdit: !p.owner_id || p.owner_id === appUser?.id,
             onAddRelative: addRelativeFromNode,
             onOpenProfile: (nodeId: string) => setProfileNodeId(nodeId),
           },
