@@ -135,7 +135,7 @@ const FamilyNode: React.FC<NodeProps> = ({ id, data, selected }) => {
       <Handle type="source" position={Position.Left}   id="s-left"   style={{ ...handleDot, left: -6, top: "50%", transform: "translateY(-50%)", opacity: hovered ? 0.7 : 0 }} />
       <Handle type="source" position={Position.Right}  id="s-right"  style={{ ...handleDot, right: -6, top: "50%", transform: "translateY(-50%)", opacity: hovered ? 0.7 : 0 }} />
 
-      <div style={{
+      <div className="fn-drag-handle" style={{
         background: cardGradient(d.gender),
         border: selected
           ? "2px solid #6366f1"
@@ -197,7 +197,6 @@ const FamilyNode: React.FC<NodeProps> = ({ id, data, selected }) => {
               pointerEvents: showBtns ? "auto" : "none",
             }}
             onMouseEnter={() => setHovered(true)}
-            onMouseDown={(e) => e.stopPropagation()}
             onClick={(e) => fireAdd(e, "child")}
             title="Add child"
           >+</div>
@@ -212,7 +211,6 @@ const FamilyNode: React.FC<NodeProps> = ({ id, data, selected }) => {
               pointerEvents: showBtns ? "auto" : "none",
             }}
             onMouseEnter={() => setHovered(true)}
-            onMouseDown={(e) => e.stopPropagation()}
             onClick={(e) => fireAdd(e, "parent")}
             title="Add parent"
           >+</div>
@@ -227,7 +225,6 @@ const FamilyNode: React.FC<NodeProps> = ({ id, data, selected }) => {
               pointerEvents: showBtns ? "auto" : "none",
             }}
             onMouseEnter={() => setHovered(true)}
-            onMouseDown={(e) => e.stopPropagation()}
             onClick={(e) => fireAdd(e, "spouse")}
             title="Add spouse"
           >+</div>

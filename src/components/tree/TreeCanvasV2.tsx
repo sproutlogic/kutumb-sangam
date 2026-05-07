@@ -545,6 +545,7 @@ const TreeCanvasV2: React.FC<Props> = ({ vanshaId }) => {
           id: p.node_id,
           type: "familyNode",
           position,
+          dragHandle: ".fn-drag-handle",
           data: {
             nodeId: p.node_id,
             name,
