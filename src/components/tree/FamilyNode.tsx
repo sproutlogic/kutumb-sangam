@@ -1,20 +1,14 @@
 /**
- * FamilyNode — redesigned tree node card.
+ * FamilyNode — tree node card.
  *
  * Visual states:
  *   • Living         → gentle pulsing border ring
  *   • Deceased       → 🪔 diya in bottom-left corner
  *   • Pandit-verified → 🔱 rangoli badge top-right corner
  *
- * Add buttons sit ON the card border (centered on the edge line, half
- * inside / half outside). This eliminates the hover-gap problem entirely:
- * the mouse never fully exits the card before reaching a button.
- * Buttons are only rendered for canEdit users (owner / tree-creator).
- * Multiple spouse buttons are allowed (polygamy supported — each click
- * on the right-border "+" creates a fresh spouse ghost node).
- *
  * Handles (all source, ConnectionMode=Loose):
  *   Top/Bottom → parent-child  |  Left/Right → spouse
+ * Drag from any handle to another node to create a relationship.
  */
 import React, { memo, useState } from "react";
 import { Handle, Position, type NodeProps } from "@xyflow/react";
@@ -26,8 +20,6 @@ export interface FamilyNodeData {
   hasOffset?: boolean;
   isDeceased?: boolean;
   isPanditVerified?: boolean;
-  canEdit?: boolean;
-  onAddRelative?: (nodeId: string, dir: "child" | "parent" | "spouse") => void;
   onOpenProfile?: (nodeId: string) => void;
   [key: string]: unknown;
 }
@@ -56,26 +48,6 @@ const handleDot: React.CSSProperties = {
   zIndex: 10,
 };
 
-// Button sits ON the border: translate by -50% of its own size so it straddles the edge.
-const BTN = 18; // diameter in px
-const btnBase: React.CSSProperties = {
-  position: "absolute",
-  width: BTN, height: BTN,
-  borderRadius: "50%",
-  border: "1.5px solid #6366f1",
-  background: "#fff",
-  color: "#6366f1",
-  fontSize: 13,
-  cursor: "pointer",
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  zIndex: 25,
-  boxShadow: "0 1px 4px rgba(99,102,241,0.35)",
-  transition: "opacity 0.15s, background 0.1s",
-  userSelect: "none",
-};
-
 if (typeof document !== "undefined" && !document.getElementById("fn-pulse-style")) {
   const s = document.createElement("style");
   s.id = "fn-pulse-style";
@@ -86,7 +58,6 @@ if (typeof document !== "undefined" && !document.getElementById("fn-pulse-style"
       100% { transform: scale(1.08); opacity: 0;   }
     }
     .fn-pulse-ring { animation: fn-pulse 2.6s ease-out infinite; }
-    [data-add-btn]:hover { background: #6366f1 !important; color: #fff !important; }
   `;
   document.head.appendChild(s);
 }
@@ -97,21 +68,10 @@ const FamilyNode: React.FC<NodeProps> = ({ id, data, selected }) => {
 
   const firstName = (d.name ?? "").split(" ")[0] || "(unnamed)";
   const living    = !d.isDeceased;
-  const showBtns  = d.canEdit && hovered;
-
-  const fireAdd = (e: React.MouseEvent, dir: "child" | "parent" | "spouse") => {
-    e.stopPropagation();
-    e.preventDefault();
-    d.onAddRelative?.(id, dir);
-  };
 
   const openProfile = (e: React.MouseEvent) => {
-    if ((e.target as HTMLElement).closest("[data-add-btn]")) return;
     d.onOpenProfile?.(id);
   };
-
-  // Centered on each card edge (half = BTN/2 px into card, half outside).
-  const half = BTN / 2;
 
   return (
     <div
@@ -184,52 +144,6 @@ const FamilyNode: React.FC<NodeProps> = ({ id, data, selected }) => {
         }}>🔱</div>
       )}
 
-      {/* ── Add buttons (owner / creator only, on card border) ── */}
-      {d.canEdit && (
-        <>
-          {/* Top-center → add child */}
-          <div data-add-btn
-            style={{
-              ...btnBase,
-              top: -half, left: "50%",
-              transform: "translateX(-50%)",
-              opacity: showBtns ? 1 : 0,
-              pointerEvents: showBtns ? "auto" : "none",
-            }}
-            onMouseEnter={() => setHovered(true)}
-            onClick={(e) => fireAdd(e, "child")}
-            title="Add child"
-          >+</div>
-
-          {/* Bottom-center → add parent */}
-          <div data-add-btn
-            style={{
-              ...btnBase,
-              bottom: -half, left: "50%",
-              transform: "translateX(-50%)",
-              opacity: showBtns ? 1 : 0,
-              pointerEvents: showBtns ? "auto" : "none",
-            }}
-            onMouseEnter={() => setHovered(true)}
-            onClick={(e) => fireAdd(e, "parent")}
-            title="Add parent"
-          >+</div>
-
-          {/* Right-center → add spouse (multiple allowed — polygamy) */}
-          <div data-add-btn
-            style={{
-              ...btnBase,
-              right: -half, top: "50%",
-              transform: "translateY(-50%)",
-              opacity: showBtns ? 1 : 0,
-              pointerEvents: showBtns ? "auto" : "none",
-            }}
-            onMouseEnter={() => setHovered(true)}
-            onClick={(e) => fireAdd(e, "spouse")}
-            title="Add spouse"
-          >+</div>
-        </>
-      )}
     </div>
   );
 };

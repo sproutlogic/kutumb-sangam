@@ -65,12 +65,11 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import FamilyNode from "./FamilyNode";
-import GhostNode from "./GhostNode";
 import NodeProfilePanel from "./NodeProfilePanel";
 import RajputanaBorder from "./RajputanaBorder";
 
 // nodeTypes must be stable (defined outside component).
-const nodeTypes = { familyNode: FamilyNode, ghostNode: GhostNode };
+const nodeTypes = { familyNode: FamilyNode };
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -100,9 +99,9 @@ interface PendingEdge {
   targetName: string;
 }
 
-interface GhostState {
-  ghostId: string;       // temporary client-side node id
-  anchorId: string;      // existing node the ghost is connected to
+interface PendingAdd {
+  anchorId: string;
+  anchorName: string;
   dir: "child" | "parent" | "spouse";
 }
 
@@ -263,34 +262,13 @@ const TreeCanvasV2: React.FC<Props> = ({ vanshaId }) => {
   const [contextMenu, setContextMenu] = useState<ContextMenu | null>(null);
   const [integrityPanel, setIntegrityPanel] = useState<IntegrityReport | null>(null);
   const [pendingEdge, setPendingEdge] = useState<PendingEdge | null>(null);
-  const [ghost, setGhost] = useState<GhostState | null>(null);
+  const [pendingAdd, setPendingAdd] = useState<PendingAdd | null>(null);
   const [profileNodeId, setProfileNodeId] = useState<string | null>(null);
 
   // Generation window (clamped to actual range after fetch).
   const [genWindow, setGenWindow] = useState<[number, number] | null>(null);
 
   const dragSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  // Always-current refs so callbacks can read latest state without being listed
-  // as deps of the big layout effect (which would cause it to re-fire on every
-  // ghost-state change and overwrite the ghost node).
-  const ghostRef = useRef(ghost);
-  ghostRef.current = ghost;
-
-  const rfNodesRef = useRef(rfNodes);
-  rfNodesRef.current = rfNodes;
-
-  // Stable identity wrapper — never changes, so the big layout effect doesn't
-  // re-run just because addRelativeFromNode got a new reference.
-  const addRelativeCallbackRef = useRef<
-    ((anchorId: string, dir: "child" | "parent" | "spouse") => void) | null
-  >(null);
-  const stableAddRelative = useCallback(
-    (anchorId: string, dir: "child" | "parent" | "spouse") => {
-      addRelativeCallbackRef.current?.(anchorId, dir);
-    },
-    [],
-  );
 
   // ── Fetch ──────────────────────────────────────────────────────────────────
 
@@ -396,122 +374,6 @@ const TreeCanvasV2: React.FC<Props> = ({ vanshaId }) => {
     [autoLayout],
   );
 
-  // ── Ghost node: add-relative flow ─────────────────────────────────────────
-  // Both confirmGhost and addRelativeFromNode must be declared BEFORE the
-  // useEffect below that lists addRelativeFromNode in its dependency array.
-  // Dependency arrays are evaluated eagerly at call time; referencing a const
-  // that is still in TDZ causes "Cannot access X before initialization".
-
-  const confirmGhost = useCallback(
-    async (
-      ghostId: string,
-      anchorId: string,
-      dir: "child" | "parent" | "spouse",
-      name: string,
-      gender: "male" | "female" | "other",
-    ) => {
-      // 1. Create person
-      let newPerson;
-      try {
-        newPerson = await createPersonV2({ vansha_id: vanshaId, first_name: name, gender });
-      } catch (err) {
-        toast.error(err instanceof Error ? err.message : "Could not create person");
-        return;
-      }
-
-      // 2. Create relationship
-      const relType: EdgeType = dir === "spouse" ? "spouse_of" : "parent_of";
-      const [from, to] =
-        dir === "child"  ? [anchorId, newPerson.node_id]
-        : dir === "parent" ? [newPerson.node_id, anchorId]
-        : [anchorId, newPerson.node_id];
-
-      try {
-        const rel = await createRelationship({
-          vansha_id: vanshaId,
-          from_node_id: from,
-          to_node_id: to,
-          type: relType,
-          subtype: "biological",
-        });
-        setRels((rs) => [...rs, rel]);
-      } catch (err) {
-        toast.error(err instanceof Error ? err.message : "Could not create relationship");
-      }
-
-      // 3. Swap ghost with real node
-      setPersons((ps) => [...ps, newPerson as RawPerson]);
-      setRfNodes((ns) => ns.filter((n) => n.id !== ghostId));
-      setRfEdges((es) => es.filter((e) => e.id !== `ghost-edge-${ghostId}`));
-      setGhost(null);
-      toast.success(`${name} added`);
-    },
-    [vanshaId],
-  );
-
-  const addRelativeFromNode = useCallback(
-    (anchorId: string, dir: "child" | "parent" | "spouse") => {
-      // Read ghost from ref — avoids listing `ghost` as a dep, which would
-      // cause this callback to get a new reference every time ghost changes,
-      // which in turn would re-fire the big layout effect and wipe the ghost node.
-      const currentGhost = ghostRef.current;
-      if (currentGhost) {
-        setRfNodes((ns) => ns.filter((n) => n.id !== currentGhost.ghostId));
-        setRfEdges((es) => es.filter((e) => e.id !== `ghost-edge-${currentGhost.ghostId}`));
-      }
-      const ghostId = `ghost-${Date.now()}`;
-      // Use the node's live (drag-corrected) position from RF state rather than
-      // the stale Dagre layout, which won't reflect any user drags.
-      const liveNode = rfNodesRef.current.find((n) => n.id === anchorId);
-      const anchorPos = liveNode?.position ?? autoLayout.get(anchorId) ?? { x: 200, y: 200 };
-
-      const ghostPos =
-        dir === "child"
-          ? { x: anchorPos.x, y: anchorPos.y - 220 }
-          : dir === "parent"
-            ? { x: anchorPos.x, y: anchorPos.y + 220 }
-            : { x: anchorPos.x + 220, y: anchorPos.y };
-
-      const ghostNode: Node = {
-        id: ghostId,
-        type: "ghostNode",
-        position: ghostPos,
-        draggable: false,
-        data: {
-          onConfirm: (name: string, gender: "male" | "female" | "other") =>
-            void confirmGhost(ghostId, anchorId, dir, name, gender),
-          onCancel: () => {
-            setRfNodes((ns) => ns.filter((n) => n.id !== ghostId));
-            setRfEdges((es) => es.filter((e) => e.id !== `ghost-edge-${ghostId}`));
-            setGhost(null);
-          },
-        },
-      };
-
-      const [src, tgt, srcH, tgtH] =
-        dir === "child"
-          ? [anchorId, ghostId, "s-top", "s-bottom"]
-          : dir === "parent"
-            ? [ghostId, anchorId, "s-top", "s-bottom"]
-            : [anchorId, ghostId, "s-right", "s-left"];
-
-      const ghostEdge: Edge = {
-        id: `ghost-edge-${ghostId}`,
-        source: src, target: tgt, sourceHandle: srcH, targetHandle: tgtH,
-        type: dir === "spouse" ? "straight" : "smoothstep",
-        animated: true,
-        style: { stroke: dir === "spouse" ? "#ec4899" : "#6366f1", strokeDasharray: "6 3" },
-      };
-
-      setRfNodes((ns) => [...ns, ghostNode]);
-      setRfEdges((es) => [...es, ghostEdge]);
-      setGhost({ ghostId, anchorId, dir });
-    },
-    [autoLayout, confirmGhost],
-  );
-  // Keep the ref current so stableAddRelative always delegates to the latest version.
-  addRelativeCallbackRef.current = addRelativeFromNode;
-
   // ── Build React Flow nodes + edges ─────────────────────────────────────────
 
   useEffect(() => {
@@ -556,7 +418,6 @@ const TreeCanvasV2: React.FC<Props> = ({ vanshaId }) => {
             isPanditVerified: !!p.pandit_verified,
             // canEdit: node owner, OR no owner (tree creator viewing their own tree)
             canEdit: !p.owner_id || p.owner_id === appUser?.id,
-            onAddRelative: stableAddRelative,
             onOpenProfile: (nodeId: string) => setProfileNodeId(nodeId),
           },
         };
@@ -599,10 +460,9 @@ const TreeCanvasV2: React.FC<Props> = ({ vanshaId }) => {
         };
       });
 
-    // Preserve ghost nodes/edges so the layout effect doesn't wipe them.
-    setRfNodes((prev) => [...nodes, ...prev.filter((n) => n.type === "ghostNode")]);
-    setRfEdges((prev) => [...edges, ...prev.filter((e) => e.id.startsWith("ghost-edge-"))]);
-  }, [persons, allRels, autoLayout, generations, genWindow, genRange, edgeHandles, stableAddRelative, setRfNodes, setRfEdges]);
+    setRfNodes(nodes);
+    setRfEdges(edges);
+  }, [persons, allRels, autoLayout, generations, genWindow, genRange, edgeHandles, setRfNodes, setRfEdges]);
 
   // ── Drag persistence: save absolute position ───────────────────────────────
 
@@ -754,10 +614,56 @@ const TreeCanvasV2: React.FC<Props> = ({ vanshaId }) => {
     }
   };
 
-  const handleAddChild = (anchorNodeId: string) => {
+  const openAddDialog = (anchorNodeId: string, anchorName: string, dir: "child" | "parent" | "spouse"): void => {
     closeMenu();
-    navigate(`/node?anchor_node_id=${encodeURIComponent(anchorNodeId)}`);
+    setPendingAdd({ anchorId: anchorNodeId, anchorName, dir });
   };
+
+  const submitPendingAdd = useCallback(
+    async (firstName: string, lastName: string, gender: "male" | "female" | "other", subtype: EdgeSubtype) => {
+      if (!pendingAdd) return;
+      const { anchorId, dir } = pendingAdd;
+
+      let newPerson;
+      try {
+        newPerson = await createPersonV2({
+          vansha_id: vanshaId,
+          first_name: firstName,
+          last_name: lastName || undefined,
+          gender,
+        });
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "Could not create person");
+        return;
+      }
+
+      const relType: EdgeType = dir === "spouse" ? "spouse_of" : "parent_of";
+      const [from, to] =
+        dir === "child"  ? [anchorId, newPerson.node_id]
+        : dir === "parent" ? [newPerson.node_id, anchorId]
+        : [anchorId, newPerson.node_id];
+
+      try {
+        const rel = await createRelationship({
+          vansha_id: vanshaId,
+          from_node_id: from,
+          to_node_id: to,
+          type: relType,
+          subtype: dir === "spouse" ? "biological" : subtype,
+        });
+        setRels((rs) => [...rs, rel]);
+      } catch (err) {
+        // Person was created — still add them to canvas, just warn about the edge.
+        toast.error(err instanceof Error ? err.message : "Person added but relationship failed — connect manually");
+      }
+
+      setPersons((ps) => [...ps, newPerson as RawPerson]);
+      setPendingAdd(null);
+      const displayName = [firstName, lastName].filter(Boolean).join(" ");
+      toast.success(`${displayName} added`);
+    },
+    [pendingAdd, vanshaId],
+  );
 
   // ── Render ─────────────────────────────────────────────────────────────────
 
@@ -772,9 +678,7 @@ const TreeCanvasV2: React.FC<Props> = ({ vanshaId }) => {
     return <div className="flex items-center justify-center h-screen text-destructive">{error}</div>;
   }
 
-  const [winLo, winHi] = genWindow ?? genRange;
-  const [rangeLo, rangeHi] = genRange;
-  const totalGens = rangeHi - rangeLo + 1;
+  const totalGens = genRange[1] - genRange[0] + 1;
 
   return (
     <div className="w-full h-screen" onClick={closeMenu}>
@@ -824,44 +728,6 @@ const TreeCanvasV2: React.FC<Props> = ({ vanshaId }) => {
               {totalGens === 1 ? "" : "s"}
             </div>
 
-            {totalGens > 1 && (
-              <div className="pt-1">
-                <div className="text-[10px] uppercase tracking-wide text-muted-foreground mb-1">
-                  Show generations G{winLo} → G{winHi}
-                </div>
-                <div className="flex items-center gap-1">
-                  <input
-                    type="range"
-                    min={rangeLo}
-                    max={rangeHi}
-                    value={winLo}
-                    onChange={(e) => {
-                      const v = Number(e.target.value);
-                      setGenWindow((curr) => {
-                        const hi = curr ? curr[1] : rangeHi;
-                        return [v, Math.max(v, hi)];
-                      });
-                    }}
-                    className="flex-1"
-                  />
-                  <input
-                    type="range"
-                    min={rangeLo}
-                    max={rangeHi}
-                    value={winHi}
-                    onChange={(e) => {
-                      const v = Number(e.target.value);
-                      setGenWindow((curr) => {
-                        const lo = curr ? curr[0] : rangeLo;
-                        return [Math.min(lo, v), v];
-                      });
-                    }}
-                    className="flex-1"
-                  />
-                </div>
-              </div>
-            )}
-
             <div className="flex gap-1 pt-1 flex-wrap">
               <Button size="sm" variant="outline" onClick={() => void refresh()}>
                 ↺ Reload
@@ -901,12 +767,26 @@ const TreeCanvasV2: React.FC<Props> = ({ vanshaId }) => {
               >
                 ✏️ Open & edit profile
               </button>
+              <div className="border-t my-1" />
               <button
                 className="w-full text-left px-3 py-2 hover:bg-muted"
-                onClick={() => handleAddChild(contextMenu.nodeId)}
+                onClick={() => openAddDialog(contextMenu.nodeId, contextMenu.name, "child")}
               >
-                ➕ Add relative anchored here
+                👦 Add child
               </button>
+              <button
+                className="w-full text-left px-3 py-2 hover:bg-muted"
+                onClick={() => openAddDialog(contextMenu.nodeId, contextMenu.name, "parent")}
+              >
+                👴 Add parent
+              </button>
+              <button
+                className="w-full text-left px-3 py-2 hover:bg-muted"
+                onClick={() => openAddDialog(contextMenu.nodeId, contextMenu.name, "spouse")}
+              >
+                💑 Add spouse
+              </button>
+              <div className="border-t my-1" />
               <button
                 className="w-full text-left px-3 py-2 hover:bg-muted"
                 onClick={() => void handleViewIntegrity(contextMenu.nodeId)}
@@ -1028,6 +908,15 @@ const TreeCanvasV2: React.FC<Props> = ({ vanshaId }) => {
           </Card>
         </div>
       )}
+      {/* Add member dialog */}
+      {pendingAdd && (
+        <AddMemberDialog
+          anchorName={pendingAdd.anchorName}
+          dir={pendingAdd.dir}
+          onConfirm={submitPendingAdd}
+          onCancel={() => setPendingAdd(null)}
+        />
+      )}
       </RajputanaBorder>
 
       {/* Profile side panel — rendered outside RajputanaBorder so Sheet portal works */}
@@ -1035,6 +924,139 @@ const TreeCanvasV2: React.FC<Props> = ({ vanshaId }) => {
         nodeId={profileNodeId}
         onClose={() => setProfileNodeId(null)}
       />
+    </div>
+  );
+};
+
+// ─── Add Member Dialog ────────────────────────────────────────────────────────
+
+interface AddMemberDialogProps {
+  anchorName: string;
+  dir: "child" | "parent" | "spouse";
+  onConfirm: (firstName: string, lastName: string, gender: "male" | "female" | "other", subtype: EdgeSubtype) => void;
+  onCancel: () => void;
+}
+
+const DIR_LABEL: Record<"child" | "parent" | "spouse", string> = {
+  child:  "Add child of",
+  parent: "Add parent of",
+  spouse: "Add spouse of",
+};
+
+const AddMemberDialog: React.FC<AddMemberDialogProps> = ({ anchorName, dir, onConfirm, onCancel }) => {
+  const [firstName, setFirstName] = React.useState("");
+  const [lastName, setLastName]   = React.useState("");
+  const [gender, setGender]       = React.useState<"male" | "female" | "other">("male");
+  const [subtype, setSubtype]     = React.useState<EdgeSubtype>("biological");
+  const [saving, setSaving]       = React.useState(false);
+  const firstRef = React.useRef<HTMLInputElement>(null);
+
+  React.useEffect(() => {
+    const t = setTimeout(() => firstRef.current?.focus(), 60);
+    return () => clearTimeout(t);
+  }, []);
+
+  const handleSubmit = async () => {
+    if (!firstName.trim()) return;
+    setSaving(true);
+    await onConfirm(firstName.trim(), lastName.trim(), gender, subtype);
+    setSaving(false);
+  };
+
+  const onKey = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter") void handleSubmit();
+    if (e.key === "Escape") onCancel();
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center"
+      onClick={onCancel}
+    >
+      <Card className="p-5 w-[400px] max-w-[92vw]" onClick={(e) => e.stopPropagation()}>
+        {/* Header */}
+        <div className="font-semibold text-base mb-0.5">{DIR_LABEL[dir]}</div>
+        <div className="text-xs text-muted-foreground mb-4">
+          <span className="font-medium">{anchorName}</span>
+        </div>
+
+        {/* Name row */}
+        <div className="flex gap-2 mb-3">
+          <div className="flex-1">
+            <label className="text-xs text-muted-foreground mb-1 block">First name *</label>
+            <input
+              ref={firstRef}
+              value={firstName}
+              onChange={(e) => setFirstName(e.target.value)}
+              onKeyDown={onKey}
+              placeholder="e.g. Ravi"
+              className="w-full border rounded-md px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-primary/40"
+            />
+          </div>
+          <div className="flex-1">
+            <label className="text-xs text-muted-foreground mb-1 block">Last name</label>
+            <input
+              value={lastName}
+              onChange={(e) => setLastName(e.target.value)}
+              onKeyDown={onKey}
+              placeholder="optional"
+              className="w-full border rounded-md px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-primary/40"
+            />
+          </div>
+        </div>
+
+        {/* Gender */}
+        <div className="mb-3">
+          <label className="text-xs text-muted-foreground mb-1 block">Gender</label>
+          <div className="flex gap-2">
+            {(["male", "female", "other"] as const).map((g) => (
+              <button
+                key={g}
+                onClick={() => setGender(g)}
+                className={`flex-1 py-1.5 rounded-md border text-sm font-medium transition-colors ${
+                  gender === g
+                    ? "bg-primary text-primary-foreground border-primary"
+                    : "bg-background text-muted-foreground border-border hover:bg-muted"
+                }`}
+              >
+                {g === "male" ? "♂ Male" : g === "female" ? "♀ Female" : "— Other"}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Subtype — only for parent relationships */}
+        {dir !== "spouse" && (
+          <div className="mb-4">
+            <label className="text-xs text-muted-foreground mb-1 block">Relationship type</label>
+            <div className="flex gap-2">
+              {(["biological", "adopted", "step"] as const).map((s) => (
+                <button
+                  key={s}
+                  onClick={() => setSubtype(s)}
+                  className={`flex-1 py-1.5 rounded-md border text-sm font-medium transition-colors capitalize ${
+                    subtype === s
+                      ? "bg-primary text-primary-foreground border-primary"
+                      : "bg-background text-muted-foreground border-border hover:bg-muted"
+                  }`}
+                >
+                  {s}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Actions */}
+        <div className="flex justify-end gap-2 mt-2">
+          <Button size="sm" variant="ghost" onClick={onCancel} disabled={saving}>
+            Cancel
+          </Button>
+          <Button size="sm" onClick={() => void handleSubmit()} disabled={!firstName.trim() || saving}>
+            {saving ? "Adding…" : `Add ${firstName.trim() || "member"}`}
+          </Button>
+        </div>
+      </Card>
     </div>
   );
 };
