@@ -21,6 +21,7 @@ export interface FamilyNodeData {
   hasOffset?: boolean;
   isDeceased?: boolean;
   isPanditVerified?: boolean;
+  isUnclaimed?: boolean;
   onOpenProfile?: (nodeId: string) => void;
   [key: string]: unknown;
 }
@@ -135,6 +136,14 @@ const FamilyNode: React.FC<NodeProps> = ({ id, data, selected }) => {
             position: "absolute", bottom: 4, left: 6,
             fontSize: 13, lineHeight: 1, pointerEvents: "none",
           }}>🪔</div>
+        )}
+
+        {d.isUnclaimed && !d.isDeceased && (
+          <div title="Not yet claimed by this person" style={{
+            position: "absolute", bottom: 4, left: 6,
+            fontSize: 9, lineHeight: 1, pointerEvents: "none",
+            color: "#f59e0b", fontWeight: 700, letterSpacing: "0.02em",
+          }}>○ unclaimed</div>
         )}
       </div>
 

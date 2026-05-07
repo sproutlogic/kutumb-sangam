@@ -73,6 +73,10 @@ class PersonCreateV2(BaseModel):
     gotra: str = ""
 
 
+class ClaimBody(BaseModel):
+    kutumb_id: str = Field(min_length=1)
+
+
 class ProfilePatch(BaseModel):
     """Extended KutumbID Vyakti + Kul profile — all fields optional."""
     # Vyakti (individual) fields
@@ -288,7 +292,8 @@ def create_person_v2(body: PersonCreateV2, user: CurrentUser) -> dict[str, Any]:
         "last_name": body.last_name.strip() or "",
         "gender": body.gender,
         "relation": "member",
-        "owner_id": str(user["id"]),
+        "creator_id": str(user["id"]),   # who added this node
+        "owner_id": "",                   # unclaimed until person self-claims via KutumbID
         "date_of_birth": body.date_of_birth.strip() or "",
         "gotra": body.gotra.strip() or "",
     }
@@ -306,12 +311,51 @@ def get_person_profile(node_id: UUID, user: CurrentUser) -> dict[str, Any]:
     return _person_or_404(str(node_id))
 
 
+def _can_edit(person: dict[str, Any], user: dict[str, Any]) -> bool:
+    """
+    Edit permission rule:
+      - owner is set  → only owner can edit
+      - owner is unset → creator can edit (node not yet claimed)
+    """
+    uid = str(user["id"])
+    owner_id = person.get("owner_id") or ""
+    creator_id = person.get("creator_id") or ""
+    if owner_id:
+        return owner_id == uid
+    return creator_id == uid
+
+
+@router.post("/persons/claim")
+def claim_node(body: ClaimBody, user: CurrentUser) -> dict[str, Any]:
+    """
+    Claim a node as its real person.
+    The caller provides their KutumbID code (acts as the claim PIN).
+    Sets owner_id = current user. Fails if node already has a different owner.
+    """
+    sb = get_supabase()
+    clean = body.kutumb_id.strip().upper()
+    res = sb.table(PERSONS_TABLE).select("*").eq("kutumb_id", clean).limit(1).execute()
+    if not res.data:
+        raise HTTPException(status_code=404, detail="No node found for this KutumbID")
+    person = res.data[0]
+    existing_owner = person.get("owner_id") or ""
+    uid = str(user["id"])
+    if existing_owner and existing_owner != uid:
+        raise HTTPException(status_code=409, detail="This node has already been claimed by another account")
+    try:
+        upd = sb.table(PERSONS_TABLE).update({"owner_id": uid}).eq("node_id", person["node_id"]).execute()
+    except Exception:
+        logger.exception("claim_node failed kutumb_id=%s", clean)
+        raise HTTPException(status_code=502, detail="Could not claim node") from None
+    return upd.data[0] if upd.data else {**person, "owner_id": uid}
+
+
 @router.patch("/persons/{node_id}/profile")
 def update_person_profile(node_id: UUID, body: ProfilePatch, user: CurrentUser) -> dict[str, Any]:
-    """Update KutumbID Vyakti + Kul profile fields. Only the node owner may edit."""
+    """Update KutumbID Vyakti + Kul profile fields. Owner or creator (if unclaimed) may edit."""
     person = _person_or_404(str(node_id))
-    if person.get("owner_id") != str(user["id"]):
-        raise HTTPException(status_code=403, detail="Only the node owner can edit this profile")
+    if not _can_edit(person, user):
+        raise HTTPException(status_code=403, detail="Only the node owner (or creator if unclaimed) can edit this profile")
 
     updates: dict[str, Any] = {
         k: v.strip() if isinstance(v, str) else v

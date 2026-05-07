@@ -134,6 +134,7 @@ export interface PersonV2 {
   relation?: string;
   generation?: number | null;
   owner_id?: string | null;
+  creator_id?: string | null;
   kutumb_id?: string | null;
   date_of_birth?: string | null;
   ancestral_place?: string | null;
@@ -188,5 +189,12 @@ export async function updatePersonProfile(nodeId: string, patch: ProfilePatch): 
   return call<PersonV2>(`/api/tree-v2/persons/${nodeId}/profile`, {
     method: "PATCH",
     body: JSON.stringify(patch),
+  });
+}
+
+export async function claimNode(kutumbId: string): Promise<PersonV2> {
+  return call<PersonV2>("/api/tree-v2/persons/claim", {
+    method: "POST",
+    body: JSON.stringify({ kutumb_id: kutumbId }),
   });
 }

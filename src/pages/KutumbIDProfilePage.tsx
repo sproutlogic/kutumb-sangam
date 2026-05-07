@@ -154,8 +154,13 @@ const KutumbIDProfilePage: React.FC = () => {
       .finally(() => setLoading(false));
   }, [nodeId]);
 
-  const isOwner =
-    !person?.owner_id || person.owner_id === appUser?.id;
+  // Owner can edit; if unclaimed, creator can edit.
+  const uid = appUser?.id;
+  const isOwner = !!person && (
+    person.owner_id
+      ? person.owner_id === uid
+      : (person.creator_id || "") === uid
+  );
 
   function set(field: keyof ProfilePatch) {
     return (v: string) => setForm((f) => ({ ...f, [field]: v }));

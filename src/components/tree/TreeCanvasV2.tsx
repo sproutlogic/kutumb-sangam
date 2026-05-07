@@ -86,6 +86,8 @@ type RawPerson = Record<string, unknown> & {
   is_deceased?: boolean | null;
   pandit_verified?: boolean | null;
   spouse_node_id?: string | null;
+  owner_id?: string | null;
+  creator_id?: string | null;
 };
 
 type ContextMenu =
@@ -417,7 +419,10 @@ const TreeCanvasV2: React.FC<Props> = ({ vanshaId }) => {
             hasOffset,
             isDeceased: !!p.is_deceased,
             isPanditVerified: !!p.pandit_verified,
-            canEdit: !p.owner_id || p.owner_id === appUser?.id,
+            canEdit: p.owner_id
+              ? p.owner_id === appUser?.id
+              : (p.creator_id as string | null | undefined || "") === appUser?.id,
+            isUnclaimed: !p.owner_id,
             onOpenProfile: (nodeId: string) => setProfileNodeId(nodeId),
           },
         };
