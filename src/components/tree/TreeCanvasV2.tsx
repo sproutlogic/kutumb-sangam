@@ -271,6 +271,27 @@ const TreeCanvasV2: React.FC<Props> = ({ vanshaId }) => {
 
   const dragSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Always-current refs so callbacks can read latest state without being listed
+  // as deps of the big layout effect (which would cause it to re-fire on every
+  // ghost-state change and overwrite the ghost node).
+  const ghostRef = useRef(ghost);
+  ghostRef.current = ghost;
+
+  const rfNodesRef = useRef(rfNodes);
+  rfNodesRef.current = rfNodes;
+
+  // Stable identity wrapper — never changes, so the big layout effect doesn't
+  // re-run just because addRelativeFromNode got a new reference.
+  const addRelativeCallbackRef = useRef<
+    ((anchorId: string, dir: "child" | "parent" | "spouse") => void) | null
+  >(null);
+  const stableAddRelative = useCallback(
+    (anchorId: string, dir: "child" | "parent" | "spouse") => {
+      addRelativeCallbackRef.current?.(anchorId, dir);
+    },
+    [],
+  );
+
   // ── Fetch ──────────────────────────────────────────────────────────────────
 
   const refresh = useCallback(async () => {
@@ -430,12 +451,19 @@ const TreeCanvasV2: React.FC<Props> = ({ vanshaId }) => {
 
   const addRelativeFromNode = useCallback(
     (anchorId: string, dir: "child" | "parent" | "spouse") => {
-      if (ghost) {
-        setRfNodes((ns) => ns.filter((n) => n.id !== ghost.ghostId));
-        setRfEdges((es) => es.filter((e) => e.id !== `ghost-edge-${ghost.ghostId}`));
+      // Read ghost from ref — avoids listing `ghost` as a dep, which would
+      // cause this callback to get a new reference every time ghost changes,
+      // which in turn would re-fire the big layout effect and wipe the ghost node.
+      const currentGhost = ghostRef.current;
+      if (currentGhost) {
+        setRfNodes((ns) => ns.filter((n) => n.id !== currentGhost.ghostId));
+        setRfEdges((es) => es.filter((e) => e.id !== `ghost-edge-${currentGhost.ghostId}`));
       }
       const ghostId = `ghost-${Date.now()}`;
-      const anchorPos = autoLayout.get(anchorId) ?? { x: 200, y: 200 };
+      // Use the node's live (drag-corrected) position from RF state rather than
+      // the stale Dagre layout, which won't reflect any user drags.
+      const liveNode = rfNodesRef.current.find((n) => n.id === anchorId);
+      const anchorPos = liveNode?.position ?? autoLayout.get(anchorId) ?? { x: 200, y: 200 };
 
       const ghostPos =
         dir === "child"
@@ -479,8 +507,10 @@ const TreeCanvasV2: React.FC<Props> = ({ vanshaId }) => {
       setRfEdges((es) => [...es, ghostEdge]);
       setGhost({ ghostId, anchorId, dir });
     },
-    [ghost, autoLayout, confirmGhost],
+    [autoLayout, confirmGhost],
   );
+  // Keep the ref current so stableAddRelative always delegates to the latest version.
+  addRelativeCallbackRef.current = addRelativeFromNode;
 
   // ── Build React Flow nodes + edges ─────────────────────────────────────────
 
@@ -525,7 +555,7 @@ const TreeCanvasV2: React.FC<Props> = ({ vanshaId }) => {
             isPanditVerified: !!p.pandit_verified,
             // canEdit: node owner, OR no owner (tree creator viewing their own tree)
             canEdit: !p.owner_id || p.owner_id === appUser?.id,
-            onAddRelative: addRelativeFromNode,
+            onAddRelative: stableAddRelative,
             onOpenProfile: (nodeId: string) => setProfileNodeId(nodeId),
           },
         };
@@ -570,7 +600,7 @@ const TreeCanvasV2: React.FC<Props> = ({ vanshaId }) => {
 
     setRfNodes(nodes);
     setRfEdges(edges);
-  }, [persons, allRels, autoLayout, generations, genWindow, genRange, edgeHandles, addRelativeFromNode, setRfNodes, setRfEdges]);
+  }, [persons, allRels, autoLayout, generations, genWindow, genRange, edgeHandles, stableAddRelative, setRfNodes, setRfEdges]);
 
   // ── Drag persistence: save absolute position ───────────────────────────────
 
