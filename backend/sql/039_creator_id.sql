@@ -14,9 +14,10 @@ ALTER TABLE public.persons
   ADD COLUMN IF NOT EXISTS creator_id TEXT NOT NULL DEFAULT '';
 
 -- Backfill: for existing nodes owner_id was used as creator; copy it.
+-- owner_id is UUID — cast to TEXT for creator_id; IS NOT NULL is sufficient.
 UPDATE public.persons
-SET creator_id = owner_id
-WHERE creator_id = '' AND owner_id IS NOT NULL AND owner_id != '';
+SET creator_id = owner_id::TEXT
+WHERE creator_id = '' AND owner_id IS NOT NULL;
 
 -- New nodes created after this migration will have owner_id = '' (unclaimed)
 -- and creator_id = the auth user who called POST /api/tree-v2/persons.
