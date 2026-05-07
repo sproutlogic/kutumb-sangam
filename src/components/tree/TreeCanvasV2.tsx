@@ -498,13 +498,15 @@ const TreeCanvasV2: React.FC<Props> = ({ vanshaId }) => {
   const onConnect: OnConnect = useCallback(
     (conn: Connection) => {
       if (!conn.source || !conn.target || conn.source === conn.target) return;
-      // Guard: only one relationship per pair (check allRels so synthetic edges are included)
-      const alreadyLinked = allRels.some(
+      // Block only if a REAL (DB-backed) edge exists between these two nodes.
+      // Synthetic edges derived from legacy father_node_id/mother_node_id columns
+      // use ids starting with "s-" and should not block reconnection after a delete.
+      const realAlreadyLinked = rels.some(
         (r) =>
           (r.from_node_id === conn.source && r.to_node_id === conn.target) ||
           (r.from_node_id === conn.target && r.to_node_id === conn.source),
       );
-      if (alreadyLinked) {
+      if (realAlreadyLinked) {
         toast.error("These two people are already connected");
         return;
       }

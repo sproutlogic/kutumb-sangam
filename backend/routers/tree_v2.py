@@ -228,11 +228,31 @@ def patch_relationship(rel_id: UUID, body: RelationshipPatch, user: CurrentUser)
 @router.delete("/relationships/{rel_id}")
 def delete_relationship(rel_id: UUID, user: CurrentUser) -> dict[str, bool]:
     sb = get_supabase()
+    # Fetch the edge before deletion so we can clear legacy columns.
+    rel_res = sb.table(RELATIONSHIPS_TABLE).select("*").eq("id", str(rel_id)).limit(1).execute()
+    rel_row = (rel_res.data or [None])[0]
+
     try:
         sb.table(RELATIONSHIPS_TABLE).delete().eq("id", str(rel_id)).execute()
     except Exception:
         logger.exception("Relationship delete failed id=%s", rel_id)
         raise HTTPException(status_code=502, detail="Could not delete relationship") from None
+
+    # For parent_of edges, clear the legacy father_node_id / mother_node_id column on the
+    # child so that synthetic edges derived from those columns don't ghost the deleted edge.
+    if rel_row and rel_row.get("type") == "parent_of":
+        child_id = rel_row.get("to_node_id")
+        parent_id = rel_row.get("from_node_id")
+        if child_id and parent_id:
+            try:
+                pg = sb.table(PERSONS_TABLE).select("gender").eq("node_id", parent_id).limit(1).execute()
+                gender = ((pg.data or [{}])[0].get("gender") or "").lower()
+                col = "father_node_id" if gender == "male" else "mother_node_id" if gender == "female" else None
+                if col:
+                    sb.table(PERSONS_TABLE).update({col: None}).eq("node_id", child_id).execute()
+            except Exception:
+                logger.warning("Could not clear legacy %s col after rel delete child=%s", col if col else "parent", child_id)
+
     return {"ok": True}
 
 

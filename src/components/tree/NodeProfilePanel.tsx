@@ -176,20 +176,18 @@ const NodeProfilePanel: React.FC<Props> = ({ nodeId, onClose }) => {
                 </div>
 
                 <div className="border-t pt-3 space-y-2">
-                  <div className="relative">
-                    <Button
-                      size="sm"
-                      variant="default"
-                      className="w-full opacity-50 cursor-not-allowed"
-                      disabled
-                      title="Edit profile requires a paid plan"
-                    >
-                      ✏️ Edit profile
-                    </Button>
-                    <span className="absolute -top-1.5 -right-1.5 bg-amber-500 text-white text-[9px] font-bold px-1 py-0.5 rounded-full leading-none">
-                      PRO
-                    </span>
-                  </div>
+                  <Button
+                    size="sm"
+                    variant="default"
+                    className="w-full"
+                    onClick={() => {
+                      onClose();
+                      const vid = person.vansha_id;
+                      navigate(`/node/${nodeId}${vid ? `?vansha_id=${encodeURIComponent(String(vid))}` : ""}`);
+                    }}
+                  >
+                    ✏️ Edit profile
+                  </Button>
                   <Button
                     size="sm"
                     variant="outline"
