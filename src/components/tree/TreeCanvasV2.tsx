@@ -349,13 +349,13 @@ const TreeCanvasV2: React.FC<Props> = ({ vanshaId }) => {
     return [lo, hi];
   }, [persons, generations]);
 
-  // Keep window within range; expand hi automatically when new generations are added.
+  // Auto-expand window in both directions when generations are added.
   useEffect(() => {
     setGenWindow((curr) => {
       if (!curr) return [genRange[0], genRange[1]];
       return [
-        Math.max(genRange[0], Math.min(curr[0], genRange[1])),
-        Math.max(curr[1], genRange[1]), // expand to include newly added generations
+        Math.min(curr[0], genRange[0]), // expand down for newly added ancestors
+        Math.max(curr[1], genRange[1]), // expand up for newly added descendants
       ];
     });
   }, [genRange]);
