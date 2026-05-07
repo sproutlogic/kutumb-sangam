@@ -140,23 +140,32 @@ const FamilyNode: React.FC<NodeProps> = ({ id, data, selected }) => {
         >🔱</div>
       )}
 
-      {/* ── Add-child (top) ────────────────────────────────── */}
-      {hovered && (
-        <div data-add-btn style={{ ...addBtn, top: -28, left: "50%", transform: "translateX(-50%)" }}
-          onMouseDown={(e) => e.stopPropagation()} onClick={(e) => fireAdd(e, "child")} title="Add child">+</div>
-      )}
+      {/* ── Add buttons — always in DOM, opacity-toggled so the mouse
+           can travel from card edge to button without triggering onMouseLeave
+           on the wrapper and unmounting the target before it's reachable. ── */}
+      <div data-add-btn
+        style={{ ...addBtn, top: -28, left: "50%", transform: "translateX(-50%)",
+          opacity: hovered ? 1 : 0, pointerEvents: hovered ? "auto" : "none", transition: "opacity 0.12s" }}
+        onMouseEnter={() => setHovered(true)}
+        onMouseDown={(e) => e.stopPropagation()}
+        onClick={(e) => fireAdd(e, "child")}
+        title="Add child">+</div>
 
-      {/* ── Add-parent (bottom) ────────────────────────────── */}
-      {hovered && (
-        <div data-add-btn style={{ ...addBtn, bottom: -28, left: "50%", transform: "translateX(-50%)" }}
-          onMouseDown={(e) => e.stopPropagation()} onClick={(e) => fireAdd(e, "parent")} title="Add parent">+</div>
-      )}
+      <div data-add-btn
+        style={{ ...addBtn, bottom: -28, left: "50%", transform: "translateX(-50%)",
+          opacity: hovered ? 1 : 0, pointerEvents: hovered ? "auto" : "none", transition: "opacity 0.12s" }}
+        onMouseEnter={() => setHovered(true)}
+        onMouseDown={(e) => e.stopPropagation()}
+        onClick={(e) => fireAdd(e, "parent")}
+        title="Add parent">+</div>
 
-      {/* ── Add-spouse (right) ─────────────────────────────── */}
-      {hovered && (
-        <div data-add-btn style={{ ...addBtn, right: -28, top: "50%", transform: "translateY(-50%)" }}
-          onMouseDown={(e) => e.stopPropagation()} onClick={(e) => fireAdd(e, "spouse")} title="Add spouse">+</div>
-      )}
+      <div data-add-btn
+        style={{ ...addBtn, right: -28, top: "50%", transform: "translateY(-50%)",
+          opacity: hovered ? 1 : 0, pointerEvents: hovered ? "auto" : "none", transition: "opacity 0.12s" }}
+        onMouseEnter={() => setHovered(true)}
+        onMouseDown={(e) => e.stopPropagation()}
+        onClick={(e) => fireAdd(e, "spouse")}
+        title="Add spouse">+</div>
 
       {/* ── Card ───────────────────────────────────────────── */}
       <div
