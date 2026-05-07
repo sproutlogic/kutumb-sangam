@@ -124,11 +124,6 @@ const FamilyNode: React.FC<NodeProps> = ({ id, data, selected }) => {
               {d.relation}
             </div>
           )}
-          {d.kutumbId && (
-            <div style={{ fontSize: 9, color: "#94a3b8", marginTop: 3, fontFamily: "monospace", letterSpacing: "0.03em" }}>
-              {d.kutumbId}
-            </div>
-          )}
         </div>
 
         {d.isDeceased && (

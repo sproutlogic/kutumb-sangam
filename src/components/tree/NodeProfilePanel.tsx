@@ -123,9 +123,9 @@ const NodeProfilePanel: React.FC<Props> = ({ nodeId, onClose }) => {
             {loading ? "Loading…" : fullName}
           </SheetTitle>
           <div className="flex items-center gap-2 flex-wrap">
-            {person?.kutumb_id && (
-              <SheetDescription className="font-mono text-xs">
-                {String(person.kutumb_id)}
+            {person?.kutumb_id && isOwner && (
+              <SheetDescription className="font-mono text-xs tracking-widest">
+                ****{String(person.kutumb_id).slice(-3)}
               </SheetDescription>
             )}
             {/* Claimed / Unclaimed badge */}
@@ -176,25 +176,27 @@ const NodeProfilePanel: React.FC<Props> = ({ nodeId, onClose }) => {
                 </div>
 
                 <div className="border-t pt-3 space-y-2">
-                  <Button
-                    size="sm"
-                    variant="default"
-                    className="w-full"
-                    onClick={() => {
-                      onClose();
-                      const vid = person.vansha_id;
-                      navigate(`/node/${nodeId}${vid ? `?vansha_id=${encodeURIComponent(vid)}` : ""}`);
-                    }}
-                  >
-                    ✏️ Edit profile
-                  </Button>
+                  <div className="relative">
+                    <Button
+                      size="sm"
+                      variant="default"
+                      className="w-full opacity-50 cursor-not-allowed"
+                      disabled
+                      title="Edit profile requires a paid plan"
+                    >
+                      ✏️ Edit profile
+                    </Button>
+                    <span className="absolute -top-1.5 -right-1.5 bg-amber-500 text-white text-[9px] font-bold px-1 py-0.5 rounded-full leading-none">
+                      PRO
+                    </span>
+                  </div>
                   <Button
                     size="sm"
                     variant="outline"
                     className="w-full border-orange-300 text-orange-700 hover:bg-orange-50"
                     onClick={() => { onClose(); navigate(`/profile/${nodeId}`); }}
                   >
-                    🪬 KutumbID Full Profile
+                    🪬 Full Profile
                   </Button>
                 </div>
               </>
