@@ -81,13 +81,20 @@ class ProfilePatch(BaseModel):
     """Extended KutumbID Vyakti + Kul profile — all fields optional."""
     # Vyakti (individual) fields
     first_name: Optional[str] = None
+    middle_name: Optional[str] = None
     last_name: Optional[str] = None
+    common_name: Optional[str] = None
+    title: Optional[str] = None
     date_of_birth: Optional[str] = None
     punyatithi: Optional[str] = None
-    ancestral_place: Optional[str] = None
-    current_residence: Optional[str] = None
     marital_status: Optional[str] = None
+    marriage_anniversary: Optional[str] = None
     education: Optional[str] = None
+    ancestral_place: Optional[str] = None
+    janmasthan_village: Optional[str] = None
+    janmasthan_city: Optional[str] = None
+    current_residence: Optional[str] = None
+    mool_niwas_village: Optional[str] = None
     mool_niwas_city: Optional[str] = None
     nanighar: Optional[str] = None
     # Kul (lineage / cultural) fields

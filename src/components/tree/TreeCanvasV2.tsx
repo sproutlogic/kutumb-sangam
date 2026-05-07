@@ -786,6 +786,25 @@ const TreeCanvasV2: React.FC<Props> = ({ vanshaId }) => {
     [createPersonAndEdge],
   );
 
+  // ── Parent names for the currently-open profile panel ─────────────────────
+
+  const profileParentNames = useMemo(() => {
+    if (!profileNodeId) return undefined;
+    const parentEdges = allRels.filter(
+      (r) => r.type === "parent_of" && r.to_node_id === profileNodeId,
+    );
+    let father: string | undefined;
+    let mother: string | undefined;
+    parentEdges.forEach((r) => {
+      const p = persons.find((x) => x.node_id === r.from_node_id);
+      if (!p) return;
+      const g = ((p.gender as string) || "").toLowerCase();
+      if (g === "male") father = personName(p);
+      else if (g === "female") mother = personName(p);
+    });
+    return { father, mother };
+  }, [profileNodeId, allRels, persons]);
+
   // ── Render ─────────────────────────────────────────────────────────────────
 
   if (loading) {
@@ -1039,6 +1058,7 @@ const TreeCanvasV2: React.FC<Props> = ({ vanshaId }) => {
       <NodeProfilePanel
         nodeId={profileNodeId}
         onClose={() => setProfileNodeId(null)}
+        parentNames={profileParentNames}
       />
     </div>
   );

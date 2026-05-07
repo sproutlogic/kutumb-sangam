@@ -129,7 +129,10 @@ export interface PersonV2 {
   node_id: string;
   vansha_id: string;
   first_name?: string;
+  middle_name?: string | null;
   last_name?: string;
+  title?: string | null;
+  common_name?: string | null;
   gender?: string;
   relation?: string;
   generation?: number | null;
@@ -143,7 +146,11 @@ export interface PersonV2 {
   // Vyakti profile fields
   punyatithi?: string;
   marital_status?: string;
+  marriage_anniversary?: string | null;
   education?: string;
+  janmasthan_village?: string | null;
+  janmasthan_city?: string | null;
+  mool_niwas_village?: string | null;
   mool_niwas_city?: string;
   nanighar?: string;
   // Kul profile fields
