@@ -709,6 +709,7 @@ const TreeCanvasV2: React.FC<Props> = ({ vanshaId }) => {
         nodesConnectable
         elementsSelectable
         connectionMode={ConnectionMode.Loose}
+        connectionRadius={80}
       >
         <Background gap={24} color="#d4b896" style={{ background: "#fdf8ee" }} />
         <Controls />
