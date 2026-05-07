@@ -24,7 +24,7 @@
  *   - Member form lives in NodePage; this canvas never tries to rebuild it.
  */
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+
 import { useAuth } from "@/contexts/AuthContext";
 import dagre from "dagre";
 import {
@@ -102,9 +102,12 @@ interface PendingEdge {
 }
 
 interface PendingAdd {
-  anchorId: string;
+  anchorId: string | null;
   anchorName: string;
-  dir: "child" | "parent" | "spouse";
+  anchorGender?: string;
+  spouseId?: string;
+  spouseName?: string;
+  dir: "child" | "parent" | "spouse" | "standalone";
 }
 
 // ─── Layout constants ─────────────────────────────────────────────────────────
@@ -250,7 +253,6 @@ interface Props {
 }
 
 const TreeCanvasV2: React.FC<Props> = ({ vanshaId }) => {
-  const navigate = useNavigate();
   const { appUser } = useAuth();
 
   const [rfNodes, setRfNodes, onNodesChange] = useNodesState<Node>([]);
@@ -347,13 +349,13 @@ const TreeCanvasV2: React.FC<Props> = ({ vanshaId }) => {
     return [lo, hi];
   }, [persons, generations]);
 
-  // Keep window within range; expand hi automatically when new generations are added.
+  // Auto-expand window in both directions when generations are added.
   useEffect(() => {
     setGenWindow((curr) => {
       if (!curr) return [genRange[0], genRange[1]];
       return [
-        Math.max(genRange[0], Math.min(curr[0], genRange[1])),
-        Math.max(curr[1], genRange[1]), // expand to include newly added generations
+        Math.min(curr[0], genRange[0]), // expand down for newly added ancestors
+        Math.max(curr[1], genRange[1]), // expand up for newly added descendants
       ];
     });
   }, [genRange]);
@@ -496,13 +498,15 @@ const TreeCanvasV2: React.FC<Props> = ({ vanshaId }) => {
   const onConnect: OnConnect = useCallback(
     (conn: Connection) => {
       if (!conn.source || !conn.target || conn.source === conn.target) return;
-      // Guard: only one relationship per pair (check allRels so synthetic edges are included)
-      const alreadyLinked = allRels.some(
+      // Block only if a REAL (DB-backed) edge exists between these two nodes.
+      // Synthetic edges derived from legacy father_node_id/mother_node_id columns
+      // use ids starting with "s-" and should not block reconnection after a delete.
+      const realAlreadyLinked = rels.some(
         (r) =>
           (r.from_node_id === conn.source && r.to_node_id === conn.target) ||
           (r.from_node_id === conn.target && r.to_node_id === conn.source),
       );
-      if (alreadyLinked) {
+      if (realAlreadyLinked) {
         toast.error("These two people are already connected");
         return;
       }
@@ -619,16 +623,36 @@ const TreeCanvasV2: React.FC<Props> = ({ vanshaId }) => {
     }
   };
 
-  const openAddDialog = (anchorNodeId: string, anchorName: string, dir: "child" | "parent" | "spouse"): void => {
+  const openAddDialog = (anchorNodeId: string | null, anchorName: string, dir: PendingAdd["dir"]): void => {
     closeMenu();
-    setPendingAdd({ anchorId: anchorNodeId, anchorName, dir });
+    let anchorGender: string | undefined;
+    let spouseId: string | undefined;
+    let spouseName: string | undefined;
+    if (anchorNodeId) {
+      const anchor = persons.find((p) => p.node_id === anchorNodeId);
+      anchorGender = anchor?.gender as string | undefined;
+      const spouseRel = allRels.find(
+        (r) => r.type === "spouse_of" &&
+          (r.from_node_id === anchorNodeId || r.to_node_id === anchorNodeId),
+      );
+      if (spouseRel) {
+        const spId = spouseRel.from_node_id === anchorNodeId
+          ? spouseRel.to_node_id
+          : spouseRel.from_node_id;
+        const sp = persons.find((p) => p.node_id === spId);
+        if (sp) { spouseId = spId; spouseName = personName(sp); }
+      }
+    }
+    setPendingAdd({ anchorId: anchorNodeId, anchorName, anchorGender, spouseId, spouseName, dir });
   };
 
-  const submitPendingAdd = useCallback(
-    async (firstName: string, lastName: string, dob: string, gender: "male" | "female" | "other", subtype: EdgeSubtype) => {
-      if (!pendingAdd) return;
-      const { anchorId, dir } = pendingAdd;
-
+  const createPersonAndEdge = useCallback(
+    async (
+      firstName: string, lastName: string, dob: string,
+      gender: "male" | "female" | "other",
+      fromId: string | null, toId: string | null,
+      relType: EdgeType, subtype: EdgeSubtype,
+    ): Promise<RawPerson | null> => {
       let newPerson;
       try {
         newPerson = await createPersonV2({
@@ -640,36 +664,146 @@ const TreeCanvasV2: React.FC<Props> = ({ vanshaId }) => {
         });
       } catch (err) {
         toast.error(err instanceof Error ? err.message : "Could not create person");
-        return;
+        return null;
       }
-
-      const relType: EdgeType = dir === "spouse" ? "spouse_of" : "parent_of";
-      const [from, to] =
-        dir === "child"  ? [anchorId, newPerson.node_id]
-        : dir === "parent" ? [newPerson.node_id, anchorId]
-        : [anchorId, newPerson.node_id];
-
-      try {
-        const rel = await createRelationship({
-          vansha_id: vanshaId,
-          from_node_id: from,
-          to_node_id: to,
-          type: relType,
-          subtype: dir === "spouse" ? "biological" : subtype,
-        });
-        setRels((rs) => [...rs, rel]);
-      } catch (err) {
-        // Person was created — still add them to canvas, just warn about the edge.
-        toast.error(err instanceof Error ? err.message : "Person added but relationship failed — connect manually");
+      if (fromId && toId) {
+        try {
+          const rel = await createRelationship({
+            vansha_id: vanshaId,
+            from_node_id: fromId,
+            to_node_id: toId,
+            type: relType,
+            subtype,
+          });
+          setRels((rs) => [...rs, rel]);
+        } catch (err) {
+          toast.error(err instanceof Error ? err.message : "Person added but relationship failed — connect manually");
+        }
       }
-
       setPersons((ps) => [...ps, newPerson as RawPerson]);
-      setPendingAdd(null);
-      const displayName = [firstName, lastName].filter(Boolean).join(" ");
-      toast.success(`${displayName} added`);
+      return newPerson as RawPerson;
     },
-    [pendingAdd, vanshaId],
+    [vanshaId],
   );
+
+  const submitAddChild = useCallback(
+    async (firstName: string, lastName: string, dob: string, gender: "male" | "female" | "other", subtype: EdgeSubtype) => {
+      if (!pendingAdd?.anchorId) return;
+      const { anchorId, spouseId } = pendingAdd;
+      const child = await createPersonAndEdge(firstName, lastName, dob, gender, anchorId, null, "parent_of", subtype);
+      if (!child) return;
+      // Sticky position: child above anchor (150px up in canvas coords)
+      const anchor = persons.find((p) => p.node_id === anchorId);
+      if (anchor && anchor.canvas_offset_x != null && anchor.canvas_offset_y != null) {
+        await setNodeOffset(child.node_id, anchor.canvas_offset_x, anchor.canvas_offset_y - 150);
+      }
+      // wire child to anchor parent
+      try {
+        const r1 = await createRelationship({ vansha_id: vanshaId, from_node_id: anchorId, to_node_id: child.node_id, type: "parent_of", subtype });
+        setRels((rs) => [...rs, r1]);
+      } catch { /* already toasted */ }
+      // wire child to spouse parent if present
+      if (spouseId) {
+        try {
+          const r2 = await createRelationship({ vansha_id: vanshaId, from_node_id: spouseId, to_node_id: child.node_id, type: "parent_of", subtype });
+          setRels((rs) => [...rs, r2]);
+        } catch { /* non-fatal */ }
+      }
+      setPendingAdd(null);
+      toast.success(`${[firstName, lastName].filter(Boolean).join(" ")} added`);
+    },
+    [pendingAdd, vanshaId, persons, createPersonAndEdge],
+  );
+
+  const submitAddParents = useCallback(
+    async (
+      father: { firstName: string; lastName: string; dob: string } | null,
+      mother: { firstName: string; lastName: string; dob: string } | null,
+    ) => {
+      if (!pendingAdd?.anchorId) return;
+      const { anchorId } = pendingAdd;
+      const anchor = persons.find((p) => p.node_id === anchorId);
+      const baseX = anchor?.canvas_offset_x ?? 0;
+      const baseY = anchor?.canvas_offset_y ?? 0;
+      const jobs = [
+        father ? createPersonAndEdge(father.firstName, father.lastName, father.dob, "male", null, anchorId, "parent_of", "biological") : Promise.resolve(null),
+        mother ? createPersonAndEdge(mother.firstName, mother.lastName, mother.dob, "female", null, anchorId, "parent_of", "biological") : Promise.resolve(null),
+      ];
+      const [fPerson, mPerson] = await Promise.all(jobs);
+      // Sticky positions: parents below anchor (150px down), side-by-side
+      if (fPerson && anchor && baseX != null && baseY != null) {
+        await setNodeOffset(fPerson.node_id, baseX - 100, baseY + 150);
+      }
+      if (mPerson && anchor && baseX != null && baseY != null) {
+        await setNodeOffset(mPerson.node_id, baseX + 100, baseY + 150);
+      }
+      if (fPerson) {
+        try {
+          const r = await createRelationship({ vansha_id: vanshaId, from_node_id: fPerson.node_id, to_node_id: anchorId, type: "parent_of", subtype: "biological" });
+          setRels((rs) => [...rs, r]);
+        } catch { /* already toasted */ }
+      }
+      if (mPerson) {
+        try {
+          const r = await createRelationship({ vansha_id: vanshaId, from_node_id: mPerson.node_id, to_node_id: anchorId, type: "parent_of", subtype: "biological" });
+          setRels((rs) => [...rs, r]);
+        } catch { /* already toasted */ }
+      }
+      setPendingAdd(null);
+      toast.success("Parents added");
+    },
+    [pendingAdd, vanshaId, persons, createPersonAndEdge],
+  );
+
+  const submitAddSpouse = useCallback(
+    async (firstName: string, lastName: string, dob: string, gender: "male" | "female" | "other") => {
+      if (!pendingAdd?.anchorId) return;
+      const { anchorId } = pendingAdd;
+      const anchor = persons.find((p) => p.node_id === anchorId);
+      const sp = await createPersonAndEdge(firstName, lastName, dob, gender, anchorId, null, "spouse_of", "biological");
+      if (!sp) return;
+      // Sticky position: female left (-120px), male right (+120px) of anchor
+      if (anchor && anchor.canvas_offset_x != null && anchor.canvas_offset_y != null) {
+        const offset = gender === "female" ? -120 : 120;
+        await setNodeOffset(sp.node_id, anchor.canvas_offset_x + offset, anchor.canvas_offset_y);
+      }
+      try {
+        const r = await createRelationship({ vansha_id: vanshaId, from_node_id: anchorId, to_node_id: sp.node_id, type: "spouse_of", subtype: "biological" });
+        setRels((rs) => [...rs, r]);
+      } catch { /* already toasted */ }
+      setPendingAdd(null);
+      toast.success(`${[firstName, lastName].filter(Boolean).join(" ")} added as spouse`);
+    },
+    [pendingAdd, vanshaId, persons, createPersonAndEdge],
+  );
+
+  const submitAddStandalone = useCallback(
+    async (firstName: string, lastName: string, dob: string, gender: "male" | "female" | "other") => {
+      await createPersonAndEdge(firstName, lastName, dob, gender, null, null, "parent_of", "biological");
+      setPendingAdd(null);
+      toast.success(`${[firstName, lastName].filter(Boolean).join(" ")} added`);
+    },
+    [createPersonAndEdge],
+  );
+
+  // ── Parent names for the currently-open profile panel ─────────────────────
+
+  const profileParentNames = useMemo(() => {
+    if (!profileNodeId) return undefined;
+    const parentEdges = allRels.filter(
+      (r) => r.type === "parent_of" && r.to_node_id === profileNodeId,
+    );
+    let father: string | undefined;
+    let mother: string | undefined;
+    parentEdges.forEach((r) => {
+      const p = persons.find((x) => x.node_id === r.from_node_id);
+      if (!p) return;
+      const g = ((p.gender as string) || "").toLowerCase();
+      if (g === "male") father = personName(p);
+      else if (g === "female") mother = personName(p);
+    });
+    return { father, mother };
+  }, [profileNodeId, allRels, persons]);
 
   // ── Render ─────────────────────────────────────────────────────────────────
 
@@ -739,15 +873,12 @@ const TreeCanvasV2: React.FC<Props> = ({ vanshaId }) => {
               <Button size="sm" variant="outline" onClick={() => void refresh()}>
                 ↺ Reload
               </Button>
-              <Button size="sm" variant="outline" onClick={() => navigate("/tree")}>
-                ← Old view
-              </Button>
-              <Button size="sm" variant="default" onClick={() => navigate("/node")}>
-                + Add member
+              <Button size="sm" variant="default" onClick={() => openAddDialog(null, "", "standalone")}>
+                + Add person
               </Button>
             </div>
             <div className="text-[11px] text-muted-foreground pt-1 leading-tight">
-              Drag handles to connect · Right-click to edit · Roots at bottom
+              Drag handles to connect · Right-click for options · Roots at bottom
             </div>
           </div>
         </Panel>
@@ -770,15 +901,9 @@ const TreeCanvasV2: React.FC<Props> = ({ vanshaId }) => {
               </div>
               <button
                 className="w-full text-left px-3 py-2 hover:bg-muted"
-                onClick={() => { navigate(`/node/${contextMenu.nodeId}`); closeMenu(); }}
+                onClick={() => { setProfileNodeId(contextMenu.nodeId); closeMenu(); }}
               >
-                ✏️ Open & edit profile
-              </button>
-              <button
-                className="w-full text-left px-3 py-2 hover:bg-muted"
-                onClick={() => { navigate(`/profile/${contextMenu.nodeId}`); closeMenu(); }}
-              >
-                🪬 KutumbID Full Profile
+                👤 View profile
               </button>
               <div className="border-t my-1" />
               <button
@@ -897,12 +1022,34 @@ const TreeCanvasV2: React.FC<Props> = ({ vanshaId }) => {
         </div>
       )}
 
-      {/* Add member dialog (right-click → add child/parent/spouse) */}
-      {pendingAdd && (
-        <AddMemberDialog
+      {/* Add dialogs */}
+      {pendingAdd?.dir === "child" && (
+        <AddChildDialog
           anchorName={pendingAdd.anchorName}
-          dir={pendingAdd.dir}
-          onConfirm={submitPendingAdd}
+          anchorGender={pendingAdd.anchorGender}
+          spouseName={pendingAdd.spouseName}
+          onConfirm={submitAddChild}
+          onCancel={() => setPendingAdd(null)}
+        />
+      )}
+      {pendingAdd?.dir === "parent" && (
+        <AddParentsDialog
+          anchorName={pendingAdd.anchorName}
+          onConfirm={submitAddParents}
+          onCancel={() => setPendingAdd(null)}
+        />
+      )}
+      {pendingAdd?.dir === "spouse" && (
+        <AddSpouseDialog
+          anchorName={pendingAdd.anchorName}
+          anchorGender={pendingAdd.anchorGender}
+          onConfirm={submitAddSpouse}
+          onCancel={() => setPendingAdd(null)}
+        />
+      )}
+      {pendingAdd?.dir === "standalone" && (
+        <AddPersonDialog
+          onConfirm={submitAddStandalone}
           onCancel={() => setPendingAdd(null)}
         />
       )}
@@ -911,145 +1058,340 @@ const TreeCanvasV2: React.FC<Props> = ({ vanshaId }) => {
       <NodeProfilePanel
         nodeId={profileNodeId}
         onClose={() => setProfileNodeId(null)}
+        parentNames={profileParentNames}
       />
     </div>
   );
 };
 
-// ─── Add Member Dialog ────────────────────────────────────────────────────────
+// ─── Shared: DOB masked input (type DDMMYYYY, displays DD/MM/YYYY) ─────────────
 
-interface AddMemberDialogProps {
-  anchorName: string;
-  dir: "child" | "parent" | "spouse";
-  onConfirm: (firstName: string, lastName: string, dob: string, gender: "male" | "female" | "other", subtype: EdgeSubtype) => void;
-  onCancel: () => void;
-}
+const DOBInput: React.FC<{ value: string; onChange: (v: string) => void; onKeyDown?: React.KeyboardEventHandler }> = ({ value, onChange, onKeyDown }) => {
+  const [display, setDisplay] = React.useState(() => {
+    if (!value) return "";
+    const [y, m, d] = value.split("-");
+    return y && m && d ? `${d}/${m}/${y}` : "";
+  });
 
-const DIR_LABEL: Record<"child" | "parent" | "spouse", string> = {
-  child:  "Add child of",
-  parent: "Add parent of",
-  spouse: "Add spouse of",
-};
-
-const AddMemberDialog: React.FC<AddMemberDialogProps> = ({ anchorName, dir, onConfirm, onCancel }) => {
-  const [firstName, setFirstName] = React.useState("");
-  const [lastName, setLastName]   = React.useState("");
-  const [dob, setDob]             = React.useState("");
-  const [gender, setGender]       = React.useState<"male" | "female" | "other">("male");
-  const [subtype, setSubtype]     = React.useState<EdgeSubtype>("biological");
-  const [saving, setSaving]       = React.useState(false);
-  const firstRef = React.useRef<HTMLInputElement>(null);
-
-  React.useEffect(() => {
-    const t = setTimeout(() => firstRef.current?.focus(), 60);
-    return () => clearTimeout(t);
-  }, []);
-
-  const handleSubmit = async () => {
-    if (!firstName.trim()) return;
-    setSaving(true);
-    await onConfirm(firstName.trim(), lastName.trim(), dob, gender, subtype);
-    setSaving(false);
-  };
-
-  const onKey = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter") void handleSubmit();
-    if (e.key === "Escape") onCancel();
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const raw = e.target.value.replace(/\D/g, "").slice(0, 8);
+    let disp = raw;
+    if (raw.length > 4) disp = `${raw.slice(0, 2)}/${raw.slice(2, 4)}/${raw.slice(4)}`;
+    else if (raw.length > 2) disp = `${raw.slice(0, 2)}/${raw.slice(2)}`;
+    setDisplay(disp);
+    if (raw.length === 8) {
+      onChange(`${raw.slice(4)}-${raw.slice(2, 4)}-${raw.slice(0, 2)}`);
+    } else {
+      onChange("");
+    }
   };
 
   return (
-    <div
-      className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center"
-      onClick={onCancel}
-    >
-      <Card className="p-5 w-[420px] max-w-[92vw]" onClick={(e) => e.stopPropagation()}>
-        {/* Header */}
-        <div className="font-semibold text-base mb-0.5">{DIR_LABEL[dir]}</div>
-        <div className="text-xs text-muted-foreground mb-4 font-medium">{anchorName}</div>
+    <input
+      type="text"
+      inputMode="numeric"
+      value={display}
+      onChange={handleChange}
+      onKeyDown={onKeyDown}
+      placeholder="DD/MM/YYYY"
+      maxLength={10}
+      className="w-full border rounded-md px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-primary/40"
+    />
+  );
+};
 
-        {/* Name row */}
+// ─── Shared: Gender toggle ────────────────────────────────────────────────────
+
+const GenderToggle: React.FC<{ value: "male" | "female" | "other"; onChange: (g: "male" | "female" | "other") => void }> = ({ value, onChange }) => (
+  <div className="flex gap-2">
+    {(["male", "female", "other"] as const).map((g) => (
+      <button
+        key={g}
+        type="button"
+        onClick={() => onChange(g)}
+        className={`flex-1 py-1.5 rounded-md border text-sm font-medium transition-colors ${
+          value === g ? "bg-primary text-primary-foreground border-primary" : "bg-background text-muted-foreground border-border hover:bg-muted"
+        }`}
+      >
+        {g === "male" ? "♂ Male" : g === "female" ? "♀ Female" : "— Other"}
+      </button>
+    ))}
+  </div>
+);
+
+// ─── Shared: name + DOB + gender mini-form ────────────────────────────────────
+
+interface PersonFormState { firstName: string; lastName: string; dob: string; gender: "male" | "female" | "other"; }
+
+function usePersonForm(defaultGender: "male" | "female" | "other" = "male") {
+  const [state, setState] = React.useState<PersonFormState>({ firstName: "", lastName: "", dob: "", gender: defaultGender });
+  const setField = (k: "firstName" | "lastName" | "dob") => (v: string) =>
+    setState((s) => ({ ...s, [k]: v }));
+  const setGender = (v: "male" | "female" | "other") =>
+    setState((s) => ({ ...s, gender: v }));
+  return { state, setField, setGender };
+}
+
+// ─── Add Child Dialog ─────────────────────────────────────────────────────────
+
+interface AddChildDialogProps {
+  anchorName: string;
+  anchorGender?: string;
+  spouseName?: string;
+  onConfirm: (firstName: string, lastName: string, dob: string, gender: "male" | "female" | "other", subtype: EdgeSubtype) => Promise<void>;
+  onCancel: () => void;
+}
+
+const AddChildDialog: React.FC<AddChildDialogProps> = ({ anchorName, anchorGender, spouseName, onConfirm, onCancel }) => {
+  const { state, setField, setGender } = usePersonForm("male");
+  const [subtype, setSubtype] = React.useState<EdgeSubtype>("biological");
+  const [saving, setSaving] = React.useState(false);
+  const firstRef = React.useRef<HTMLInputElement>(null);
+  React.useEffect(() => { const t = setTimeout(() => firstRef.current?.focus(), 60); return () => clearTimeout(t); }, []);
+
+  const fatherName = anchorGender?.toLowerCase() === "female" ? spouseName ?? "" : anchorName;
+  const motherName = anchorGender?.toLowerCase() === "female" ? anchorName : spouseName ?? "";
+
+  const handleSubmit = async () => {
+    if (!state.firstName.trim()) return;
+    setSaving(true);
+    await onConfirm(state.firstName.trim(), state.lastName.trim(), state.dob, state.gender, subtype);
+    setSaving(false);
+  };
+  const onKey = (e: React.KeyboardEvent) => { if (e.key === "Enter") void handleSubmit(); if (e.key === "Escape") onCancel(); };
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center" onClick={onCancel}>
+      <Card className="p-5 w-[420px] max-w-[92vw]" onClick={(e) => e.stopPropagation()}>
+        <div className="font-semibold text-base mb-0.5">Add child</div>
+        <div className="text-xs text-muted-foreground mb-3">
+          {fatherName && <span>Father: <strong>{fatherName}</strong></span>}
+          {fatherName && motherName && <span className="mx-1.5">·</span>}
+          {motherName && <span>Mother: <strong>{motherName}</strong></span>}
+          {!fatherName && !motherName && <span>Child of <strong>{anchorName}</strong></span>}
+        </div>
+
         <div className="flex gap-2 mb-3">
           <div className="flex-1">
             <label className="text-xs text-muted-foreground mb-1 block">First name *</label>
-            <input
-              ref={firstRef}
-              value={firstName}
-              onChange={(e) => setFirstName(e.target.value)}
-              onKeyDown={onKey}
-              placeholder="e.g. Ravi"
-              className="w-full border rounded-md px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-primary/40"
-            />
+            <input ref={firstRef} value={state.firstName} onChange={(e) => setField("firstName")(e.target.value)} onKeyDown={onKey} placeholder="e.g. Ravi" className="w-full border rounded-md px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-primary/40" />
           </div>
           <div className="flex-1">
             <label className="text-xs text-muted-foreground mb-1 block">Last name</label>
-            <input
-              value={lastName}
-              onChange={(e) => setLastName(e.target.value)}
-              onKeyDown={onKey}
-              placeholder="optional"
-              className="w-full border rounded-md px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-primary/40"
-            />
+            <input value={state.lastName} onChange={(e) => setField("lastName")(e.target.value)} onKeyDown={onKey} placeholder="optional" className="w-full border rounded-md px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-primary/40" />
           </div>
         </div>
 
-        {/* DOB */}
         <div className="mb-3">
           <label className="text-xs text-muted-foreground mb-1 block">Date of birth</label>
-          <input
-            type="date"
-            value={dob}
-            onChange={(e) => setDob(e.target.value)}
-            className="w-full border rounded-md px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-primary/40"
-          />
+          <DOBInput value={state.dob} onChange={setField("dob")} onKeyDown={onKey} />
         </div>
 
-        {/* Gender */}
         <div className="mb-3">
-          <label className="text-xs text-muted-foreground mb-1 block">Gender</label>
+          <label className="text-xs text-muted-foreground mb-1 block">Gender *</label>
+          <GenderToggle value={state.gender} onChange={setGender} />
+        </div>
+
+        <div className="mb-4">
+          <label className="text-xs text-muted-foreground mb-1 block">Relationship type</label>
           <div className="flex gap-2">
-            {(["male", "female", "other"] as const).map((g) => (
-              <button
-                key={g}
-                onClick={() => setGender(g)}
-                className={`flex-1 py-1.5 rounded-md border text-sm font-medium transition-colors ${
-                  gender === g
-                    ? "bg-primary text-primary-foreground border-primary"
-                    : "bg-background text-muted-foreground border-border hover:bg-muted"
-                }`}
-              >
-                {g === "male" ? "♂ Male" : g === "female" ? "♀ Female" : "— Other"}
+            {(["biological", "adopted", "step"] as const).map((s) => (
+              <button key={s} type="button" onClick={() => setSubtype(s)}
+                className={`flex-1 py-1.5 rounded-md border text-sm font-medium transition-colors capitalize ${subtype === s ? "bg-primary text-primary-foreground border-primary" : "bg-background text-muted-foreground border-border hover:bg-muted"}`}>
+                {s}
               </button>
             ))}
           </div>
         </div>
 
-        {/* Subtype — only for parent relationships */}
-        {dir !== "spouse" && (
-          <div className="mb-4">
-            <label className="text-xs text-muted-foreground mb-1 block">Relationship type</label>
-            <div className="flex gap-2">
-              {(["biological", "adopted", "step"] as const).map((s) => (
-                <button
-                  key={s}
-                  onClick={() => setSubtype(s)}
-                  className={`flex-1 py-1.5 rounded-md border text-sm font-medium transition-colors capitalize ${
-                    subtype === s
-                      ? "bg-primary text-primary-foreground border-primary"
-                      : "bg-background text-muted-foreground border-border hover:bg-muted"
-                  }`}
-                >
-                  {s}
-                </button>
-              ))}
+        <div className="flex justify-end gap-2">
+          <Button size="sm" variant="ghost" onClick={onCancel} disabled={saving}>Cancel</Button>
+          <Button size="sm" onClick={() => void handleSubmit()} disabled={!state.firstName.trim() || saving}>
+            {saving ? "Adding…" : "Add member"}
+          </Button>
+        </div>
+      </Card>
+    </div>
+  );
+};
+
+// ─── Add Parents Dialog ───────────────────────────────────────────────────────
+
+interface AddParentsDialogProps {
+  anchorName: string;
+  onConfirm: (father: { firstName: string; lastName: string; dob: string } | null, mother: { firstName: string; lastName: string; dob: string } | null) => Promise<void>;
+  onCancel: () => void;
+}
+
+const AddParentsDialog: React.FC<AddParentsDialogProps> = ({ anchorName, onConfirm, onCancel }) => {
+  const { state: father, setField: setF } = usePersonForm("male");
+  const { state: mother, setField: setM } = usePersonForm("female");
+  const [saving, setSaving] = React.useState(false);
+  const firstRef = React.useRef<HTMLInputElement>(null);
+  React.useEffect(() => { const t = setTimeout(() => firstRef.current?.focus(), 60); return () => clearTimeout(t); }, []);
+
+  const handleSubmit = async () => {
+    const f = father.firstName.trim() ? { firstName: father.firstName.trim(), lastName: father.lastName.trim(), dob: father.dob } : null;
+    const m = mother.firstName.trim() ? { firstName: mother.firstName.trim(), lastName: mother.lastName.trim(), dob: mother.dob } : null;
+    if (!f && !m) return;
+    setSaving(true);
+    await onConfirm(f, m);
+    setSaving(false);
+  };
+  const onKey = (e: React.KeyboardEvent) => { if (e.key === "Enter") void handleSubmit(); if (e.key === "Escape") onCancel(); };
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center" onClick={onCancel}>
+      <Card className="p-5 w-[480px] max-w-[94vw]" onClick={(e) => e.stopPropagation()}>
+        <div className="font-semibold text-base mb-0.5">Add parents</div>
+        <div className="text-xs text-muted-foreground mb-4">Parents of <strong>{anchorName}</strong></div>
+
+        <div className="flex gap-4 mb-4">
+          {/* Father */}
+          <div className="flex-1 min-w-0">
+            <div className="text-xs font-semibold text-muted-foreground mb-2 uppercase tracking-wide">Father</div>
+            <div className="space-y-2">
+              <input ref={firstRef} value={father.firstName} onChange={(e) => setF("firstName")(e.target.value)} onKeyDown={onKey} placeholder="First name *" className="w-full border rounded-md px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-primary/40" />
+              <input value={father.lastName} onChange={(e) => setF("lastName")(e.target.value)} onKeyDown={onKey} placeholder="Last name" className="w-full border rounded-md px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-primary/40" />
+              <DOBInput value={father.dob} onChange={setF("dob")} onKeyDown={onKey} />
             </div>
           </div>
-        )}
+          <div className="w-px bg-border self-stretch" />
+          {/* Mother */}
+          <div className="flex-1 min-w-0">
+            <div className="text-xs font-semibold text-muted-foreground mb-2 uppercase tracking-wide">Mother</div>
+            <div className="space-y-2">
+              <input value={mother.firstName} onChange={(e) => setM("firstName")(e.target.value)} onKeyDown={onKey} placeholder="First name *" className="w-full border rounded-md px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-primary/40" />
+              <input value={mother.lastName} onChange={(e) => setM("lastName")(e.target.value)} onKeyDown={onKey} placeholder="Last name" className="w-full border rounded-md px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-primary/40" />
+              <DOBInput value={mother.dob} onChange={setM("dob")} onKeyDown={onKey} />
+            </div>
+          </div>
+        </div>
 
-        {/* Actions */}
-        <div className="flex justify-end gap-2 mt-2">
+        <div className="flex justify-end gap-2">
           <Button size="sm" variant="ghost" onClick={onCancel} disabled={saving}>Cancel</Button>
-          <Button size="sm" onClick={() => void handleSubmit()} disabled={!firstName.trim() || saving}>
-            {saving ? "Adding…" : `Add ${firstName.trim() || "member"}`}
+          <Button size="sm" onClick={() => void handleSubmit()} disabled={(!father.firstName.trim() && !mother.firstName.trim()) || saving}>
+            {saving ? "Adding…" : "Add parents"}
+          </Button>
+        </div>
+      </Card>
+    </div>
+  );
+};
+
+// ─── Add Spouse Dialog ────────────────────────────────────────────────────────
+
+interface AddSpouseDialogProps {
+  anchorName: string;
+  anchorGender?: string;
+  onConfirm: (firstName: string, lastName: string, dob: string, gender: "male" | "female" | "other") => Promise<void>;
+  onCancel: () => void;
+}
+
+const AddSpouseDialog: React.FC<AddSpouseDialogProps> = ({ anchorName, anchorGender, onConfirm, onCancel }) => {
+  const defaultGender: "male" | "female" | "other" = anchorGender?.toLowerCase() === "male" ? "female" : anchorGender?.toLowerCase() === "female" ? "male" : "other";
+  const { state, setField, setGender } = usePersonForm(defaultGender);
+  const [saving, setSaving] = React.useState(false);
+  const firstRef = React.useRef<HTMLInputElement>(null);
+  React.useEffect(() => { const t = setTimeout(() => firstRef.current?.focus(), 60); return () => clearTimeout(t); }, []);
+
+  const handleSubmit = async () => {
+    if (!state.firstName.trim()) return;
+    setSaving(true);
+    await onConfirm(state.firstName.trim(), state.lastName.trim(), state.dob, state.gender);
+    setSaving(false);
+  };
+  const onKey = (e: React.KeyboardEvent) => { if (e.key === "Enter") void handleSubmit(); if (e.key === "Escape") onCancel(); };
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center" onClick={onCancel}>
+      <Card className="p-5 w-[420px] max-w-[92vw]" onClick={(e) => e.stopPropagation()}>
+        <div className="font-semibold text-base mb-0.5">Add spouse</div>
+        <div className="text-xs text-muted-foreground mb-4">Spouse of <strong>{anchorName}</strong></div>
+
+        <div className="flex gap-2 mb-3">
+          <div className="flex-1">
+            <label className="text-xs text-muted-foreground mb-1 block">First name *</label>
+            <input ref={firstRef} value={state.firstName} onChange={(e) => setField("firstName")(e.target.value)} onKeyDown={onKey} placeholder="e.g. Priya" className="w-full border rounded-md px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-primary/40" />
+          </div>
+          <div className="flex-1">
+            <label className="text-xs text-muted-foreground mb-1 block">Last name</label>
+            <input value={state.lastName} onChange={(e) => setField("lastName")(e.target.value)} onKeyDown={onKey} placeholder="optional" className="w-full border rounded-md px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-primary/40" />
+          </div>
+        </div>
+
+        <div className="mb-3">
+          <label className="text-xs text-muted-foreground mb-1 block">Date of birth</label>
+          <DOBInput value={state.dob} onChange={setField("dob")} onKeyDown={onKey} />
+        </div>
+
+        <div className="mb-4">
+          <label className="text-xs text-muted-foreground mb-1 block">Gender *</label>
+          <GenderToggle value={state.gender} onChange={setGender} />
+        </div>
+
+        <div className="flex justify-end gap-2">
+          <Button size="sm" variant="ghost" onClick={onCancel} disabled={saving}>Cancel</Button>
+          <Button size="sm" onClick={() => void handleSubmit()} disabled={!state.firstName.trim() || saving}>
+            {saving ? "Adding…" : "Add as spouse"}
+          </Button>
+        </div>
+      </Card>
+    </div>
+  );
+};
+
+// ─── Add Person Dialog (standalone) ──────────────────────────────────────────
+
+interface AddPersonDialogProps {
+  onConfirm: (firstName: string, lastName: string, dob: string, gender: "male" | "female" | "other") => Promise<void>;
+  onCancel: () => void;
+}
+
+const AddPersonDialog: React.FC<AddPersonDialogProps> = ({ onConfirm, onCancel }) => {
+  const { state, setField, setGender } = usePersonForm("male");
+  const [saving, setSaving] = React.useState(false);
+  const firstRef = React.useRef<HTMLInputElement>(null);
+  React.useEffect(() => { const t = setTimeout(() => firstRef.current?.focus(), 60); return () => clearTimeout(t); }, []);
+
+  const handleSubmit = async () => {
+    if (!state.firstName.trim()) return;
+    setSaving(true);
+    await onConfirm(state.firstName.trim(), state.lastName.trim(), state.dob, state.gender);
+    setSaving(false);
+  };
+  const onKey = (e: React.KeyboardEvent) => { if (e.key === "Enter") void handleSubmit(); if (e.key === "Escape") onCancel(); };
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center" onClick={onCancel}>
+      <Card className="p-5 w-[420px] max-w-[92vw]" onClick={(e) => e.stopPropagation()}>
+        <div className="font-semibold text-base mb-4">Add person to tree</div>
+
+        <div className="flex gap-2 mb-3">
+          <div className="flex-1">
+            <label className="text-xs text-muted-foreground mb-1 block">First name *</label>
+            <input ref={firstRef} value={state.firstName} onChange={(e) => setField("firstName")(e.target.value)} onKeyDown={onKey} placeholder="e.g. Ravi" className="w-full border rounded-md px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-primary/40" />
+          </div>
+          <div className="flex-1">
+            <label className="text-xs text-muted-foreground mb-1 block">Last name</label>
+            <input value={state.lastName} onChange={(e) => setField("lastName")(e.target.value)} onKeyDown={onKey} placeholder="optional" className="w-full border rounded-md px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-primary/40" />
+          </div>
+        </div>
+
+        <div className="mb-3">
+          <label className="text-xs text-muted-foreground mb-1 block">Date of birth</label>
+          <DOBInput value={state.dob} onChange={setField("dob")} onKeyDown={onKey} />
+        </div>
+
+        <div className="mb-4">
+          <label className="text-xs text-muted-foreground mb-1 block">Gender *</label>
+          <GenderToggle value={state.gender} onChange={setGender} />
+        </div>
+
+        <div className="flex justify-end gap-2">
+          <Button size="sm" variant="ghost" onClick={onCancel} disabled={saving}>Cancel</Button>
+          <Button size="sm" onClick={() => void handleSubmit()} disabled={!state.firstName.trim() || saving}>
+            {saving ? "Adding…" : "Add person"}
           </Button>
         </div>
       </Card>
