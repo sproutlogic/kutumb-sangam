@@ -29,7 +29,7 @@ from pydantic import BaseModel, Field
 
 from constants import PERSONS_TABLE, RELATIONSHIPS_TABLE, VANSHAS_TABLE, VANSHA_ID_COLUMN
 from db import get_supabase
-from middleware.auth import CurrentUser
+from middleware.auth import CurrentUser, OptionalUser
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/tree-v2", tags=["tree-v2"])
@@ -97,6 +97,10 @@ class ProfilePatch(BaseModel):
     mool_niwas_village: Optional[str] = None
     mool_niwas_city: Optional[str] = None
     nanighar: Optional[str] = None
+    # Relation label (how this node appears in the tree to others)
+    relation: Optional[str] = None
+    # Per-field privacy map: {"field_name": "public" | "private"}
+    field_privacy: Optional[dict] = None
     # Kul (lineage / cultural) fields
     vansh_label: Optional[str] = None
     gotra: Optional[str] = None
@@ -117,6 +121,44 @@ class ProfilePatch(BaseModel):
 
 
 # ─── Helpers ─────────────────────────────────────────────────────────────────
+
+# Fields always returned regardless of privacy settings.
+# Includes display identity, tree-rendering fields, and privacy map itself.
+_ALWAYS_PUBLIC: frozenset[str] = frozenset({
+    "node_id", "vansha_id",
+    "first_name", "middle_name", "last_name", "title", "common_name",
+    "gender", "relation", "generation",
+    "is_deceased", "pandit_verified",
+    "canvas_offset_x", "canvas_offset_y",
+    "father_node_id", "mother_node_id", "spouse_node_id",
+    "field_privacy",
+    "created_at", "updated_at",
+    # owner_id/creator_id are needed by the frontend to show claimed/unclaimed UI
+    "owner_id", "creator_id",
+})
+
+
+def _apply_privacy_filter(person: dict[str, Any], is_editor: bool) -> dict[str, Any]:
+    """Return person with non-public fields nulled out for non-editors.
+
+    Editors (owner, or creator of unclaimed node) see everything.
+    Others see: _ALWAYS_PUBLIC fields + fields set to 'public' in field_privacy.
+    kutumb_id is shown only to editors (it doubles as the claim PIN).
+    """
+    if is_editor:
+        return person
+    privacy: dict[str, str] = person.get("field_privacy") or {}
+    result: dict[str, Any] = {}
+    for k, v in person.items():
+        if k in _ALWAYS_PUBLIC:
+            result[k] = v
+        elif k == "kutumb_id":
+            result[k] = None  # never expose claim PIN to non-editors
+        elif privacy.get(k) == "public":
+            result[k] = v
+        else:
+            result[k] = None
+    return result
 
 
 def _person_or_404(node_id: str) -> dict[str, Any]:
@@ -285,6 +327,35 @@ def get_vansha_by_code(code: str, user: CurrentUser) -> dict[str, Any]:
     return res.data[0]
 
 
+@router.get("/vanshas/by-code/{code}/public")
+def get_vansha_public_tree(code: str, user: OptionalUser) -> dict[str, Any]:
+    """Public read-only snapshot of a vansha tree.
+
+    Authentication is optional. Persons are returned with privacy filtering
+    applied (each person treated as a non-editor).
+    Returns { vansha, persons, relationships }.
+    """
+    sb = get_supabase()
+    clean = code.strip().upper()
+
+    v_res = sb.table(VANSHAS_TABLE).select("*").eq("vansh_code", clean).limit(1).execute()
+    if not v_res.data:
+        raise HTTPException(status_code=404, detail="No tree found for this vansh code")
+    vansha = v_res.data[0]
+    vid = str(vansha["vansha_id"])
+
+    p_res = sb.table(PERSONS_TABLE).select("*").eq("vansha_id", vid).execute()
+    persons_raw: list[dict[str, Any]] = p_res.data or []
+
+    # Apply privacy filter — public view treats everyone as a non-editor
+    persons_filtered = [_apply_privacy_filter(p, False) for p in persons_raw]
+
+    r_res = sb.table(RELATIONSHIPS_TABLE).select("*").eq("vansha_id", vid).execute()
+    relationships: list[dict[str, Any]] = r_res.data or []
+
+    return {"vansha": vansha, "persons": persons_filtered, "relationships": relationships}
+
+
 @router.patch("/vanshas/{vansha_id}")
 def patch_vansha(vansha_id: UUID, body: VanshaPatch, user: CurrentUser) -> dict[str, Any]:
     updates: dict[str, Any] = {}
@@ -334,8 +405,9 @@ def create_person_v2(body: PersonCreateV2, user: CurrentUser) -> dict[str, Any]:
 
 @router.get("/persons/{node_id}/profile")
 def get_person_profile(node_id: UUID, user: CurrentUser) -> dict[str, Any]:
-    """Return person profile. Caller decides display based on owner_id."""
-    return _person_or_404(str(node_id))
+    """Return person profile. Non-editors receive only public-marked fields."""
+    person = _person_or_404(str(node_id))
+    return _apply_privacy_filter(person, _can_edit(person, user))
 
 
 def _can_edit(person: dict[str, Any], user: dict[str, Any]) -> bool:

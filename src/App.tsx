@@ -1,4 +1,9 @@
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useParams } from "react-router-dom";
+
+function NodePageRedirect() {
+  const { id } = useParams<{ id: string }>();
+  return id ? <Navigate to={`/profile/${id}`} replace /> : <Navigate to="/tree-v2" replace />;
+}
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ThemeProvider } from "next-themes";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -26,8 +31,8 @@ import UpgradePage from "@/pages/UpgradePage";
 import SupportPage from "@/pages/SupportPage";
 import EnterCode from "@/pages/EnterCode";
 import CodeResult from "@/pages/CodeResult";
-import NodePage from "@/pages/NodePage";
 import KutumbIDProfilePage from "@/pages/KutumbIDProfilePage";
+import PublicTreePage from "@/pages/PublicTreePage";
 import PanditKycPage from "@/pages/PanditKycPage";
 import PanditDashboard from "@/pages/PanditDashboard";
 import ReferralNewTree from "@/pages/ReferralNewTree";
@@ -105,9 +110,10 @@ const App = () => (
                     <Route path="/matrimony" element={<ProtectedRoute><MatrimonyPage /></ProtectedRoute>} />
                     <Route path="/upgrade" element={<ProtectedRoute><UpgradePage /></ProtectedRoute>} />
                     <Route path="/support" element={<ProtectedRoute><SupportPage /></ProtectedRoute>} />
-                    <Route path="/node" element={<ProtectedRoute><NodePage /></ProtectedRoute>} />
-                    <Route path="/node/:id" element={<ProtectedRoute><NodePage /></ProtectedRoute>} />
+                    <Route path="/node/:id" element={<ProtectedRoute><NodePageRedirect /></ProtectedRoute>} />
+                    <Route path="/node" element={<Navigate to="/tree-v2" replace />} />
                     <Route path="/profile/:nodeId" element={<ProtectedRoute><KutumbIDProfilePage /></ProtectedRoute>} />
+                    <Route path="/v/:vanshCode" element={<ProtectedRoute><PublicTreePage /></ProtectedRoute>} />
                     <Route path="/referral-new-tree" element={<ProtectedRoute><ReferralNewTree /></ProtectedRoute>} />
                     <Route path="/referral-margdarshak" element={<ProtectedRoute><ReferralPandit /></ProtectedRoute>} />
                     <Route path="/device-reverify" element={<ProtectedRoute><DeviceReVerifyPage /></ProtectedRoute>} />
