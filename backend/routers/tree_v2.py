@@ -292,8 +292,8 @@ def create_person_v2(body: PersonCreateV2, user: CurrentUser) -> dict[str, Any]:
         "last_name": body.last_name.strip() or "",
         "gender": body.gender,
         "relation": "member",
-        "creator_id": str(user["id"]),   # who added this node
-        "owner_id": "",                   # unclaimed until person self-claims via KutumbID
+        "creator_id": str(user["id"]),
+        # owner_id intentionally absent — UUID FK column, NULL = unclaimed
         "date_of_birth": body.date_of_birth.strip() or "",
         "gotra": body.gotra.strip() or "",
     }
