@@ -1,10 +1,9 @@
 /**
  * NodeProfilePanel — right-side Sheet showing a person's profile.
  *
- * Ownership / privacy rules:
- *   • owner_id === currentUserId  → full profile + edit rights
- *   • no owner_id                 → full profile + edit rights (creator's tree)
- *   • someone else owns the node  → limited public view (name, gen, relation, kutumb_id)
+ * Privacy model (default: everything private):
+ *   Public to all  → name, DOB (day + month only, never year)
+ *   Owner only     → full DOB year, residence, gotra, ancestral place
  */
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
@@ -29,9 +28,33 @@ function Field({ label, value }: { label: string; value?: string | number | null
   return (
     <div className="space-y-0.5">
       <div className="text-[10px] uppercase tracking-wide text-muted-foreground">{label}</div>
-      <div className="text-sm">{value}</div>
+      <div className="text-sm font-medium">{value}</div>
     </div>
   );
+}
+
+/** Returns "12 March" from any ISO / date string — never exposes the year. */
+function dobDayMonth(raw?: string | null): string | null {
+  if (!raw) return null;
+  const d = new Date(raw);
+  if (isNaN(d.getTime())) return null;
+  return d.toLocaleDateString("en-IN", { day: "numeric", month: "long" });
+}
+
+/** Returns full formatted date for owner view. */
+function dobFull(raw?: string | null): string | null {
+  if (!raw) return null;
+  const d = new Date(raw);
+  if (isNaN(d.getTime())) return null;
+  return d.toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" });
+}
+
+function genderLabel(g?: string | null): string | null {
+  if (!g) return null;
+  const l = g.toLowerCase();
+  if (l === "male") return "♂ Male";
+  if (l === "female") return "♀ Female";
+  return g;
 }
 
 const NodeProfilePanel: React.FC<Props> = ({ nodeId, onClose }) => {
@@ -52,25 +75,17 @@ const NodeProfilePanel: React.FC<Props> = ({ nodeId, onClose }) => {
   }, [nodeId]);
 
   const isOwner =
-    !person?.owner_id ||                           // no owner → tree creator has rights
-    person.owner_id === appUser?.id;               // viewer is the owner
+    !person?.owner_id ||
+    person.owner_id === appUser?.id;
 
-  const name = [person?.first_name, person?.last_name].filter(Boolean).join(" ") || "(unnamed)";
-
-  const genderLabel = (g?: string | null) => {
-    if (!g) return null;
-    const l = g.toLowerCase();
-    if (l === "male") return "♂ Male";
-    if (l === "female") return "♀ Female";
-    return g;
-  };
+  const fullName = [person?.first_name, person?.last_name].filter(Boolean).join(" ") || "(unnamed)";
 
   return (
     <Sheet open={!!nodeId} onOpenChange={(o) => { if (!o) onClose(); }}>
-      <SheetContent side="right" className="w-[340px] sm:max-w-[340px] overflow-y-auto">
+      <SheetContent side="right" className="w-[320px] sm:max-w-[320px] overflow-y-auto">
         <SheetHeader className="mb-4">
           <SheetTitle className="pr-6">
-            {loading ? "Loading…" : name}
+            {loading ? "Loading…" : fullName}
           </SheetTitle>
           {person?.kutumb_id && (
             <SheetDescription className="font-mono text-xs">
@@ -85,29 +100,35 @@ const NodeProfilePanel: React.FC<Props> = ({ nodeId, onClose }) => {
 
         {person && !loading && (
           <div className="space-y-4">
-            {/* Always visible */}
+            {/* ── Always public ── */}
             <div className="grid grid-cols-2 gap-3">
-              <Field label="Gender"     value={genderLabel(person.gender)} />
-              <Field label="Generation" value={person.generation !== null && person.generation !== undefined ? `G${person.generation}` : null} />
-              <Field label="Relation"   value={person.relation} />
+              <Field label="Gender"   value={genderLabel(person.gender)} />
+              <Field label="Relation" value={person.relation} />
+              {/* DOB: day + month only — year is private by default */}
+              <Field label="Birthday" value={dobDayMonth(person.date_of_birth as string)} />
             </div>
 
-            {/* Owner / creator sees full profile */}
+            {/* ── Owner sees full profile ── */}
             {isOwner ? (
               <>
                 <div className="border-t pt-3 grid grid-cols-1 gap-3">
-                  <Field label="Date of birth"      value={person.date_of_birth as string} />
-                  <Field label="Ancestral place"    value={person.ancestral_place as string} />
-                  <Field label="Current residence"  value={person.current_residence as string} />
-                  <Field label="Gotra"              value={person.gotra as string} />
+                  <Field label="Date of birth (full)"  value={dobFull(person.date_of_birth as string)} />
+                  <Field label="Ancestral place"       value={person.ancestral_place as string} />
+                  <Field label="Current residence"     value={person.current_residence as string} />
+                  <Field label="Gotra"                 value={person.gotra as string} />
                 </div>
 
-                <div className="border-t pt-3 flex gap-2">
+                <div className="border-t pt-3">
                   <Button
                     size="sm"
                     variant="default"
-                    className="flex-1"
-                    onClick={() => { onClose(); navigate(`/node/${nodeId}`); }}
+                    className="w-full"
+                    onClick={() => {
+                      onClose();
+                      // Pass vansha_id so NodePage loads in the correct tree context.
+                      const vid = person.vansha_id;
+                      navigate(`/node/${nodeId}${vid ? `?vansha_id=${encodeURIComponent(vid)}` : ""}`);
+                    }}
                   >
                     ✏️ Edit profile
                   </Button>

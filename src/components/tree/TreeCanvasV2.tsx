@@ -83,6 +83,9 @@ type RawPerson = Record<string, unknown> & {
   canvas_offset_y?: number | null;
   relation?: string;
   generation?: number | null;
+  is_deceased?: boolean | null;
+  pandit_verified?: boolean | null;
+  spouse_node_id?: string | null;
 };
 
 type ContextMenu =
@@ -299,15 +302,27 @@ const TreeCanvasV2: React.FC<Props> = ({ vanshaId }) => {
   const allRels = useMemo(() => {
     const nodeSet = new Set(persons.map((p) => p.node_id));
     const relSet = new Set(rels.map((r) => `${r.from_node_id}:${r.to_node_id}`));
+    // Canonical pair key (order-independent) to deduplicate spouse edges.
+    const spousePairs = new Set(
+      rels.filter((r) => r.type === "spouse_of").map((r) =>
+        [r.from_node_id, r.to_node_id].sort().join(":"),
+      ),
+    );
     const synthetic: Relationship[] = [];
     persons.forEach((p) => {
       const fid = p.father_node_id as string | null | undefined;
       const mid = p.mother_node_id as string | null | undefined;
+      const sid = p.spouse_node_id as string | null | undefined;
+
       if (fid && nodeSet.has(fid) && !relSet.has(`${fid}:${p.node_id}`)) {
         synthetic.push({ id: `s-f-${p.node_id}`, vansha_id: vanshaId, from_node_id: fid, to_node_id: p.node_id, type: "parent_of", subtype: "biological" });
       }
       if (mid && nodeSet.has(mid) && !relSet.has(`${mid}:${p.node_id}`)) {
         synthetic.push({ id: `s-m-${p.node_id}`, vansha_id: vanshaId, from_node_id: mid, to_node_id: p.node_id, type: "parent_of", subtype: "biological" });
+      }
+      if (sid && nodeSet.has(sid) && !spousePairs.has([p.node_id, sid].sort().join(":"))) {
+        synthetic.push({ id: `s-sp-${p.node_id}-${sid}`, vansha_id: vanshaId, from_node_id: p.node_id, to_node_id: sid, type: "spouse_of", subtype: "biological" });
+        spousePairs.add([p.node_id, sid].sort().join(":")); // prevent mirror duplicate
       }
     });
     return synthetic.length ? [...rels, ...synthetic] : rels;
@@ -502,10 +517,10 @@ const TreeCanvasV2: React.FC<Props> = ({ vanshaId }) => {
             nodeId: p.node_id,
             name,
             gender: p.gender,
-            kutumbId: p.kutumb_id,
-            generation: g,
             relation: p.relation,
             hasOffset,
+            isDeceased: !!p.is_deceased,
+            isPanditVerified: !!p.pandit_verified,
             onAddRelative: addRelativeFromNode,
             onOpenProfile: (nodeId: string) => setProfileNodeId(nodeId),
           },

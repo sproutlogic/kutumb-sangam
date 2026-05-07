@@ -127,60 +127,74 @@ def _resolve_active_plan(sb, user_id: str) -> dict[str, Any]:
 
 def _resolve_admin_override(sb, user_id: str) -> Optional[dict[str, Any]]:
     """Latest admin_override event metadata (if any)."""
-    res = (
-        sb.table(SUBSCRIPTION_EVENTS_TABLE)
-        .select("metadata, created_at")
-        .eq("user_id", user_id)
-        .eq("event_type", "admin_override")
-        .order("created_at", desc=True)
-        .limit(1)
-        .execute()
-    )
-    if res.data:
-        return res.data[0].get("metadata") or {}
+    try:
+        res = (
+            sb.table(SUBSCRIPTION_EVENTS_TABLE)
+            .select("metadata, created_at")
+            .eq("user_id", user_id)
+            .eq("event_type", "admin_override")
+            .order("created_at", desc=True)
+            .limit(1)
+            .execute()
+        )
+        if res.data:
+            return res.data[0].get("metadata") or {}
+    except Exception:
+        logger.warning("subscription_events query failed — skipping admin override", exc_info=True)
     return None
 
 
 def _sum_active_topups(sb, user_id: str) -> tuple[int, int]:
-    now_iso = datetime.now(timezone.utc).isoformat()
-    res = (
-        sb.table(GEN_TOPUPS_TABLE)
-        .select("extra_gen_up, extra_gen_down, valid_until")
-        .eq("user_id", user_id)
-        .gt("valid_until", now_iso)
-        .execute()
-    )
-    rows = res.data or []
-    return (
-        sum(int(r.get("extra_gen_up") or 0) for r in rows),
-        sum(int(r.get("extra_gen_down") or 0) for r in rows),
-    )
+    try:
+        now_iso = datetime.now(timezone.utc).isoformat()
+        res = (
+            sb.table(GEN_TOPUPS_TABLE)
+            .select("extra_gen_up, extra_gen_down, valid_until")
+            .eq("user_id", user_id)
+            .gt("valid_until", now_iso)
+            .execute()
+        )
+        rows = res.data or []
+        return (
+            sum(int(r.get("extra_gen_up") or 0) for r in rows),
+            sum(int(r.get("extra_gen_down") or 0) for r in rows),
+        )
+    except Exception:
+        logger.warning("gen_topups query failed — returning zero bonus", exc_info=True)
+        return (0, 0)
 
 
 def _referral_bonus(sb, user_id: str) -> tuple[int, int]:
-    res = (
-        sb.table(REFERRAL_UNLOCKS_TABLE)
-        .select("extra_gen_up, extra_gen_down")
-        .eq("user_id", user_id)
-        .limit(1)
-        .execute()
-    )
-    if res.data:
-        return (
-            int(res.data[0].get("extra_gen_up") or 0),
-            int(res.data[0].get("extra_gen_down") or 0),
+    try:
+        res = (
+            sb.table(REFERRAL_UNLOCKS_TABLE)
+            .select("extra_gen_up, extra_gen_down")
+            .eq("user_id", user_id)
+            .limit(1)
+            .execute()
         )
+        if res.data:
+            return (
+                int(res.data[0].get("extra_gen_up") or 0),
+                int(res.data[0].get("extra_gen_down") or 0),
+            )
+    except Exception:
+        logger.warning("referral_unlocks query failed — returning zero bonus", exc_info=True)
     return (0, 0)
 
 
 def _sachet_unlocks(sb, user_id: str) -> list[str]:
-    res = (
-        sb.table(NODE_UNLOCKS_TABLE)
-        .select("node_id")
-        .eq("user_id", user_id)
-        .execute()
-    )
-    return [_str_id(r["node_id"]) for r in (res.data or [])]
+    try:
+        res = (
+            sb.table(NODE_UNLOCKS_TABLE)
+            .select("node_id")
+            .eq("user_id", user_id)
+            .execute()
+        )
+        return [_str_id(r["node_id"]) for r in (res.data or [])]
+    except Exception:
+        logger.warning("node_unlocks query failed — returning empty list", exc_info=True)
+        return []
 
 
 def _ego_node(sb, user_id: str, vansha_id: str) -> Optional[dict[str, Any]]:
@@ -197,16 +211,20 @@ def _ego_node(sb, user_id: str, vansha_id: str) -> Optional[dict[str, Any]]:
 
 def _shared_nodes_received(sb, user_id: str) -> list[dict[str, Any]]:
     """Active shares pointing to this user."""
-    now_iso = datetime.now(timezone.utc).isoformat()
-    res = (
-        sb.table(ENTITLEMENT_SHARES_TABLE)
-        .select("*")
-        .eq("grantee_user_id", user_id)
-        .is_("revoked_at", "null")
-        .or_(f"valid_until.is.null,valid_until.gt.{now_iso}")
-        .execute()
-    )
-    return res.data or []
+    try:
+        now_iso = datetime.now(timezone.utc).isoformat()
+        res = (
+            sb.table(ENTITLEMENT_SHARES_TABLE)
+            .select("*")
+            .eq("grantee_user_id", user_id)
+            .is_("revoked_at", "null")
+            .or_(f"valid_until.is.null,valid_until.gt.{now_iso}")
+            .execute()
+        )
+        return res.data or []
+    except Exception:
+        logger.warning("entitlement_shares query failed — returning empty", exc_info=True)
+        return []
 
 
 def _resolve_entitlement(sb, user_id: str) -> dict[str, Any]:
