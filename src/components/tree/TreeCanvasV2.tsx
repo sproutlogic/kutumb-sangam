@@ -598,8 +598,9 @@ const TreeCanvasV2: React.FC<Props> = ({ vanshaId }) => {
         };
       });
 
-    setRfNodes(nodes);
-    setRfEdges(edges);
+    // Preserve ghost nodes/edges so the layout effect doesn't wipe them.
+    setRfNodes((prev) => [...nodes, ...prev.filter((n) => n.type === "ghostNode")]);
+    setRfEdges((prev) => [...edges, ...prev.filter((e) => e.id.startsWith("ghost-edge-"))]);
   }, [persons, allRels, autoLayout, generations, genWindow, genRange, edgeHandles, stableAddRelative, setRfNodes, setRfEdges]);
 
   // ── Drag persistence: save absolute position ───────────────────────────────

@@ -129,6 +129,12 @@ const FamilyNode: React.FC<NodeProps> = ({ id, data, selected }) => {
       )}
 
       {/* ── Card ─────────────────────────────────────────────── */}
+      {/* Handles outside overflow:hidden so they can be dragged for connect */}
+      <Handle type="source" position={Position.Top}    id="s-top"    style={{ ...handleDot, top: -6, left: "50%", transform: "translateX(-50%)", opacity: hovered ? 0.7 : 0 }} />
+      <Handle type="source" position={Position.Bottom} id="s-bottom" style={{ ...handleDot, bottom: -6, left: "50%", transform: "translateX(-50%)", opacity: hovered ? 0.7 : 0 }} />
+      <Handle type="source" position={Position.Left}   id="s-left"   style={{ ...handleDot, left: -6, top: "50%", transform: "translateY(-50%)", opacity: hovered ? 0.7 : 0 }} />
+      <Handle type="source" position={Position.Right}  id="s-right"  style={{ ...handleDot, right: -6, top: "50%", transform: "translateY(-50%)", opacity: hovered ? 0.7 : 0 }} />
+
       <div style={{
         background: cardGradient(d.gender),
         border: selected
@@ -146,10 +152,6 @@ const FamilyNode: React.FC<NodeProps> = ({ id, data, selected }) => {
         position: "relative",
         overflow: "hidden",
       }}>
-        <Handle type="source" position={Position.Top}    id="s-top"    style={{ ...handleDot, top:    -6 }} />
-        <Handle type="source" position={Position.Bottom} id="s-bottom" style={{ ...handleDot, bottom: -6 }} />
-        <Handle type="source" position={Position.Left}   id="s-left"   style={{ ...handleDot, left:   -6 }} />
-        <Handle type="source" position={Position.Right}  id="s-right"  style={{ ...handleDot, right:  -6 }} />
 
         <div style={{ padding: "10px 12px", textAlign: "center" }}>
           <div style={{ fontWeight: 700, fontSize: 14, color: "#0f172a", letterSpacing: "-0.01em" }}>
