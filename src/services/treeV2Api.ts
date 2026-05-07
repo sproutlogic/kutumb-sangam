@@ -139,8 +139,32 @@ export interface PersonV2 {
   ancestral_place?: string | null;
   current_residence?: string | null;
   gotra?: string | null;
+  // Vyakti profile fields
+  punyatithi?: string;
+  marital_status?: string;
+  education?: string;
+  mool_niwas_city?: string;
+  nanighar?: string;
+  // Kul profile fields
+  vansh_label?: string;
+  pravara?: string;
+  ved_shakha?: string;
+  ritual_sutra?: string;
+  kul_devi?: string;
+  kul_devi_sthan?: string;
+  ishta_devta?: string;
+  tirth_purohit?: string;
+  pravas_history?: string;
+  paitrik_niwas?: string;
+  gram_devta?: string;
+  pidhi_label?: string;
+  vivah_sambandh?: string;
+  kul_achara?: string;
+  manat?: string;
   [key: string]: unknown;
 }
+
+export type ProfilePatch = Partial<Omit<PersonV2, "node_id" | "vansha_id" | "owner_id" | "kutumb_id" | "relation" | "generation">>;
 
 export async function createPersonV2(payload: {
   vansha_id: string;
@@ -158,4 +182,11 @@ export async function createPersonV2(payload: {
 
 export async function getPersonProfile(nodeId: string): Promise<PersonV2> {
   return call<PersonV2>(`/api/tree-v2/persons/${nodeId}/profile`);
+}
+
+export async function updatePersonProfile(nodeId: string, patch: ProfilePatch): Promise<PersonV2> {
+  return call<PersonV2>(`/api/tree-v2/persons/${nodeId}/profile`, {
+    method: "PATCH",
+    body: JSON.stringify(patch),
+  });
 }

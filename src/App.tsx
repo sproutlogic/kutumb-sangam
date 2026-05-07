@@ -26,6 +26,7 @@ import SupportPage from "@/pages/SupportPage";
 import EnterCode from "@/pages/EnterCode";
 import CodeResult from "@/pages/CodeResult";
 import NodePage from "@/pages/NodePage";
+import KutumbIDProfilePage from "@/pages/KutumbIDProfilePage";
 import PanditKycPage from "@/pages/PanditKycPage";
 import PanditDashboard from "@/pages/PanditDashboard";
 import ReferralNewTree from "@/pages/ReferralNewTree";
@@ -104,6 +105,7 @@ const App = () => (
                     <Route path="/support" element={<ProtectedRoute><SupportPage /></ProtectedRoute>} />
                     <Route path="/node" element={<ProtectedRoute><NodePage /></ProtectedRoute>} />
                     <Route path="/node/:id" element={<ProtectedRoute><NodePage /></ProtectedRoute>} />
+                    <Route path="/profile/:nodeId" element={<ProtectedRoute><KutumbIDProfilePage /></ProtectedRoute>} />
                     <Route path="/referral-new-tree" element={<ProtectedRoute><ReferralNewTree /></ProtectedRoute>} />
                     <Route path="/referral-margdarshak" element={<ProtectedRoute><ReferralPandit /></ProtectedRoute>} />
                     <Route path="/device-reverify" element={<ProtectedRoute><DeviceReVerifyPage /></ProtectedRoute>} />

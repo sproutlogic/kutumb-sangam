@@ -73,6 +73,38 @@ class PersonCreateV2(BaseModel):
     gotra: str = ""
 
 
+class ProfilePatch(BaseModel):
+    """Extended KutumbID Vyakti + Kul profile — all fields optional."""
+    # Vyakti (individual) fields
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+    date_of_birth: Optional[str] = None
+    punyatithi: Optional[str] = None
+    ancestral_place: Optional[str] = None
+    current_residence: Optional[str] = None
+    marital_status: Optional[str] = None
+    education: Optional[str] = None
+    mool_niwas_city: Optional[str] = None
+    nanighar: Optional[str] = None
+    # Kul (lineage / cultural) fields
+    vansh_label: Optional[str] = None
+    gotra: Optional[str] = None
+    pravara: Optional[str] = None
+    ved_shakha: Optional[str] = None
+    ritual_sutra: Optional[str] = None
+    kul_devi: Optional[str] = None
+    kul_devi_sthan: Optional[str] = None
+    ishta_devta: Optional[str] = None
+    tirth_purohit: Optional[str] = None
+    pravas_history: Optional[str] = None
+    paitrik_niwas: Optional[str] = None
+    gram_devta: Optional[str] = None
+    pidhi_label: Optional[str] = None
+    vivah_sambandh: Optional[str] = None
+    kul_achara: Optional[str] = None
+    manat: Optional[str] = None
+
+
 # ─── Helpers ─────────────────────────────────────────────────────────────────
 
 
@@ -272,6 +304,29 @@ def create_person_v2(body: PersonCreateV2, user: CurrentUser) -> dict[str, Any]:
 def get_person_profile(node_id: UUID, user: CurrentUser) -> dict[str, Any]:
     """Return person profile. Caller decides display based on owner_id."""
     return _person_or_404(str(node_id))
+
+
+@router.patch("/persons/{node_id}/profile")
+def update_person_profile(node_id: UUID, body: ProfilePatch, user: CurrentUser) -> dict[str, Any]:
+    """Update KutumbID Vyakti + Kul profile fields. Only the node owner may edit."""
+    person = _person_or_404(str(node_id))
+    if person.get("owner_id") != str(user["id"]):
+        raise HTTPException(status_code=403, detail="Only the node owner can edit this profile")
+
+    updates: dict[str, Any] = {
+        k: v.strip() if isinstance(v, str) else v
+        for k, v in body.model_dump(exclude_none=True).items()
+    }
+    if not updates:
+        return person
+
+    sb = get_supabase()
+    try:
+        res = sb.table(PERSONS_TABLE).update(updates).eq("node_id", str(node_id)).execute()
+    except Exception:
+        logger.exception("update_person_profile failed node_id=%s", node_id)
+        raise HTTPException(status_code=502, detail="Could not update profile") from None
+    return res.data[0] if res.data else {**person, **updates}
 
 
 # ─── Canvas offsets ──────────────────────────────────────────────────────────
