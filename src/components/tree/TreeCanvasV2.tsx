@@ -413,10 +413,10 @@ const TreeCanvasV2: React.FC<Props> = ({ vanshaId }) => {
             name,
             gender: p.gender,
             relation: p.relation,
+            kutumbId: p.kutumb_id as string | null | undefined,
             hasOffset,
             isDeceased: !!p.is_deceased,
             isPanditVerified: !!p.pandit_verified,
-            // canEdit: node owner, OR no owner (tree creator viewing their own tree)
             canEdit: !p.owner_id || p.owner_id === appUser?.id,
             onOpenProfile: (nodeId: string) => setProfileNodeId(nodeId),
           },
@@ -620,7 +620,7 @@ const TreeCanvasV2: React.FC<Props> = ({ vanshaId }) => {
   };
 
   const submitPendingAdd = useCallback(
-    async (firstName: string, lastName: string, gender: "male" | "female" | "other", subtype: EdgeSubtype) => {
+    async (firstName: string, lastName: string, dob: string, gender: "male" | "female" | "other", subtype: EdgeSubtype) => {
       if (!pendingAdd) return;
       const { anchorId, dir } = pendingAdd;
 
@@ -631,6 +631,7 @@ const TreeCanvasV2: React.FC<Props> = ({ vanshaId }) => {
           first_name: firstName,
           last_name: lastName || undefined,
           gender,
+          date_of_birth: dob || undefined,
         });
       } catch (err) {
         toast.error(err instanceof Error ? err.message : "Could not create person");
@@ -745,6 +746,9 @@ const TreeCanvasV2: React.FC<Props> = ({ vanshaId }) => {
           </div>
         </Panel>
       </ReactFlow>
+      </RajputanaBorder>
+
+      {/* ── All overlays rendered outside RajputanaBorder so overflow:hidden doesn't clip them ── */}
 
       {/* Context menu */}
       {contextMenu && (
@@ -760,10 +764,7 @@ const TreeCanvasV2: React.FC<Props> = ({ vanshaId }) => {
               </div>
               <button
                 className="w-full text-left px-3 py-2 hover:bg-muted"
-                onClick={() => {
-                  navigate(`/node/${contextMenu.nodeId}`);
-                  closeMenu();
-                }}
+                onClick={() => { navigate(`/node/${contextMenu.nodeId}`); closeMenu(); }}
               >
                 ✏️ Open & edit profile
               </button>
@@ -830,9 +831,7 @@ const TreeCanvasV2: React.FC<Props> = ({ vanshaId }) => {
           <Card className="p-4 shadow-xl">
             <div className="flex justify-between items-center mb-3">
               <div className="font-semibold text-sm">Integrity Check</div>
-              <Button size="sm" variant="ghost" onClick={() => setIntegrityPanel(null)}>
-                ✕
-              </Button>
+              <Button size="sm" variant="ghost" onClick={() => setIntegrityPanel(null)}>✕</Button>
             </div>
             <div className="text-sm font-medium">{integrityPanel.person.name}</div>
             <div className="text-xs text-muted-foreground mb-2 font-mono">
@@ -840,24 +839,19 @@ const TreeCanvasV2: React.FC<Props> = ({ vanshaId }) => {
             </div>
             {integrityPanel.issues.length > 0 ? (
               <div className="bg-destructive/10 text-destructive rounded p-2 text-xs space-y-1">
-                {integrityPanel.issues.map((i) => (
-                  <div key={i}>⚠ {i}</div>
-                ))}
+                {integrityPanel.issues.map((i) => <div key={i}>⚠ {i}</div>)}
               </div>
             ) : (
-              <div className="bg-emerald-50 text-emerald-700 rounded p-2 text-xs">
-                ✓ No issues found
-              </div>
+              <div className="bg-emerald-50 text-emerald-700 rounded p-2 text-xs">✓ No issues found</div>
             )}
             <div className="text-xs text-muted-foreground mt-2">
-              {integrityPanel.incoming.length} incoming · {integrityPanel.outgoing.length} outgoing
-              edges
+              {integrityPanel.incoming.length} incoming · {integrityPanel.outgoing.length} outgoing edges
             </div>
           </Card>
         </div>
       )}
 
-      {/* Edge-create dialog */}
+      {/* Edge-create dialog (drag-to-connect) */}
       {pendingEdge && (
         <div
           className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center"
@@ -871,44 +865,27 @@ const TreeCanvasV2: React.FC<Props> = ({ vanshaId }) => {
               <span className="font-medium">{pendingEdge.targetName}</span>
             </div>
             <div className="space-y-2">
-              <Button
-                className="w-full justify-start"
-                variant="outline"
-                onClick={() => void submitPendingEdge("parent_of", "biological")}
-              >
+              <Button className="w-full justify-start" variant="outline" onClick={() => void submitPendingEdge("parent_of", "biological")}>
                 👨‍👦 Parent of (biological)
               </Button>
-              <Button
-                className="w-full justify-start"
-                variant="outline"
-                onClick={() => void submitPendingEdge("parent_of", "adopted")}
-              >
+              <Button className="w-full justify-start" variant="outline" onClick={() => void submitPendingEdge("parent_of", "adopted")}>
                 👨‍👦 Parent of (adopted)
               </Button>
-              <Button
-                className="w-full justify-start"
-                variant="outline"
-                onClick={() => void submitPendingEdge("parent_of", "step")}
-              >
+              <Button className="w-full justify-start" variant="outline" onClick={() => void submitPendingEdge("parent_of", "step")}>
                 👨‍👦 Parent of (step)
               </Button>
-              <Button
-                className="w-full justify-start"
-                variant="outline"
-                onClick={() => void submitPendingEdge("spouse_of", "biological")}
-              >
+              <Button className="w-full justify-start" variant="outline" onClick={() => void submitPendingEdge("spouse_of", "biological")}>
                 💑 Spouse of
               </Button>
             </div>
             <div className="flex justify-end mt-4">
-              <Button size="sm" variant="ghost" onClick={() => setPendingEdge(null)}>
-                Cancel
-              </Button>
+              <Button size="sm" variant="ghost" onClick={() => setPendingEdge(null)}>Cancel</Button>
             </div>
           </Card>
         </div>
       )}
-      {/* Add member dialog */}
+
+      {/* Add member dialog (right-click → add child/parent/spouse) */}
       {pendingAdd && (
         <AddMemberDialog
           anchorName={pendingAdd.anchorName}
@@ -917,9 +894,8 @@ const TreeCanvasV2: React.FC<Props> = ({ vanshaId }) => {
           onCancel={() => setPendingAdd(null)}
         />
       )}
-      </RajputanaBorder>
 
-      {/* Profile side panel — rendered outside RajputanaBorder so Sheet portal works */}
+      {/* Profile side panel */}
       <NodeProfilePanel
         nodeId={profileNodeId}
         onClose={() => setProfileNodeId(null)}
@@ -933,7 +909,7 @@ const TreeCanvasV2: React.FC<Props> = ({ vanshaId }) => {
 interface AddMemberDialogProps {
   anchorName: string;
   dir: "child" | "parent" | "spouse";
-  onConfirm: (firstName: string, lastName: string, gender: "male" | "female" | "other", subtype: EdgeSubtype) => void;
+  onConfirm: (firstName: string, lastName: string, dob: string, gender: "male" | "female" | "other", subtype: EdgeSubtype) => void;
   onCancel: () => void;
 }
 
@@ -946,6 +922,7 @@ const DIR_LABEL: Record<"child" | "parent" | "spouse", string> = {
 const AddMemberDialog: React.FC<AddMemberDialogProps> = ({ anchorName, dir, onConfirm, onCancel }) => {
   const [firstName, setFirstName] = React.useState("");
   const [lastName, setLastName]   = React.useState("");
+  const [dob, setDob]             = React.useState("");
   const [gender, setGender]       = React.useState<"male" | "female" | "other">("male");
   const [subtype, setSubtype]     = React.useState<EdgeSubtype>("biological");
   const [saving, setSaving]       = React.useState(false);
@@ -959,7 +936,7 @@ const AddMemberDialog: React.FC<AddMemberDialogProps> = ({ anchorName, dir, onCo
   const handleSubmit = async () => {
     if (!firstName.trim()) return;
     setSaving(true);
-    await onConfirm(firstName.trim(), lastName.trim(), gender, subtype);
+    await onConfirm(firstName.trim(), lastName.trim(), dob, gender, subtype);
     setSaving(false);
   };
 
@@ -973,12 +950,10 @@ const AddMemberDialog: React.FC<AddMemberDialogProps> = ({ anchorName, dir, onCo
       className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center"
       onClick={onCancel}
     >
-      <Card className="p-5 w-[400px] max-w-[92vw]" onClick={(e) => e.stopPropagation()}>
+      <Card className="p-5 w-[420px] max-w-[92vw]" onClick={(e) => e.stopPropagation()}>
         {/* Header */}
         <div className="font-semibold text-base mb-0.5">{DIR_LABEL[dir]}</div>
-        <div className="text-xs text-muted-foreground mb-4">
-          <span className="font-medium">{anchorName}</span>
-        </div>
+        <div className="text-xs text-muted-foreground mb-4 font-medium">{anchorName}</div>
 
         {/* Name row */}
         <div className="flex gap-2 mb-3">
@@ -1003,6 +978,17 @@ const AddMemberDialog: React.FC<AddMemberDialogProps> = ({ anchorName, dir, onCo
               className="w-full border rounded-md px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-primary/40"
             />
           </div>
+        </div>
+
+        {/* DOB */}
+        <div className="mb-3">
+          <label className="text-xs text-muted-foreground mb-1 block">Date of birth</label>
+          <input
+            type="date"
+            value={dob}
+            onChange={(e) => setDob(e.target.value)}
+            className="w-full border rounded-md px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-primary/40"
+          />
         </div>
 
         {/* Gender */}
@@ -1049,9 +1035,7 @@ const AddMemberDialog: React.FC<AddMemberDialogProps> = ({ anchorName, dir, onCo
 
         {/* Actions */}
         <div className="flex justify-end gap-2 mt-2">
-          <Button size="sm" variant="ghost" onClick={onCancel} disabled={saving}>
-            Cancel
-          </Button>
+          <Button size="sm" variant="ghost" onClick={onCancel} disabled={saving}>Cancel</Button>
           <Button size="sm" onClick={() => void handleSubmit()} disabled={!firstName.trim() || saving}>
             {saving ? "Adding…" : `Add ${firstName.trim() || "member"}`}
           </Button>

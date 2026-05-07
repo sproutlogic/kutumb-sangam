@@ -64,11 +64,13 @@ class OffsetBody(BaseModel):
 
 
 class PersonCreateV2(BaseModel):
-    """Minimal person creation for tree-v2 canvas (bypasses old union model)."""
+    """Person creation for tree-v2 canvas — core identity fields only."""
     vansha_id: UUID
     first_name: str = Field(min_length=1)
     last_name: str = ""
     gender: Literal["male", "female", "other"] = "other"
+    date_of_birth: str = ""
+    gotra: str = ""
 
 
 # ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -251,10 +253,12 @@ def create_person_v2(body: PersonCreateV2, user: CurrentUser) -> dict[str, Any]:
         "node_id": node_id,
         VANSHA_ID_COLUMN: str(body.vansha_id),
         "first_name": body.first_name.strip(),
-        "last_name": body.last_name.strip() or None,
+        "last_name": body.last_name.strip() or "",
         "gender": body.gender,
         "relation": "member",
         "owner_id": str(user["id"]),
+        "date_of_birth": body.date_of_birth.strip() or "",
+        "gotra": body.gotra.strip() or "",
     }
     try:
         ins = sb.table(PERSONS_TABLE).insert(row).execute()

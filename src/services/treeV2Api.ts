@@ -147,6 +147,8 @@ export async function createPersonV2(payload: {
   first_name: string;
   last_name?: string;
   gender: "male" | "female" | "other";
+  date_of_birth?: string;
+  gotra?: string;
 }): Promise<PersonV2> {
   return call<PersonV2>("/api/tree-v2/persons", {
     method: "POST",
