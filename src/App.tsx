@@ -3,6 +3,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ThemeProvider } from "next-themes";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Toaster } from "@/components/ui/toaster";
+import { Toaster as SonnerToaster } from "@/components/ui/sonner";
 import { LanguageProvider } from "@/i18n/LanguageContext";
 import { TreeProvider } from "@/contexts/TreeContext";
 import { PlanProvider } from "@/contexts/PlanContext";
@@ -83,6 +84,7 @@ const App = () => (
                 <WorkspaceProvider>
                 <TooltipProvider delayDuration={300}>
                   <Toaster />
+                  <SonnerToaster richColors position="top-right" />
                   <Routes>
                     {/* Public routes */}
                     <Route path="/" element={<Index />} />

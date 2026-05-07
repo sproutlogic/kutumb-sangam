@@ -491,8 +491,8 @@ const TreeCanvasV2: React.FC<Props> = ({ vanshaId }) => {
   const onConnect: OnConnect = useCallback(
     (conn: Connection) => {
       if (!conn.source || !conn.target || conn.source === conn.target) return;
-      // Guard: only one relationship per pair
-      const alreadyLinked = rels.some(
+      // Guard: only one relationship per pair (check allRels so synthetic edges are included)
+      const alreadyLinked = allRels.some(
         (r) =>
           (r.from_node_id === conn.source && r.to_node_id === conn.target) ||
           (r.from_node_id === conn.target && r.to_node_id === conn.source),
@@ -767,6 +767,12 @@ const TreeCanvasV2: React.FC<Props> = ({ vanshaId }) => {
                 onClick={() => { navigate(`/node/${contextMenu.nodeId}`); closeMenu(); }}
               >
                 ✏️ Open & edit profile
+              </button>
+              <button
+                className="w-full text-left px-3 py-2 hover:bg-muted"
+                onClick={() => { navigate(`/profile/${contextMenu.nodeId}`); closeMenu(); }}
+              >
+                🪬 KutumbID Full Profile
               </button>
               <div className="border-t my-1" />
               <button
