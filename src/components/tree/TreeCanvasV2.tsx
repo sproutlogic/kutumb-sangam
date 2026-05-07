@@ -250,9 +250,10 @@ function personName(p: RawPerson): string {
 
 interface Props {
   vanshaId: string;
+  readOnly?: boolean;
 }
 
-const TreeCanvasV2: React.FC<Props> = ({ vanshaId }) => {
+const TreeCanvasV2: React.FC<Props> = ({ vanshaId, readOnly = false }) => {
   const { appUser } = useAuth();
 
   const [rfNodes, setRfNodes, onNodesChange] = useNodesState<Node>([]);
@@ -829,18 +830,18 @@ const TreeCanvasV2: React.FC<Props> = ({ vanshaId }) => {
         nodeTypes={nodeTypes}
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
-        onNodeDragStop={onNodeDragStop}
-        onNodeContextMenu={onNodeContextMenu}
-        onEdgeContextMenu={onEdgeContextMenu}
-        onConnect={onConnect}
+        onNodeDragStop={readOnly ? undefined : onNodeDragStop}
+        onNodeContextMenu={readOnly ? undefined : onNodeContextMenu}
+        onEdgeContextMenu={readOnly ? undefined : onEdgeContextMenu}
+        onConnect={readOnly ? undefined : onConnect}
         onPaneClick={closeMenu}
         fitView
         fitViewOptions={{ padding: 0.2 }}
         minZoom={0.1}
         maxZoom={2}
         deleteKeyCode={null}
-        nodesDraggable
-        nodesConnectable
+        nodesDraggable={!readOnly}
+        nodesConnectable={!readOnly}
         elementsSelectable
         connectionMode={ConnectionMode.Loose}
         connectionRadius={80}
@@ -873,13 +874,29 @@ const TreeCanvasV2: React.FC<Props> = ({ vanshaId }) => {
               <Button size="sm" variant="outline" onClick={() => void refresh()}>
                 ↺ Reload
               </Button>
-              <Button size="sm" variant="default" onClick={() => openAddDialog(null, "", "standalone")}>
-                + Add person
-              </Button>
+              {!readOnly && (
+                <Button size="sm" variant="default" onClick={() => openAddDialog(null, "", "standalone")}>
+                  + Add person
+                </Button>
+              )}
+              {vansha?.vansh_code && (
+                <Button size="sm" variant="outline" onClick={() => {
+                  const url = `${window.location.origin}/v/${vansha.vansh_code}`;
+                  void navigator.clipboard.writeText(url);
+                  toast.success("Share link copied!");
+                }}>
+                  🔗 Share
+                </Button>
+              )}
             </div>
-            <div className="text-[11px] text-muted-foreground pt-1 leading-tight">
-              Drag handles to connect · Right-click for options · Roots at bottom
-            </div>
+            {!readOnly && (
+              <div className="text-[11px] text-muted-foreground pt-1 leading-tight">
+                Drag handles to connect · Right-click for options · Roots at bottom
+              </div>
+            )}
+            {readOnly && (
+              <div className="text-[11px] text-amber-600 pt-1 font-medium">👁 Read-only view</div>
+            )}
           </div>
         </Panel>
       </ReactFlow>

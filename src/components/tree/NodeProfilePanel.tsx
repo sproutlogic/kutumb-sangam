@@ -1,8 +1,7 @@
 /**
  * NodeProfilePanel — right-side Sheet showing a person's profile.
- *
- * What is shown publicly: name, birthday (day+month only), gender, parent names.
- * Owner/creator additionally sees: full DOB, full profile link, claim status.
+ * Public view: name, common name, birthday (day+month), gender, parent names.
+ * Owner/creator: full profile link + invite code (for unclaimed nodes).
  */
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
@@ -11,11 +10,11 @@ import {
   SheetContent,
   SheetHeader,
   SheetTitle,
-  SheetDescription,
 } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
 import { getPersonProfile, claimNode, type PersonV2 } from "@/services/treeV2Api";
+import { toast } from "sonner";
 
 interface Props {
   nodeId: string | null;
@@ -103,6 +102,12 @@ const NodeProfilePanel: React.FC<Props> = ({ nodeId, onClose, parentNames }) => 
     }
   }
 
+  function copyInviteCode() {
+    if (!person?.kutumb_id) return;
+    void navigator.clipboard.writeText(String(person.kutumb_id));
+    toast.success("Invite code copied!");
+  }
+
   return (
     <Sheet open={!!nodeId} onOpenChange={(o) => { if (!o) onClose(); }}>
       <SheetContent side="right" className="w-[300px] sm:max-w-[300px] overflow-y-auto">
@@ -110,17 +115,21 @@ const NodeProfilePanel: React.FC<Props> = ({ nodeId, onClose, parentNames }) => 
           <SheetTitle className="pr-6">
             {loading ? "Loading…" : fullName}
           </SheetTitle>
-          <div className="flex items-center gap-2 flex-wrap">
+          {/* Common name */}
+          {person?.common_name && (
+            <p className="text-xs text-muted-foreground italic -mt-1">
+              &quot;{person.common_name}&quot;
+            </p>
+          )}
+          <div className="flex items-center gap-2 flex-wrap mt-1">
             {person?.kutumb_id && isOwner && (
-              <SheetDescription className="font-mono text-xs tracking-widest">
+              <span className="font-mono text-xs tracking-widest text-muted-foreground">
                 ****{String(person.kutumb_id).slice(-3)}
-              </SheetDescription>
+              </span>
             )}
             {person && (
               <span className={`text-[9px] font-bold uppercase px-1.5 py-0.5 rounded ${
-                isClaimed
-                  ? "bg-emerald-100 text-emerald-700"
-                  : "bg-amber-100 text-amber-700"
+                isClaimed ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"
               }`}>
                 {isClaimed ? "✓ Claimed" : "○ Unclaimed"}
               </span>
@@ -128,9 +137,7 @@ const NodeProfilePanel: React.FC<Props> = ({ nodeId, onClose, parentNames }) => 
           </div>
         </SheetHeader>
 
-        {error && (
-          <div className="text-sm text-destructive mb-4">{error}</div>
-        )}
+        {error && <div className="text-sm text-destructive mb-4">{error}</div>}
 
         {person && !loading && (
           <div className="space-y-4">
@@ -140,7 +147,7 @@ const NodeProfilePanel: React.FC<Props> = ({ nodeId, onClose, parentNames }) => 
               <Field label="Birthday" value={dobDayMonth(person.date_of_birth as string)} />
             </div>
 
-            {/* Parent names (passed from canvas; computed from graph edges) */}
+            {/* Parent names from canvas graph */}
             {(parentNames?.father || parentNames?.mother) && (
               <div className="grid grid-cols-2 gap-3">
                 {parentNames.father && <Field label="Father" value={parentNames.father} />}
@@ -148,36 +155,48 @@ const NodeProfilePanel: React.FC<Props> = ({ nodeId, onClose, parentNames }) => 
               </div>
             )}
 
-            {/* Creator info when unclaimed */}
-            {!isClaimed && person.creator_id && (
-              <div className="border rounded-md px-3 py-2 bg-amber-50 text-xs text-amber-800 space-y-0.5">
-                <div className="font-semibold uppercase tracking-wide text-[9px]">Added by creator</div>
-                <div className="font-mono break-all">{person.creator_id.slice(0, 8)}…</div>
-                <div className="text-[10px] text-amber-600">
-                  This node hasn't been claimed by its person yet.
+            {/* Invite code — shown to creator of unclaimed nodes */}
+            {isCreator && !isClaimed && person.kutumb_id && (
+              <div className="border rounded-md px-3 py-2.5 bg-indigo-50 space-y-1.5">
+                <div className="text-[9px] font-bold uppercase tracking-wide text-indigo-600">
+                  Invite code — share to claim
                 </div>
+                <div className="flex items-center gap-2">
+                  <span className="font-mono text-sm font-bold tracking-widest text-indigo-800 flex-1">
+                    {String(person.kutumb_id)}
+                  </span>
+                  <Button size="sm" variant="outline" className="h-7 text-xs border-indigo-300 text-indigo-700 hover:bg-indigo-100"
+                    onClick={copyInviteCode}>
+                    Copy
+                  </Button>
+                </div>
+                <p className="text-[10px] text-indigo-500">
+                  Share this code with {fullName}. They enter it in the &quot;Claim this node&quot; flow.
+                </p>
               </div>
             )}
 
-            {/* Full profile link (owner/creator only) */}
+            {/* Creator badge (unclaimed, not the creator) */}
+            {!isClaimed && !isCreator && person.creator_id && (
+              <div className="border rounded-md px-3 py-2 bg-amber-50 text-xs text-amber-800 space-y-0.5">
+                <div className="font-semibold uppercase tracking-wide text-[9px]">Added by creator</div>
+                <div className="font-mono break-all">{person.creator_id.slice(0, 8)}…</div>
+                <div className="text-[10px] text-amber-600">Not yet claimed by its person.</div>
+              </div>
+            )}
+
+            {/* Full profile link */}
             {canEdit && (
               <div className="border-t pt-3">
-                <Button
-                  size="sm"
-                  variant="default"
-                  className="w-full"
-                  onClick={() => { onClose(); navigate(`/profile/${nodeId}`); }}
-                >
+                <Button size="sm" variant="default" className="w-full"
+                  onClick={() => { onClose(); navigate(`/profile/${nodeId}`); }}>
                   📋 View full profile
                 </Button>
               </div>
             )}
-
             {!canEdit && (
               <div className="border-t pt-3">
-                <p className="text-xs text-muted-foreground">
-                  Full profile visible only to the node owner.
-                </p>
+                <p className="text-xs text-muted-foreground">Full profile visible only to the node owner.</p>
               </div>
             )}
 
@@ -185,19 +204,13 @@ const NodeProfilePanel: React.FC<Props> = ({ nodeId, onClose, parentNames }) => 
             {!isClaimed && !isCreator && (
               <div className="border-t pt-3">
                 {!showClaim ? (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="w-full border-amber-400 text-amber-700 hover:bg-amber-50"
-                    onClick={() => setShowClaim(true)}
-                  >
+                  <Button size="sm" variant="outline" className="w-full border-amber-400 text-amber-700 hover:bg-amber-50"
+                    onClick={() => setShowClaim(true)}>
                     🔑 Is this you? Claim this node
                   </Button>
                 ) : (
                   <div className="space-y-2">
-                    <p className="text-xs text-muted-foreground">
-                      Enter your invite code (shared by the tree creator):
-                    </p>
+                    <p className="text-xs text-muted-foreground">Enter the invite code shared by the tree creator:</p>
                     <input
                       autoFocus
                       value={claimCode}
@@ -208,15 +221,9 @@ const NodeProfilePanel: React.FC<Props> = ({ nodeId, onClose, parentNames }) => 
                     />
                     {claimError && <p className="text-xs text-destructive">{claimError}</p>}
                     <div className="flex gap-2">
-                      <Button size="sm" variant="ghost" onClick={() => setShowClaim(false)} className="flex-1">
-                        Cancel
-                      </Button>
-                      <Button
-                        size="sm"
-                        className="flex-1 bg-amber-500 hover:bg-amber-600 text-white"
-                        disabled={!claimCode.trim() || claiming}
-                        onClick={() => void handleClaim()}
-                      >
+                      <Button size="sm" variant="ghost" onClick={() => setShowClaim(false)} className="flex-1">Cancel</Button>
+                      <Button size="sm" className="flex-1 bg-amber-500 hover:bg-amber-600 text-white"
+                        disabled={!claimCode.trim() || claiming} onClick={() => void handleClaim()}>
                         {claiming ? "Claiming…" : "Claim"}
                       </Button>
                     </div>

@@ -19,6 +19,7 @@ from db import get_supabase
 
 logger = logging.getLogger(__name__)
 _bearer = HTTPBearer(auto_error=True)
+_optional_bearer = HTTPBearer(auto_error=False)
 
 
 def _get_user_row(user_id: str) -> dict[str, Any] | None:
@@ -73,6 +74,19 @@ async def require_superadmin(
     return user
 
 
+async def get_optional_user(
+    creds: Annotated[HTTPAuthorizationCredentials | None, Depends(_optional_bearer)],
+) -> dict[str, Any] | None:
+    """Like get_current_user but returns None instead of raising when unauthenticated."""
+    if not creds:
+        return None
+    try:
+        return await get_current_user(creds)
+    except HTTPException:
+        return None
+
+
 CurrentUser = Annotated[dict[str, Any], Depends(get_current_user)]
+OptionalUser = Annotated[dict[str, Any] | None, Depends(get_optional_user)]
 MargdarshakUser = Annotated[dict[str, Any], Depends(require_margdarshak)]
 SuperadminUser = Annotated[dict[str, Any], Depends(require_superadmin)]

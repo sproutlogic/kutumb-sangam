@@ -136,6 +136,7 @@ export interface PersonV2 {
   gender?: string;
   relation?: string;
   generation?: number | null;
+  field_privacy?: Record<string, string> | null;
   owner_id?: string | null;
   creator_id?: string | null;
   kutumb_id?: string | null;
@@ -172,7 +173,17 @@ export interface PersonV2 {
   [key: string]: unknown;
 }
 
-export type ProfilePatch = Partial<Omit<PersonV2, "node_id" | "vansha_id" | "owner_id" | "kutumb_id" | "relation" | "generation">>;
+export type ProfilePatch = Partial<Omit<PersonV2, "node_id" | "vansha_id" | "owner_id" | "kutumb_id" | "generation">>;
+
+export interface PublicTree {
+  vansha: VanshaMeta;
+  persons: PersonV2[];
+  relationships: Relationship[];
+}
+
+export async function getPublicTree(vanshCode: string): Promise<PublicTree> {
+  return call<PublicTree>(`/api/tree-v2/vanshas/by-code/${encodeURIComponent(vanshCode)}/public`);
+}
 
 export async function createPersonV2(payload: {
   vansha_id: string;
