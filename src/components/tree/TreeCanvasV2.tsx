@@ -358,6 +358,113 @@ const TreeCanvasV2: React.FC<Props> = ({ vanshaId }) => {
     [autoLayout],
   );
 
+  // ── Ghost node: add-relative flow ─────────────────────────────────────────
+  // Both confirmGhost and addRelativeFromNode must be declared BEFORE the
+  // useEffect below that lists addRelativeFromNode in its dependency array.
+  // Dependency arrays are evaluated eagerly at call time; referencing a const
+  // that is still in TDZ causes "Cannot access X before initialization".
+
+  const confirmGhost = useCallback(
+    async (
+      ghostId: string,
+      anchorId: string,
+      dir: "child" | "parent" | "spouse",
+      name: string,
+      gender: "male" | "female" | "other",
+    ) => {
+      // 1. Create person
+      let newPerson;
+      try {
+        newPerson = await createPersonV2({ vansha_id: vanshaId, first_name: name, gender });
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "Could not create person");
+        return;
+      }
+
+      // 2. Create relationship
+      const relType: EdgeType = dir === "spouse" ? "spouse_of" : "parent_of";
+      const [from, to] =
+        dir === "child"  ? [anchorId, newPerson.node_id]
+        : dir === "parent" ? [newPerson.node_id, anchorId]
+        : [anchorId, newPerson.node_id];
+
+      try {
+        const rel = await createRelationship({
+          vansha_id: vanshaId,
+          from_node_id: from,
+          to_node_id: to,
+          type: relType,
+          subtype: "biological",
+        });
+        setRels((rs) => [...rs, rel]);
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "Could not create relationship");
+      }
+
+      // 3. Swap ghost with real node
+      setPersons((ps) => [...ps, newPerson as RawPerson]);
+      setRfNodes((ns) => ns.filter((n) => n.id !== ghostId));
+      setRfEdges((es) => es.filter((e) => e.id !== `ghost-edge-${ghostId}`));
+      setGhost(null);
+      toast.success(`${name} added`);
+    },
+    [vanshaId],
+  );
+
+  const addRelativeFromNode = useCallback(
+    (anchorId: string, dir: "child" | "parent" | "spouse") => {
+      if (ghost) {
+        setRfNodes((ns) => ns.filter((n) => n.id !== ghost.ghostId));
+        setRfEdges((es) => es.filter((e) => e.id !== `ghost-edge-${ghost.ghostId}`));
+      }
+      const ghostId = `ghost-${Date.now()}`;
+      const anchorPos = autoLayout.get(anchorId) ?? { x: 200, y: 200 };
+
+      const ghostPos =
+        dir === "child"
+          ? { x: anchorPos.x, y: anchorPos.y - 220 }
+          : dir === "parent"
+            ? { x: anchorPos.x, y: anchorPos.y + 220 }
+            : { x: anchorPos.x + 220, y: anchorPos.y };
+
+      const ghostNode: Node = {
+        id: ghostId,
+        type: "ghostNode",
+        position: ghostPos,
+        draggable: false,
+        data: {
+          onConfirm: (name: string, gender: "male" | "female" | "other") =>
+            void confirmGhost(ghostId, anchorId, dir, name, gender),
+          onCancel: () => {
+            setRfNodes((ns) => ns.filter((n) => n.id !== ghostId));
+            setRfEdges((es) => es.filter((e) => e.id !== `ghost-edge-${ghostId}`));
+            setGhost(null);
+          },
+        },
+      };
+
+      const [src, tgt, srcH, tgtH] =
+        dir === "child"
+          ? [anchorId, ghostId, "s-top", "s-bottom"]
+          : dir === "parent"
+            ? [ghostId, anchorId, "s-top", "s-bottom"]
+            : [anchorId, ghostId, "s-right", "s-left"];
+
+      const ghostEdge: Edge = {
+        id: `ghost-edge-${ghostId}`,
+        source: src, target: tgt, sourceHandle: srcH, targetHandle: tgtH,
+        type: dir === "spouse" ? "straight" : "smoothstep",
+        animated: true,
+        style: { stroke: dir === "spouse" ? "#ec4899" : "#6366f1", strokeDasharray: "6 3" },
+      };
+
+      setRfNodes((ns) => [...ns, ghostNode]);
+      setRfEdges((es) => [...es, ghostEdge]);
+      setGhost({ ghostId, anchorId, dir });
+    },
+    [ghost, autoLayout, confirmGhost],
+  );
+
   // ── Build React Flow nodes + edges ─────────────────────────────────────────
 
   useEffect(() => {
@@ -516,110 +623,6 @@ const TreeCanvasV2: React.FC<Props> = ({ vanshaId }) => {
       }
     },
     [pendingEdge, vanshaId],
-  );
-
-  // ── Ghost node: add-relative flow ─────────────────────────────────────────
-  // confirmGhost must be declared BEFORE addRelativeFromNode to avoid TDZ.
-
-  const confirmGhost = useCallback(
-    async (
-      ghostId: string,
-      anchorId: string,
-      dir: "child" | "parent" | "spouse",
-      name: string,
-      gender: "male" | "female" | "other",
-    ) => {
-      // 1. Create person
-      let newPerson;
-      try {
-        newPerson = await createPersonV2({ vansha_id: vanshaId, first_name: name, gender });
-      } catch (err) {
-        toast.error(err instanceof Error ? err.message : "Could not create person");
-        return;
-      }
-
-      // 2. Create relationship
-      const relType: EdgeType = dir === "spouse" ? "spouse_of" : "parent_of";
-      const [from, to] =
-        dir === "child"  ? [anchorId, newPerson.node_id]
-        : dir === "parent" ? [newPerson.node_id, anchorId]
-        : [anchorId, newPerson.node_id];
-
-      try {
-        const rel = await createRelationship({
-          vansha_id: vanshaId,
-          from_node_id: from,
-          to_node_id: to,
-          type: relType,
-          subtype: "biological",
-        });
-        setRels((rs) => [...rs, rel]);
-      } catch (err) {
-        toast.error(err instanceof Error ? err.message : "Could not create relationship");
-      }
-
-      // 3. Swap ghost with real node
-      setPersons((ps) => [...ps, newPerson as RawPerson]);
-      setRfNodes((ns) => ns.filter((n) => n.id !== ghostId));
-      setRfEdges((es) => es.filter((e) => e.id !== `ghost-edge-${ghostId}`));
-      setGhost(null);
-      toast.success(`${name} added`);
-    },
-    [vanshaId],
-  );
-
-  const addRelativeFromNode = useCallback(
-    (anchorId: string, dir: "child" | "parent" | "spouse") => {
-      if (ghost) {
-        setRfNodes((ns) => ns.filter((n) => n.id !== ghost.ghostId));
-        setRfEdges((es) => es.filter((e) => e.id !== `ghost-edge-${ghost.ghostId}`));
-      }
-      const ghostId = `ghost-${Date.now()}`;
-      const anchorPos = autoLayout.get(anchorId) ?? { x: 200, y: 200 };
-
-      const ghostPos =
-        dir === "child"
-          ? { x: anchorPos.x, y: anchorPos.y - 220 }
-          : dir === "parent"
-            ? { x: anchorPos.x, y: anchorPos.y + 220 }
-            : { x: anchorPos.x + 220, y: anchorPos.y };
-
-      const ghostNode: Node = {
-        id: ghostId,
-        type: "ghostNode",
-        position: ghostPos,
-        draggable: false,
-        data: {
-          onConfirm: (name: string, gender: "male" | "female" | "other") =>
-            void confirmGhost(ghostId, anchorId, dir, name, gender),
-          onCancel: () => {
-            setRfNodes((ns) => ns.filter((n) => n.id !== ghostId));
-            setRfEdges((es) => es.filter((e) => e.id !== `ghost-edge-${ghostId}`));
-            setGhost(null);
-          },
-        },
-      };
-
-      const [src, tgt, srcH, tgtH] =
-        dir === "child"
-          ? [anchorId, ghostId, "s-top", "s-bottom"]
-          : dir === "parent"
-            ? [ghostId, anchorId, "s-top", "s-bottom"]
-            : [anchorId, ghostId, "s-right", "s-left"];
-
-      const ghostEdge: Edge = {
-        id: `ghost-edge-${ghostId}`,
-        source: src, target: tgt, sourceHandle: srcH, targetHandle: tgtH,
-        type: dir === "spouse" ? "straight" : "smoothstep",
-        animated: true,
-        style: { stroke: dir === "spouse" ? "#ec4899" : "#6366f1", strokeDasharray: "6 3" },
-      };
-
-      setRfNodes((ns) => [...ns, ghostNode]);
-      setRfEdges((es) => [...es, ghostEdge]);
-      setGhost({ ghostId, anchorId, dir });
-    },
-    [ghost, autoLayout, confirmGhost],
   );
 
   // ── Context menus ──────────────────────────────────────────────────────────
