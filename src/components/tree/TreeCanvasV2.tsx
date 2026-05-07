@@ -692,6 +692,11 @@ const TreeCanvasV2: React.FC<Props> = ({ vanshaId }) => {
       const { anchorId, spouseId } = pendingAdd;
       const child = await createPersonAndEdge(firstName, lastName, dob, gender, anchorId, null, "parent_of", subtype);
       if (!child) return;
+      // Sticky position: child above anchor (150px up in canvas coords)
+      const anchor = persons.find((p) => p.node_id === anchorId);
+      if (anchor && anchor.canvas_offset_x != null && anchor.canvas_offset_y != null) {
+        await setNodeOffset(child.node_id, anchor.canvas_offset_x, anchor.canvas_offset_y - 150);
+      }
       // wire child to anchor parent
       try {
         const r1 = await createRelationship({ vansha_id: vanshaId, from_node_id: anchorId, to_node_id: child.node_id, type: "parent_of", subtype });
@@ -707,7 +712,7 @@ const TreeCanvasV2: React.FC<Props> = ({ vanshaId }) => {
       setPendingAdd(null);
       toast.success(`${[firstName, lastName].filter(Boolean).join(" ")} added`);
     },
-    [pendingAdd, vanshaId, createPersonAndEdge],
+    [pendingAdd, vanshaId, persons, createPersonAndEdge],
   );
 
   const submitAddParents = useCallback(
@@ -717,11 +722,21 @@ const TreeCanvasV2: React.FC<Props> = ({ vanshaId }) => {
     ) => {
       if (!pendingAdd?.anchorId) return;
       const { anchorId } = pendingAdd;
+      const anchor = persons.find((p) => p.node_id === anchorId);
+      const baseX = anchor?.canvas_offset_x ?? 0;
+      const baseY = anchor?.canvas_offset_y ?? 0;
       const jobs = [
         father ? createPersonAndEdge(father.firstName, father.lastName, father.dob, "male", null, anchorId, "parent_of", "biological") : Promise.resolve(null),
         mother ? createPersonAndEdge(mother.firstName, mother.lastName, mother.dob, "female", null, anchorId, "parent_of", "biological") : Promise.resolve(null),
       ];
       const [fPerson, mPerson] = await Promise.all(jobs);
+      // Sticky positions: parents below anchor (150px down), side-by-side
+      if (fPerson && anchor && baseX != null && baseY != null) {
+        await setNodeOffset(fPerson.node_id, baseX - 100, baseY + 150);
+      }
+      if (mPerson && anchor && baseX != null && baseY != null) {
+        await setNodeOffset(mPerson.node_id, baseX + 100, baseY + 150);
+      }
       if (fPerson) {
         try {
           const r = await createRelationship({ vansha_id: vanshaId, from_node_id: fPerson.node_id, to_node_id: anchorId, type: "parent_of", subtype: "biological" });
@@ -737,15 +752,21 @@ const TreeCanvasV2: React.FC<Props> = ({ vanshaId }) => {
       setPendingAdd(null);
       toast.success("Parents added");
     },
-    [pendingAdd, vanshaId, createPersonAndEdge],
+    [pendingAdd, vanshaId, persons, createPersonAndEdge],
   );
 
   const submitAddSpouse = useCallback(
     async (firstName: string, lastName: string, dob: string, gender: "male" | "female" | "other") => {
       if (!pendingAdd?.anchorId) return;
       const { anchorId } = pendingAdd;
+      const anchor = persons.find((p) => p.node_id === anchorId);
       const sp = await createPersonAndEdge(firstName, lastName, dob, gender, anchorId, null, "spouse_of", "biological");
       if (!sp) return;
+      // Sticky position: female left (-120px), male right (+120px) of anchor
+      if (anchor && anchor.canvas_offset_x != null && anchor.canvas_offset_y != null) {
+        const offset = gender === "female" ? -120 : 120;
+        await setNodeOffset(sp.node_id, anchor.canvas_offset_x + offset, anchor.canvas_offset_y);
+      }
       try {
         const r = await createRelationship({ vansha_id: vanshaId, from_node_id: anchorId, to_node_id: sp.node_id, type: "spouse_of", subtype: "biological" });
         setRels((rs) => [...rs, r]);
@@ -753,7 +774,7 @@ const TreeCanvasV2: React.FC<Props> = ({ vanshaId }) => {
       setPendingAdd(null);
       toast.success(`${[firstName, lastName].filter(Boolean).join(" ")} added as spouse`);
     },
-    [pendingAdd, vanshaId, createPersonAndEdge],
+    [pendingAdd, vanshaId, persons, createPersonAndEdge],
   );
 
   const submitAddStandalone = useCallback(
