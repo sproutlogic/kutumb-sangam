@@ -114,7 +114,7 @@ interface PendingAdd {
 
 const NODE_WIDTH = 168;
 const NODE_HEIGHT = 76;
-const RANK_SEP = 130; // vertical space between generations
+const RANK_SEP = 90; // vertical space between generations
 const NODE_SEP = 48; // horizontal space between siblings
 const SPOUSE_GAP = 18; // pixels between two spouse cards on the same rank
 
@@ -126,7 +126,7 @@ function computeAutoLayout(
 ): Map<string, { x: number; y: number }> {
   const g = new dagre.graphlib.Graph();
   g.setGraph({
-    rankdir: "BT",
+    rankdir: "TB",
     nodesep: NODE_SEP,
     ranksep: RANK_SEP,
     marginx: 60,
@@ -857,46 +857,42 @@ const TreeCanvasV2: React.FC<Props> = ({ vanshaId, readOnly = false }) => {
           pannable
         />
 
-        <Panel position="top-left">
-          <div className="bg-background/95 border rounded-lg shadow px-3 py-2 text-sm space-y-1.5 min-w-[220px]">
-            <div>
-              <div className="font-semibold">{vansha?.vansh_name ?? "वंश वृक्ष"}</div>
-              {vansha?.vansh_code && (
-                <div className="text-xs text-muted-foreground font-mono">{vansha.vansh_code}</div>
-              )}
-            </div>
-            <div className="text-xs text-muted-foreground">
-              {persons.length} member{persons.length === 1 ? "" : "s"} · {totalGens} generation
-              {totalGens === 1 ? "" : "s"}
-            </div>
-
-            <div className="flex gap-1 pt-1 flex-wrap">
-              <Button size="sm" variant="outline" onClick={() => void refresh()}>
-                ↺ Reload
-              </Button>
-              {!readOnly && (
-                <Button size="sm" variant="default" onClick={() => openAddDialog(null, "", "standalone")}>
-                  + Add person
-                </Button>
-              )}
-              {vansha?.vansh_code && (
-                <Button size="sm" variant="outline" onClick={() => {
-                  const url = `${window.location.origin}/v/${vansha.vansh_code}`;
-                  void navigator.clipboard.writeText(url);
-                  toast.success("Share link copied!");
-                }}>
-                  🔗 Share
-                </Button>
-              )}
-            </div>
+        <Panel position="top-right">
+          <div className="flex items-center gap-1.5 bg-background/95 border rounded-lg shadow px-2 py-1.5">
+            <span className="text-xs font-semibold text-foreground pr-1 max-w-[140px] truncate">
+              {vansha?.vansh_name ?? "वंश वृक्ष"}
+            </span>
+            <div className="w-px h-4 bg-border mx-0.5" />
+            <button title="Reload" onClick={() => void refresh()}
+              className="p-1.5 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M23 4v6h-6"/><path d="M1 20v-6h6"/>
+                <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+              </svg>
+            </button>
             {!readOnly && (
-              <div className="text-[11px] text-muted-foreground pt-1 leading-tight">
-                Drag handles to connect · Right-click for options · Roots at bottom
-              </div>
+              <button title="Add person" onClick={() => openAddDialog(null, "", "standalone")}
+                className="p-1.5 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/>
+                  <circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/>
+                </svg>
+              </button>
             )}
-            {readOnly && (
-              <div className="text-[11px] text-amber-600 pt-1 font-medium">👁 Read-only view</div>
+            {vansha?.vansh_code && (
+              <button title="Copy share link" onClick={() => {
+                const url = `${window.location.origin}/v/${vansha.vansh_code}`;
+                void navigator.clipboard.writeText(url);
+                toast.success("Share link copied!");
+              }}
+                className="p-1.5 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
+                  <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
+                </svg>
+              </button>
             )}
+            {readOnly && <span className="text-[10px] text-amber-600 font-semibold pl-1">👁 Read-only</span>}
           </div>
         </Panel>
       </ReactFlow>

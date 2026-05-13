@@ -352,10 +352,15 @@ const TreePageV2: React.FC = () => {
     [searchParams, appUser?.vansha_id],
   );
 
+  if (!vanshaId) {
+    navigate("/signin", { replace: true });
+    return null;
+  }
+
   return (
     <>
       <VanshavaliNav />
-      {!vanshaId ? <TreeCanvasV2Demo /> : <TreeCanvasV2 vanshaId={vanshaId} />}
+      <TreeCanvasV2 vanshaId={vanshaId} />
     </>
   );
 };
