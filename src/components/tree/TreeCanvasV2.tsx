@@ -25,6 +25,7 @@
  */
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import dagre from "dagre";
 import {
@@ -255,6 +256,9 @@ interface Props {
 
 const TreeCanvasV2: React.FC<Props> = ({ vanshaId, readOnly = false }) => {
   const { appUser } = useAuth();
+  const navigate = useNavigate();
+  const location = useLocation();
+  const canGoBack = location.key !== "default";
 
   const [rfNodes, setRfNodes, onNodesChange] = useNodesState<Node>([]);
   const [rfEdges, setRfEdges, onEdgesChange] = useEdgesState<Edge>([]);
@@ -859,6 +863,24 @@ const TreeCanvasV2: React.FC<Props> = ({ vanshaId, readOnly = false }) => {
 
         <Panel position="top-right">
           <div className="flex items-center gap-1.5 bg-background/95 border rounded-lg shadow px-2 py-1.5">
+            {/* Back / Home */}
+            {canGoBack && (
+              <button title="Go back" onClick={() => navigate(-1)}
+                className="flex items-center gap-1 px-2 py-1 rounded text-xs font-semibold text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M19 12H5M12 5l-7 7 7 7"/>
+                </svg>
+                Back
+              </button>
+            )}
+            <button title="Dashboard" onClick={() => navigate("/dashboard")}
+              className="flex items-center gap-1 px-2 py-1 rounded text-xs font-semibold text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/>
+              </svg>
+              Home
+            </button>
+            <div className="w-px h-4 bg-border mx-0.5" />
             <span className="text-xs font-semibold text-foreground pr-1 max-w-[140px] truncate">
               {vansha?.vansh_name ?? "वंश वृक्ष"}
             </span>

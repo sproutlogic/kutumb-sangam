@@ -5,7 +5,7 @@
  * Otherwise → demo canvas with static mock data showing all UI features.
  */
 import React, { useMemo, useCallback, useState } from "react";
-import { useNavigate, useSearchParams, useLocation } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   ReactFlow,
   Background,
@@ -281,59 +281,6 @@ const TreeCanvasV2Demo: React.FC = () => {
   );
 };
 
-// ─── Nav overlay ─────────────────────────────────────────────────────────────
-
-const VanshavaliNav: React.FC = () => {
-  const navigate = useNavigate();
-  const location = useLocation();
-
-  const canGoBack = location.key !== "default";
-
-  return (
-    <div style={{
-      position: "fixed", top: 12, left: 12, zIndex: 100,
-      display: "flex", gap: 6, alignItems: "center",
-    }}>
-      {canGoBack && (
-        <button
-          onClick={() => navigate(-1)}
-          title="Go back"
-          style={{
-            display: "flex", alignItems: "center", gap: 5,
-            padding: "7px 12px", borderRadius: 8,
-            background: "rgba(255,255,255,0.92)", backdropFilter: "blur(8px)",
-            border: "1px solid rgba(148,163,184,0.4)",
-            boxShadow: "0 2px 8px rgba(15,23,42,0.10)",
-            fontSize: 13, fontWeight: 600, color: "#374151", cursor: "pointer",
-          }}
-        >
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M19 12H5M12 5l-7 7 7 7"/>
-          </svg>
-          Back
-        </button>
-      )}
-      <button
-        onClick={() => navigate("/dashboard")}
-        title="Home"
-        style={{
-          display: "flex", alignItems: "center", gap: 5,
-          padding: "7px 12px", borderRadius: 8,
-          background: "rgba(255,255,255,0.92)", backdropFilter: "blur(8px)",
-          border: "1px solid rgba(148,163,184,0.4)",
-          boxShadow: "0 2px 8px rgba(15,23,42,0.10)",
-          fontSize: 13, fontWeight: 600, color: "#374151", cursor: "pointer",
-        }}
-      >
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/>
-        </svg>
-        Home
-      </button>
-    </div>
-  );
-};
-
 // ─── Main page ────────────────────────────────────────────────────────────────
 
 const TreePageV2: React.FC = () => {
@@ -357,12 +304,7 @@ const TreePageV2: React.FC = () => {
     return null;
   }
 
-  return (
-    <>
-      <VanshavaliNav />
-      <TreeCanvasV2 vanshaId={vanshaId} />
-    </>
-  );
+  return <TreeCanvasV2 vanshaId={vanshaId} />;
 };
 
 export default TreePageV2;
