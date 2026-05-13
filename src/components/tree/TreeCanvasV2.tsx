@@ -876,7 +876,7 @@ const TreeCanvasV2: React.FC<Props> = ({ vanshaId, readOnly = false }) => {
           pannable
         />
 
-        <Panel position="top-right">
+        <Panel position="bottom-right">
           <div className="flex items-center gap-1.5 bg-background/95 border rounded-lg shadow px-2 py-1.5">
             {/* Back / Home */}
             {canGoBack && (
