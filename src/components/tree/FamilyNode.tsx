@@ -28,16 +28,23 @@ export interface FamilyNodeData {
 
 function cardGradient(gender?: string): string {
   const g = (gender ?? "").toLowerCase();
-  if (g === "male")   return "linear-gradient(145deg,#dbeafe,#eff6ff)";
-  if (g === "female") return "linear-gradient(145deg,#fce7f3,#fdf2f8)";
-  return "linear-gradient(145deg,#f1f5f9,#f8fafc)";
+  if (g === "male")   return "linear-gradient(145deg,#bfdbfe,#dbeafe)";
+  if (g === "female") return "linear-gradient(145deg,#fbcfe8,#fce7f3)";
+  return "linear-gradient(145deg,#e2e8f0,#f1f5f9)";
+}
+
+function borderColor(gender?: string): string {
+  const g = (gender ?? "").toLowerCase();
+  if (g === "male")   return "#60a5fa";
+  if (g === "female") return "#f472b6";
+  return "#94a3b8";
 }
 
 function pulseColor(gender?: string): string {
   const g = (gender ?? "").toLowerCase();
-  if (g === "male")   return "rgba(99,132,241,0.45)";
-  if (g === "female") return "rgba(236,72,153,0.35)";
-  return "rgba(100,116,139,0.30)";
+  if (g === "male")   return "rgba(96,165,250,0.6)";
+  if (g === "female") return "rgba(244,114,182,0.55)";
+  return "rgba(100,116,139,0.45)";
 }
 
 const handleDot: React.CSSProperties = {
@@ -102,14 +109,14 @@ const FamilyNode: React.FC<NodeProps> = ({ id, data, selected }) => {
         border: selected
           ? "2px solid #6366f1"
           : d.hasOffset
-            ? "1.5px dashed #6366f1"
-            : "1px solid rgba(148,163,184,0.6)",
+            ? "2px dashed #6366f1"
+            : `2px solid ${borderColor(d.gender)}`,
         borderRadius: 12,
         width: 148,
         minHeight: 60,
         boxShadow: selected
-          ? "0 0 0 3px rgba(99,102,241,0.2), 0 2px 8px rgba(15,23,42,0.1)"
-          : "0 2px 8px rgba(15,23,42,0.08)",
+          ? "0 0 0 3px rgba(99,102,241,0.25), 0 2px 8px rgba(15,23,42,0.15)"
+          : "0 2px 8px rgba(15,23,42,0.12)",
         cursor: "pointer",
         position: "relative",
         overflow: "hidden",
@@ -120,7 +127,7 @@ const FamilyNode: React.FC<NodeProps> = ({ id, data, selected }) => {
             {firstName}
           </div>
           {d.relation && (
-            <div style={{ fontSize: 10, color: "#64748b", marginTop: 2, fontWeight: 500 }}>
+            <div style={{ fontSize: 10, color: "#334155", marginTop: 2, fontWeight: 600 }}>
               {d.relation}
             </div>
           )}
