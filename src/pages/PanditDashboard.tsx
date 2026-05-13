@@ -220,10 +220,31 @@ function ApiState({ loading, error, empty, emptyText = 'No records yet.' }: { lo
 // ── Page components ───────────────────────────────────────────────────
 interface PageProps { base: string; authFetch: ReturnType<typeof useAuthFetch>; onNav?: (r: RouteId) => void; }
 
+interface PerformanceSummary {
+  total_score: number; tier: string; by_type: Record<string, number>;
+  event_count: number; last_activity: string | null; next_tier_at: number;
+}
+
+const TIER_COLOR: Record<string, string> = {
+  platinum: 'var(--pcrm-ink-soft)',
+  gold:     'var(--pcrm-gold-deep)',
+  silver:   'var(--pcrm-ink-mute)',
+  bronze:   '#b45309',
+};
+const TIER_DEVA: Record<string, string> = {
+  platinum: 'विशिष्ट', gold: 'स्वर्ण', silver: 'रजत', bronze: 'कांस्य',
+};
+
 function TodayPage({ base, authFetch, onNav }: PageProps) {
   const today = new Date().toLocaleDateString('en-IN', { weekday:'long', day:'numeric', month:'long' });
   const { todos, toggle, add, remove } = useTodos();
   const [newTodo, setNewTodo] = useState('');
+
+  const { data: perf } = useQuery<PerformanceSummary>({
+    queryKey: ['pcrm-my-perf'],
+    queryFn: () => authFetch(`${base}/api/referral/my-performance`).then(r => r.ok ? r.json() : null),
+    retry: 1, staleTime: 120_000,
+  });
 
   const { data: rawEvents, isLoading: evLoad, isError: evErr, isFetched: evFetched, refetch: evRefetch } =
     useQuery<CalendarEvent[]>({
@@ -356,6 +377,44 @@ function TodayPage({ base, authFetch, onNav }: PageProps) {
               <button className="pcrm-btn pcrm-btn-ghost pcrm-btn-sm" onClick={() => { add(newTodo); setNewTodo(''); }}>Add</button>
             </div>
           </section>
+
+          {perf && (
+            <section className="pcrm-card" style={{border:`1.5px solid ${TIER_COLOR[perf.tier]}33`}}>
+              <div className="pcrm-flex pcrm-between pcrm-center pcrm-mb-2">
+                <div className="pcrm-eyebrow" style={{color: TIER_COLOR[perf.tier]}}>
+                  <span className="pcrm-deva" style={{marginRight:4}}>{TIER_DEVA[perf.tier]}</span>
+                  {perf.tier.charAt(0).toUpperCase() + perf.tier.slice(1)} tier
+                </div>
+                <button className="pcrm-btn pcrm-btn-ghost pcrm-btn-sm" style={{fontSize:11}} onClick={() => onNav?.('referrals')}>
+                  Details →
+                </button>
+              </div>
+              <div className="pcrm-flex pcrm-between pcrm-center">
+                <div className="pcrm-serif" style={{fontSize:28,fontWeight:700,letterSpacing:'-0.02em',color: TIER_COLOR[perf.tier]}}>
+                  {perf.total_score}
+                  <span className="pcrm-muted" style={{fontSize:13,fontWeight:400,marginLeft:4}}>pts</span>
+                </div>
+                <div className="pcrm-text-xs pcrm-muted pcrm-mono" style={{textAlign:'right'}}>
+                  {perf.next_tier_at > perf.total_score
+                    ? <>{perf.next_tier_at - perf.total_score} to next tier</>
+                    : <>Max tier 🏆</>}
+                </div>
+              </div>
+              <div className="pcrm-meter pcrm-mt-2">
+                <div className="pcrm-meter-fill" style={{
+                  width: `${Math.min(100, Math.round((perf.total_score / (perf.next_tier_at || 300)) * 100))}%`,
+                  background: TIER_COLOR[perf.tier],
+                }}/>
+              </div>
+              <div className="pcrm-flex pcrm-gap-2 pcrm-mt-3" style={{flexWrap:'wrap'}}>
+                {Object.entries(perf.by_type).map(([type, score]) => (
+                  <span key={type} className="pcrm-tag pcrm-tag-mute" style={{fontSize:10}}>
+                    {type.replace(/_/g,' ')} · {score}
+                  </span>
+                ))}
+              </div>
+            </section>
+          )}
 
           <section className="pcrm-lineage-seal">
             <div className="pcrm-lineage-seal-eyebrow">Lineage Authority</div>

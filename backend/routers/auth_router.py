@@ -22,6 +22,7 @@ from pydantic import BaseModel
 from constants import USERS_TABLE
 from db import get_supabase
 from middleware.auth import CurrentUser
+from services.performance import record_event
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/auth", tags=["auth"])
@@ -292,6 +293,17 @@ def record_referral_event(body: ReferralRecordBody, user: CurrentUser) -> dict[s
             # Non-fatal — referral was recorded; entitlement bump is best-effort.
             logger.exception("Failed to wire referral_unlocks for referrer=%s", referrer_id)
 
+    # Performance credit for the referrer
+    if referrer_id:
+        record_event(
+            user_id=referrer_id,
+            event_type="referral_accepted",
+            ref_id=code,
+            ref_table="referral_events",
+            attributed_to=uid,
+            metadata={"event_type": event_type, "referred_user_id": uid},
+        )
+
     return {"ok": True, "referrer_id": referrer_id}
 
 
@@ -308,5 +320,37 @@ def complete_onboarding(user: CurrentUser) -> dict[str, Any]:
     except Exception:
         logger.exception("Failed to set onboarding_complete for uid=%s", uid)
         raise HTTPException(status_code=502, detail="Could not mark onboarding complete.")
+
+    # Performance: credit the completing user
+    record_event(
+        user_id=uid,
+        event_type="onboarding_completed",
+        ref_table="users",
+        ref_id=uid,
+    )
+
+    # Performance: credit whoever referred this user (if anyone)
+    try:
+        ref_row = (
+            sb.table("referral_events")
+            .select("referrer_id, kutumb_id_used")
+            .eq("referred_id", uid)
+            .eq("event_type", "registration")
+            .limit(1)
+            .execute()
+        )
+        if ref_row.data and ref_row.data[0].get("referrer_id"):
+            referrer_id = ref_row.data[0]["referrer_id"]
+            record_event(
+                user_id=referrer_id,
+                event_type="referral_completed",
+                ref_id=uid,
+                ref_table="users",
+                attributed_to=uid,
+                metadata={"referred_user_id": uid},
+            )
+    except Exception:
+        logger.exception("Failed to credit referrer on onboarding_completed for uid=%s", uid)
+
     res = sb.table(USERS_TABLE).select("*").eq("id", uid).limit(1).execute()
     return res.data[0] if res.data else {**user, "onboarding_complete": True}

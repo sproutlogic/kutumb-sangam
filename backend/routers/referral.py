@@ -20,6 +20,7 @@ from pydantic import BaseModel
 
 from db import get_supabase
 from middleware.auth import CurrentUser
+from services.performance import record_event
 
 router = APIRouter(prefix="/api/referral", tags=["referral"])
 logger = logging.getLogger(__name__)
@@ -137,6 +138,16 @@ def use_invite_code(body: dict[str, Any], user: CurrentUser) -> dict[str, Any]:
     except Exception:
         logger.warning("Could not write referral_event for code %s", code)
 
+    # Performance credit for the invite code creator
+    record_event(
+        user_id=rec["created_by"],
+        event_type="invite_used",
+        ref_id=rec["id"],
+        ref_table="invite_codes",
+        attributed_to=user["id"],
+        metadata={"code": code, "used_by": user["id"]},
+    )
+
     return {"ok": True, "code": code}
 
 
@@ -193,18 +204,88 @@ def admin_all_codes(user: CurrentUser, limit: int = 200, offset: int = 0) -> dic
 
 @router.get("/admin/user/{user_id}")
 def admin_user_history(user_id: str, user: CurrentUser) -> dict[str, Any]:
-    """Full invite and referral history for a specific user node."""
+    """Full invite, referral, and performance history for a specific user node."""
     _admin(user)
     sb = get_supabase()
 
-    profile_res = sb.table("users").select("id, full_name, role, phone, kutumb_id, created_at").eq("id", user_id).limit(1).execute()
-    created_res = sb.table("invite_codes").select("*").eq("created_by", user_id).order("created_at", desc=True).execute()
-    joined_via  = sb.table("invite_codes").select("*").eq("used_by", user_id).limit(1).execute()
-    ref_events  = sb.table("referral_events").select("*").eq("referrer_id", user_id).order("created_at", desc=True).execute()
+    profile_res  = sb.table("users").select("id, full_name, role, phone, kutumb_id, created_at").eq("id", user_id).limit(1).execute()
+    created_res  = sb.table("invite_codes").select("*").eq("created_by", user_id).order("created_at", desc=True).execute()
+    joined_via   = sb.table("invite_codes").select("*").eq("used_by", user_id).limit(1).execute()
+    ref_events   = sb.table("referral_events").select("*").eq("referrer_id", user_id).order("created_at", desc=True).execute()
+    perf_events  = sb.table("performance_events").select("event_type, weight, created_at, metadata").eq("user_id", user_id).order("created_at", desc=True).execute()
+
+    p_data = perf_events.data or []
+    total_score = sum(e["weight"] for e in p_data)
+    tier = "platinum" if total_score >= 300 else "gold" if total_score >= 150 else "silver" if total_score >= 50 else "bronze"
 
     return {
         "profile":         profile_res.data[0] if profile_res.data else None,
         "codes_created":   created_res.data or [],
         "joined_via":      joined_via.data[0] if joined_via.data else None,
         "referral_events": ref_events.data or [],
+        "performance": {
+            "total_score": total_score,
+            "tier":        tier,
+            "events":      p_data,
+        },
     }
+
+
+# ── Performance endpoints ─────────────────────────────────────────────
+
+@router.get("/my-performance")
+def my_performance(user: CurrentUser) -> dict[str, Any]:
+    """Return the current user's performance summary and event breakdown."""
+    _privileged(user)
+    sb = get_supabase()
+    events = (
+        sb.table("performance_events")
+        .select("event_type, weight, created_at")
+        .eq("user_id", user["id"])
+        .order("created_at", desc=True)
+        .execute()
+        .data or []
+    )
+    total = sum(e["weight"] for e in events)
+    by_type: dict[str, int] = {}
+    for e in events:
+        by_type[e["event_type"]] = by_type.get(e["event_type"], 0) + e["weight"]
+    tier = "platinum" if total >= 300 else "gold" if total >= 150 else "silver" if total >= 50 else "bronze"
+    return {
+        "total_score":   total,
+        "tier":          tier,
+        "by_type":       by_type,
+        "event_count":   len(events),
+        "last_activity": events[0]["created_at"] if events else None,
+        "next_tier_at":  300 if total >= 150 else 150 if total >= 50 else 50 if total >= 0 else 0,
+    }
+
+
+@router.get("/admin/leaderboard")
+def admin_leaderboard(user: CurrentUser, limit: int = 50) -> list[dict[str, Any]]:
+    """Top performers ranked by total score, enriched with user profiles."""
+    _admin(user)
+    sb = get_supabase()
+    events = sb.table("performance_events").select("user_id, event_type, weight").execute().data or []
+
+    scores: dict[str, dict[str, Any]] = {}
+    for e in events:
+        uid = e["user_id"]
+        if uid not in scores:
+            scores[uid] = {"user_id": uid, "total": 0, "by_type": {}}
+        scores[uid]["total"] += e["weight"]
+        scores[uid]["by_type"][e["event_type"]] = scores[uid]["by_type"].get(e["event_type"], 0) + e["weight"]
+
+    ranked = sorted(scores.values(), key=lambda x: x["total"], reverse=True)[:limit]
+
+    uids = [r["user_id"] for r in ranked]
+    if uids:
+        u_res = sb.table("users").select("id, full_name, role, phone, kutumb_id").in_("id", uids).execute()
+        users_map = {u["id"]: u for u in (u_res.data or [])}
+        for i, r in enumerate(ranked):
+            r["rank"] = i + 1
+            r["profile"] = users_map.get(r["user_id"], {})
+            t = r["total"]
+            r["tier"] = "platinum" if t >= 300 else "gold" if t >= 150 else "silver" if t >= 50 else "bronze"
+
+    return ranked

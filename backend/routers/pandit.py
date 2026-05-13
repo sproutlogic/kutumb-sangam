@@ -25,6 +25,7 @@ from constants import (
 )
 from db import get_supabase
 from middleware.auth import CurrentUser, MargdarshakUser
+from services.performance import record_event
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/margdarshak", tags=["margdarshak"])
@@ -205,6 +206,15 @@ def review_request(body: ReviewBody, pandit: MargdarshakUser) -> dict[str, Any]:
             sb.table(PERSONS_TABLE).update({"verification_tier": "expert-verified"}).eq("node_id", req["node_id"]).execute()
         except Exception:
             logger.exception("Failed to promote verification_tier for node_id=%s", req["node_id"])
+
+        # Performance credit for the approving margdarshak
+        record_event(
+            user_id=pandit["id"],
+            event_type="verification_approved",
+            ref_id=body.request_id,
+            ref_table="verification_requests",
+            metadata={"node_id": req["node_id"], "vansha_id": req.get(VANSHA_ID_COLUMN)},
+        )
 
     _send_notification(
         sb=sb,

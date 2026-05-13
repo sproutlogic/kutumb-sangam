@@ -858,12 +858,27 @@ interface UserHistory {
   codes_created: InviteCodeRow[];
   joined_via: InviteCodeRow | null;
   referral_events: { id: string; event_type: string; created_at: string; kutumb_id_used: string }[];
+  performance?: { total_score: number; tier: string; events: Array<{ event_type: string; weight: number; created_at: string }> };
 }
+
+interface LeaderboardRow {
+  user_id: string; rank: number; total: number; tier: string;
+  by_type: Record<string, number>;
+  profile: { full_name?: string | null; role?: string; phone?: string | null } | null;
+}
+
+const TIER_COLORS: Record<string, string> = {
+  platinum: "text-slate-600",
+  gold:     "text-amber-600",
+  silver:   "text-gray-500",
+  bronze:   "text-orange-700",
+};
 
 function ReferralsTab({ token }: { token: string }) {
   const base = getApiBaseUrl();
   const { toast } = useToast();
   const [drillUserId, setDrillUserId] = useState<string | null>(null);
+  const [activeSection, setActiveSection] = useState<"leaderboard" | "codes">("leaderboard");
 
   const headers = { Authorization: `Bearer ${token}`, "Content-Type": "application/json" };
 
@@ -873,10 +888,17 @@ function ReferralsTab({ token }: { token: string }) {
     staleTime: 30_000,
   });
 
+  const { data: leaderboard = [], isLoading: lbLoad } = useQuery<LeaderboardRow[]>({
+    queryKey: ["admin-ref-leaderboard"],
+    queryFn: () => fetch(`${base}/api/referral/admin/leaderboard?limit=50`, { headers }).then(r => { if (!r.ok) throw new Error(r.status.toString()); return r.json(); }),
+    staleTime: 60_000,
+  });
+
   const { data: allData, isLoading: cLoad, refetch } = useQuery<{ codes: InviteCodeRow[]; total: number }>({
     queryKey: ["admin-ref-all"],
     queryFn: () => fetch(`${base}/api/referral/admin/all?limit=300`, { headers }).then(r => { if (!r.ok) throw new Error(r.status.toString()); return r.json(); }),
     staleTime: 30_000,
+    enabled: activeSection === "codes",
   });
 
   const { data: history, isLoading: hLoad } = useQuery<UserHistory>({
@@ -899,12 +921,14 @@ function ReferralsTab({ token }: { token: string }) {
     return                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-gray-100 text-gray-500">Revoked</span>;
   };
 
+  const codes = allData?.codes ?? [];
+
   return (
     <div className="space-y-6">
-      {/* Stats row */}
+      {/* Invite code stats */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
         {[
-          { label: "Total Generated", value: stats?.total ?? "—" },
+          { label: "Codes Generated", value: stats?.total ?? "—" },
           { label: "Used",            value: stats?.used    ?? "—", accent: true },
           { label: "Active",          value: stats?.active  ?? "—" },
           { label: "Revoked",         value: stats?.revoked ?? "—" },
@@ -918,62 +942,127 @@ function ReferralsTab({ token }: { token: string }) {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* All codes table */}
-        <div className="lg:col-span-2 rounded-xl border border-border bg-card overflow-hidden">
-          <div className="flex items-center justify-between px-4 py-3 border-b border-border/50">
-            <p className="font-semibold text-sm">All Invite Codes</p>
-            <button onClick={() => void refetch()} className="p-1.5 rounded hover:bg-muted text-muted-foreground"><RefreshCw size={13}/></button>
+        {/* Left panel — leaderboard + codes toggle */}
+        <div className="lg:col-span-2 space-y-4">
+          {/* Section toggle */}
+          <div className="flex gap-1 p-1 rounded-lg bg-muted w-fit">
+            {(["leaderboard", "codes"] as const).map(s => (
+              <button key={s} onClick={() => setActiveSection(s)}
+                className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-colors capitalize ${activeSection === s ? "bg-card shadow text-foreground" : "text-muted-foreground hover:text-foreground"}`}>
+                {s === "leaderboard" ? "Performance Leaderboard" : "Invite Codes"}
+              </button>
+            ))}
           </div>
-          {cLoad ? (
-            <div className="flex justify-center py-10"><Loader2 className="w-5 h-5 animate-spin text-muted-foreground"/></div>
-          ) : codes.length === 0 ? (
-            <p className="text-sm text-muted-foreground text-center py-10">No codes generated yet.</p>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-border/50 bg-muted/30">
-                    {["Code", "For", "Creator", "Status", "Date", ""].map(h => (
-                      <th key={h} className="px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {codes.map(c => (
-                    <tr key={c.id} className="border-b border-border/30 hover:bg-muted/20 transition-colors">
-                      <td className="px-3 py-2 font-mono text-xs font-bold text-amber-700 tracking-widest">{c.code}</td>
-                      <td className="px-3 py-2 text-xs text-muted-foreground">{c.created_for ?? "—"}</td>
-                      <td className="px-3 py-2">
-                        <button
-                          onClick={() => setDrillUserId(c.creator?.id ?? null)}
-                          className="flex items-center gap-1 text-xs hover:text-primary transition-colors"
-                        >
-                          {c.creator?.full_name ?? c.creator?.phone ?? "—"}
-                          {c.creator?.id && <ChevronRight size={11} className="text-muted-foreground"/>}
-                        </button>
-                        <p className="text-[10px] text-muted-foreground capitalize">{c.creator?.role}</p>
-                      </td>
-                      <td className="px-3 py-2">{statusBadge(c.status)}</td>
-                      <td className="px-3 py-2 font-mono text-[10px] text-muted-foreground">
-                        {new Date(c.created_at).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}
-                      </td>
-                      <td className="px-3 py-2">
-                        {c.status === "active" && (
-                          <button onClick={() => copyLink(c.code)} title="Copy invite link"
-                            className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground">
-                            <Copy size={12}/>
-                          </button>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+
+          {/* Leaderboard */}
+          {activeSection === "leaderboard" && (
+            <div className="rounded-xl border border-border bg-card overflow-hidden">
+              <div className="px-4 py-3 border-b border-border/50">
+                <p className="font-semibold text-sm">Top Performers</p>
+                <p className="text-[10px] text-muted-foreground mt-0.5">Ranked by cumulative performance score</p>
+              </div>
+              {lbLoad ? (
+                <div className="flex justify-center py-10"><Loader2 className="w-5 h-5 animate-spin text-muted-foreground"/></div>
+              ) : leaderboard.length === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-10">No performance data yet.</p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-border/50 bg-muted/30">
+                        {["#", "Name", "Role", "Score", "Tier", "Breakdown"].map(h => (
+                          <th key={h} className="px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {leaderboard.map(row => (
+                        <tr key={row.user_id} className="border-b border-border/30 hover:bg-muted/20 transition-colors cursor-pointer"
+                          onClick={() => setDrillUserId(row.user_id)}>
+                          <td className="px-3 py-2.5 font-mono text-xs text-muted-foreground">{row.rank}</td>
+                          <td className="px-3 py-2.5">
+                            <p className="font-medium text-xs">{row.profile?.full_name ?? row.profile?.phone ?? "—"}</p>
+                          </td>
+                          <td className="px-3 py-2.5 text-[10px] text-muted-foreground capitalize">{row.profile?.role}</td>
+                          <td className="px-3 py-2.5 font-bold text-sm">{row.total}</td>
+                          <td className="px-3 py-2.5">
+                            <span className={`text-xs font-bold capitalize ${TIER_COLORS[row.tier] ?? ""}`}>{row.tier}</span>
+                          </td>
+                          <td className="px-3 py-2.5">
+                            <div className="flex gap-1 flex-wrap">
+                              {Object.entries(row.by_type).map(([t, s]) => (
+                                <span key={t} className="text-[9px] font-mono bg-muted px-1 py-0.5 rounded">
+                                  {t.replace(/_/g," ")} {s}
+                                </span>
+                              ))}
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Invite codes table */}
+          {activeSection === "codes" && (
+            <div className="rounded-xl border border-border bg-card overflow-hidden">
+              <div className="flex items-center justify-between px-4 py-3 border-b border-border/50">
+                <p className="font-semibold text-sm">All Invite Codes</p>
+                <button onClick={() => void refetch()} className="p-1.5 rounded hover:bg-muted text-muted-foreground"><RefreshCw size={13}/></button>
+              </div>
+              {cLoad ? (
+                <div className="flex justify-center py-10"><Loader2 className="w-5 h-5 animate-spin text-muted-foreground"/></div>
+              ) : codes.length === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-10">No codes generated yet.</p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-border/50 bg-muted/30">
+                        {["Code", "For", "Creator", "Status", "Date", ""].map(h => (
+                          <th key={h} className="px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {codes.map(c => (
+                        <tr key={c.id} className="border-b border-border/30 hover:bg-muted/20 transition-colors">
+                          <td className="px-3 py-2 font-mono text-xs font-bold text-amber-700 tracking-widest">{c.code}</td>
+                          <td className="px-3 py-2 text-xs text-muted-foreground">{c.created_for ?? "—"}</td>
+                          <td className="px-3 py-2">
+                            <button onClick={() => setDrillUserId(c.creator?.id ?? null)}
+                              className="flex items-center gap-1 text-xs hover:text-primary transition-colors">
+                              {c.creator?.full_name ?? c.creator?.phone ?? "—"}
+                              {c.creator?.id && <ChevronRight size={11} className="text-muted-foreground"/>}
+                            </button>
+                            <p className="text-[10px] text-muted-foreground capitalize">{c.creator?.role}</p>
+                          </td>
+                          <td className="px-3 py-2">{statusBadge(c.status)}</td>
+                          <td className="px-3 py-2 font-mono text-[10px] text-muted-foreground">
+                            {new Date(c.created_at).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}
+                          </td>
+                          <td className="px-3 py-2">
+                            {c.status === "active" && (
+                              <button onClick={() => copyLink(c.code)} title="Copy invite link"
+                                className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground">
+                                <Copy size={12}/>
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
           )}
         </div>
 
-        {/* User drill-down panel */}
+        {/* Node history + performance panel */}
         <div className="rounded-xl border border-border bg-card overflow-hidden">
           <div className="flex items-center justify-between px-4 py-3 border-b border-border/50">
             <p className="font-semibold text-sm">Node History</p>
@@ -984,7 +1073,7 @@ function ReferralsTab({ token }: { token: string }) {
           {!drillUserId ? (
             <div className="flex flex-col items-center justify-center py-14 gap-2 text-muted-foreground">
               <Link2 size={28} strokeWidth={1.5}/>
-              <p className="text-sm">Click a creator name to view their referral history.</p>
+              <p className="text-sm text-center px-4">Click any row to view their full history &amp; score.</p>
             </div>
           ) : hLoad ? (
             <div className="flex justify-center py-10"><Loader2 className="w-5 h-5 animate-spin text-muted-foreground"/></div>
@@ -1004,6 +1093,24 @@ function ReferralsTab({ token }: { token: string }) {
                 </p>
               </div>
 
+              {/* Performance score */}
+              {history.performance && (
+                <div className="px-4 py-3">
+                  <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground mb-2">Performance Score</p>
+                  <div className="flex items-baseline gap-2 mb-2">
+                    <span className="text-2xl font-bold">{history.performance.total_score}</span>
+                    <span className={`text-xs font-bold capitalize ${TIER_COLORS[history.performance.tier] ?? ""}`}>{history.performance.tier}</span>
+                  </div>
+                  <div className="flex gap-1 flex-wrap">
+                    {history.performance.events.slice(0, 8).map((e: { event_type: string; weight: number; created_at: string }, i: number) => (
+                      <span key={i} className="text-[9px] font-mono bg-muted px-1 py-0.5 rounded">
+                        {e.event_type.replace(/_/g," ")} +{e.weight}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {/* Joined via */}
               <div className="px-4 py-3">
                 <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground mb-1">Joined via</p>
@@ -1022,7 +1129,7 @@ function ReferralsTab({ token }: { token: string }) {
                 {history.codes_created.length === 0 ? (
                   <p className="text-xs text-muted-foreground">None yet.</p>
                 ) : (
-                  <div className="space-y-1.5 max-h-48 overflow-y-auto">
+                  <div className="space-y-1.5 max-h-40 overflow-y-auto">
                     {history.codes_created.map(c => (
                       <div key={c.id} className="flex items-center justify-between">
                         <span className="font-mono text-xs font-bold text-amber-700">{c.code}</span>
