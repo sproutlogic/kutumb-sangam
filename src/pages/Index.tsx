@@ -21,10 +21,10 @@ const Index = () => {
       navigate("/onboarding", { replace: true });
     } else {
       const roleHome: Record<string, string> = {
-        superadmin:  '/sales',
-        admin:       '/sales',
-        office:      '/org/my',
-        finance:     '/org/my',
+        superadmin:  '/admin',
+        admin:       '/admin',
+        office:      '/admin',
+        finance:     '/admin',
         margdarshak: '/margdarshak',
       };
       navigate(roleHome[appUser.role] ?? '/dashboard', { replace: true });
