@@ -71,12 +71,20 @@ if (typeof document !== "undefined" && !document.getElementById("fn-pulse-style"
   document.head.appendChild(s);
 }
 
+function nameFontSize(name: string): number {
+  const len = name.length;
+  if (len <= 8)  return 16;
+  if (len <= 13) return 14;
+  if (len <= 18) return 12;
+  return 11;
+}
+
 const FamilyNode: React.FC<NodeProps> = ({ id, data, selected }) => {
   const d = data as FamilyNodeData;
   const [hovered, setHovered] = useState(false);
 
-  const firstName = (d.name ?? "").split(" ")[0] || "(unnamed)";
-  const living    = !d.isDeceased;
+  const fullName = (d.name ?? "").trim() || "(unnamed)";
+  const living   = !d.isDeceased;
 
   const openProfile = (e: React.MouseEvent) => {
     d.onOpenProfile?.(id);
@@ -112,8 +120,8 @@ const FamilyNode: React.FC<NodeProps> = ({ id, data, selected }) => {
             ? "2px dashed #6366f1"
             : `2px solid ${borderColor(d.gender)}`,
         borderRadius: 12,
-        width: 148,
-        minHeight: 60,
+        width: 172,
+        minHeight: 64,
         boxShadow: selected
           ? "0 0 0 3px rgba(99,102,241,0.25), 0 2px 8px rgba(15,23,42,0.15)"
           : "0 2px 8px rgba(15,23,42,0.12)",
@@ -122,12 +130,19 @@ const FamilyNode: React.FC<NodeProps> = ({ id, data, selected }) => {
         overflow: "hidden",
       }}>
 
-        <div style={{ padding: "10px 12px", textAlign: "center" }}>
-          <div style={{ fontWeight: 700, fontSize: 14, color: "#0f172a", letterSpacing: "-0.01em" }}>
-            {firstName}
+        <div style={{ padding: "10px 14px", textAlign: "center" }}>
+          <div style={{
+            fontWeight: 800,
+            fontSize: nameFontSize(fullName),
+            color: "#0f172a",
+            lineHeight: 1.25,
+            wordBreak: "break-word",
+            letterSpacing: "-0.01em",
+          }}>
+            {fullName}
           </div>
           {d.relation && (
-            <div style={{ fontSize: 10, color: "#334155", marginTop: 2, fontWeight: 600 }}>
+            <div style={{ fontSize: 10, color: "#334155", marginTop: 3, fontWeight: 600 }}>
               {d.relation}
             </div>
           )}
