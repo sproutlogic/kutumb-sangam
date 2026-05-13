@@ -18,7 +18,7 @@ import {
   ChevronDown, ChevronUp, ToggleLeft, ToggleRight, Tag, TreePine, Droplets,
   IndianRupee, AlertCircle, Settings2, BadgeIndianRupee,
   Loader2, CheckCircle2, XCircle, Send, RefreshCw, Instagram, Youtube,
-  ShieldAlert, Menu, X, LogOut, Link2, Copy, Trash2, ChevronRight,
+  ShieldAlert, Menu, X, LogOut, Link2, Copy, Trash2, ChevronRight, LayoutDashboard,
 } from "lucide-react";
 
 // ─── Tab config ───────────────────────────────────────────────────────────────
@@ -1254,14 +1254,20 @@ export default function AdminDashboard() {
             </button>
           ))}
         </nav>
-        <div className="p-4 border-t border-border/50 flex items-center gap-2">
-          <span className="text-xs text-muted-foreground truncate flex-1">
-            {appUser.full_name ?? appUser.phone ?? appUser.id.slice(0, 12)}
-          </span>
-          <button onClick={() => signOut()} title="Sign out"
-            className="flex-shrink-0 p-1.5 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors">
-            <LogOut className="w-3.5 h-3.5" />
+        <div className="p-4 border-t border-border/50 space-y-2">
+          <button onClick={() => navigate("/")}
+            className="w-full flex items-center gap-2 px-3 py-2 rounded-lg border border-border/60 text-xs text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors">
+            <LayoutDashboard className="w-3.5 h-3.5 flex-shrink-0" /> Switch to User View
           </button>
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-muted-foreground truncate flex-1">
+              {appUser.full_name ?? appUser.phone ?? appUser.id.slice(0, 12)}
+            </span>
+            <button onClick={() => signOut()} title="Sign out"
+              className="flex-shrink-0 p-1.5 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors">
+              <LogOut className="w-3.5 h-3.5" />
+            </button>
+          </div>
         </div>
       </aside>
 

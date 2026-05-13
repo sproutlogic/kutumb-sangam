@@ -1,10 +1,11 @@
 import './pandit-crm.css';
 import { useState, useMemo, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Home, Calendar, Shield, Users, Map, BarChart3, Network,
-  Search, Bell, Settings, RefreshCw, Plus, Phone, Copy,
-  CheckCircle2, XCircle, Lock, TrendingUp, Clock, LogOut, Link2, Trash2,
+  Search, Bell, Settings, RefreshCw, Plus, Phone, Copy, X,
+  CheckCircle2, XCircle, Lock, TrendingUp, Clock, LogOut, Link2, Trash2, LayoutDashboard,
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { getApiBaseUrl, fetchTodayPanchang, type TodayPanchang } from '@/services/api';
@@ -217,6 +218,73 @@ function ApiState({ loading, error, empty, emptyText = 'No records yet.' }: { lo
   return null;
 }
 
+// ── Booking modal ─────────────────────────────────────────────────────
+function BookingModal({ base, authFetch, defaultDate = '', onClose, onSaved }: {
+  base: string; authFetch: ReturnType<typeof useAuthFetch>;
+  defaultDate?: string; onClose: () => void; onSaved: () => void;
+}) {
+  const { toast } = useToast();
+  const [bkTitle,  setBkTitle]  = useState('');
+  const [bkFamily, setBkFamily] = useState('');
+  const [bkDate,   setBkDate]   = useState(defaultDate || new Date().toISOString().slice(0, 10));
+  const [bkTime,   setBkTime]   = useState('');
+  const [bkFee,    setBkFee]    = useState('');
+  const [saving,   setSaving]   = useState(false);
+
+  async function save() {
+    if (!bkTitle.trim() || !bkDate) { toast({ title: 'Ritual name and date are required.', variant: 'destructive' }); return; }
+    setSaving(true);
+    const parts = [bkTitle.trim(), bkFamily.trim()].filter(Boolean);
+    const title = parts.join(' · ');
+    const desc  = [bkTime ? `Time: ${bkTime}` : '', bkFee ? `₹${bkFee}` : '', bkFamily ? `Family: ${bkFamily}` : ''].filter(Boolean).join(' · ');
+    try {
+      const r = await authFetch(`${base}/api/calendar/events`, {
+        method: 'POST',
+        body: JSON.stringify({ title, event_date: bkDate, event_type: 'event', description: desc || null, recurs_yearly: false }),
+      });
+      if (!r.ok) { const e = await r.json().catch(() => ({})) as { detail?: string }; throw new Error(e.detail ?? r.status.toString()); }
+      toast({ title: 'Booking added!' });
+      onSaved();
+      onClose();
+    } catch (e) {
+      toast({ title: 'Failed to save booking', description: (e as Error).message, variant: 'destructive' });
+    } finally { setSaving(false); }
+  }
+
+  return (
+    <div style={{position:'fixed',inset:0,zIndex:200,display:'flex',alignItems:'center',justifyContent:'center',background:'rgba(0,0,0,0.55)',backdropFilter:'blur(3px)',padding:16}}>
+      <div className="pcrm-card" style={{width:'100%',maxWidth:440,margin:0,boxShadow:'0 24px 60px rgba(0,0,0,0.28)'}}>
+        <div className="pcrm-flex pcrm-between pcrm-center" style={{marginBottom:18}}>
+          <div className="pcrm-serif" style={{fontWeight:700,fontSize:16}}>Add Booking</div>
+          <button onClick={onClose} style={{background:'none',border:'none',cursor:'pointer',color:'var(--pcrm-ink-mute)',padding:4}}><X size={16}/></button>
+        </div>
+        <label className="pcrm-label">Ritual / Event name</label>
+        <input className="pcrm-input" placeholder="e.g. Satyanarayan Puja" value={bkTitle} onChange={e => setBkTitle(e.target.value)}/>
+        <label className="pcrm-label pcrm-mt-3">Family <span className="pcrm-muted" style={{textTransform:'none',letterSpacing:0}}>(optional)</span></label>
+        <input className="pcrm-input" placeholder="e.g. Sharma Parivar" value={bkFamily} onChange={e => setBkFamily(e.target.value)}/>
+        <div className="pcrm-flex pcrm-gap-3 pcrm-mt-3">
+          <div style={{flex:1}}>
+            <label className="pcrm-label">Date</label>
+            <input type="date" className="pcrm-input" value={bkDate} onChange={e => setBkDate(e.target.value)}/>
+          </div>
+          <div style={{flex:1}}>
+            <label className="pcrm-label">Time <span className="pcrm-muted" style={{textTransform:'none',letterSpacing:0}}>(optional)</span></label>
+            <input type="time" className="pcrm-input" value={bkTime} onChange={e => setBkTime(e.target.value)}/>
+          </div>
+        </div>
+        <label className="pcrm-label pcrm-mt-3">Dakshina / Fee ₹ <span className="pcrm-muted" style={{textTransform:'none',letterSpacing:0}}>(optional)</span></label>
+        <input type="number" min={0} className="pcrm-input" placeholder="e.g. 5100" value={bkFee} onChange={e => setBkFee(e.target.value)}/>
+        <div className="pcrm-flex pcrm-gap-3 pcrm-mt-4">
+          <button className="pcrm-btn pcrm-btn-ghost" style={{flex:1}} onClick={onClose}>Cancel</button>
+          <button className="pcrm-btn pcrm-btn-primary" style={{flex:1}} disabled={saving} onClick={() => void save()}>
+            {saving ? 'Saving…' : 'Save Booking'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Page components ───────────────────────────────────────────────────
 interface PageProps { base: string; authFetch: ReturnType<typeof useAuthFetch>; onNav?: (r: RouteId) => void; }
 
@@ -239,6 +307,8 @@ function TodayPage({ base, authFetch, onNav }: PageProps) {
   const today = new Date().toLocaleDateString('en-IN', { weekday:'long', day:'numeric', month:'long' });
   const { todos, toggle, add, remove } = useTodos();
   const [newTodo, setNewTodo] = useState('');
+  const [showBooking, setShowBooking] = useState(false);
+  const qc = useQueryClient();
 
   const { data: perf } = useQuery<PerformanceSummary>({
     queryKey: ['pcrm-my-perf'],
@@ -279,12 +349,16 @@ function TodayPage({ base, authFetch, onNav }: PageProps) {
 
   return (
     <>
+      {showBooking && (
+        <BookingModal base={base} authFetch={authFetch} onClose={() => setShowBooking(false)}
+          onSaved={() => { void qc.invalidateQueries({ queryKey: ['pcrm-events'] }); }}/>
+      )}
       <PageHead eyebrow="आज · The Daily Blessing" deva="स्वस्ति" title="Today's Milestones"
         subtitle="Birthdays, anniversaries, and tithis across your network."
         actions={<>
           <SourceBadge live={live} loading={evLoad} error={evErr ? 'unreachable' : null} endpoint="/api/calendar/events"/>
           <button className="pcrm-btn pcrm-btn-ghost pcrm-btn-sm" onClick={() => evRefetch()}><RefreshCw size={13}/> Refresh</button>
-          <button className="pcrm-btn pcrm-btn-primary pcrm-btn-sm"><Plus size={14}/> Add Booking</button>
+          <button className="pcrm-btn pcrm-btn-primary pcrm-btn-sm" onClick={() => setShowBooking(true)}><Plus size={14}/> Add Booking</button>
         </>}
       />
 
@@ -323,7 +397,7 @@ function TodayPage({ base, authFetch, onNav }: PageProps) {
               <div className="pcrm-card-title">Today · {today}</div>
               <div className="pcrm-card-sub">Upcoming milestones &amp; occasions</div>
             </div>
-            <span className="pcrm-tag pcrm-tag-gold"><span className="pcrm-dot gold"></span> Live</span>
+            <SourceBadge live={live} loading={evLoad} error={evErr ? 'unreachable' : null} endpoint="/api/calendar/events"/>
           </div>
           <ApiState loading={evLoad} error={evErr && !milestones.length ? 'unreachable' : null} empty={!evLoad && !milestones.length} emptyText="No milestones today."/>
           <div className="pcrm-stack" style={{gap:10}}>
@@ -466,6 +540,9 @@ function TodayPage({ base, authFetch, onNav }: PageProps) {
 function CalendarPage({ base, authFetch }: PageProps) {
   const { todos, toggle, add, remove } = useTodos();
   const [newTodo, setNewTodo] = useState('');
+  const [showBooking, setShowBooking] = useState(false);
+  const [bookingDate, setBookingDate] = useState('');
+  const qc = useQueryClient();
   const nowDate = new Date();
 
   const { data: todayPanchang } = useQuery<TodayPanchang | null>({
@@ -485,11 +562,16 @@ function CalendarPage({ base, authFetch }: PageProps) {
 
   return (
     <>
+      {showBooking && (
+        <BookingModal base={base} authFetch={authFetch} defaultDate={bookingDate}
+          onClose={() => setShowBooking(false)}
+          onSaved={() => { void qc.invalidateQueries({ queryKey: ['pcrm-events'] }); }}/>
+      )}
       <PageHead eyebrow="Ritual Calendar" deva="पञ्चाङ्ग" title="Bookings & Sankalp"
         subtitle="Lunar tithis &amp; your upcoming bookings"
         actions={<>
           <SourceBadge live={!eErr} loading={eLoad} error={eErr ? 'unreachable' : null} endpoint="panchang + calendar"/>
-          <button className="pcrm-btn pcrm-btn-primary pcrm-btn-sm"><Plus size={14}/> New booking</button>
+          <button className="pcrm-btn pcrm-btn-primary pcrm-btn-sm" onClick={() => { setBookingDate(''); setShowBooking(true); }}><Plus size={14}/> New booking</button>
         </>}
       />
 
@@ -512,8 +594,14 @@ function CalendarPage({ base, authFetch }: PageProps) {
         <section className="pcrm-card">
           <div className="pcrm-card-head">
             <div className="pcrm-card-title">Panchang</div>
+            {bookingDate && (
+              <button className="pcrm-btn pcrm-btn-primary pcrm-btn-sm" onClick={() => setShowBooking(true)}>
+                <Plus size={13}/> Book {new Date(bookingDate + 'T00:00:00').toLocaleDateString('en-IN', { day:'numeric', month:'short' })}
+              </button>
+            )}
           </div>
-          <PanchangCalendarView defaultYear={nowDate.getFullYear()} defaultMonth={nowDate.getMonth() + 1} showDetail={false} />
+          <PanchangCalendarView defaultYear={nowDate.getFullYear()} defaultMonth={nowDate.getMonth() + 1} showDetail={false}
+            onDateSelect={d => setBookingDate(d)} />
         </section>
 
         <aside className="pcrm-stack">
@@ -1219,6 +1307,7 @@ function ReferralsPage({ base, authFetch }: PageProps) {
 // ── Main Dashboard ────────────────────────────────────────────────────
 export default function PanditDashboard() {
   const { appUser, signOut } = useAuth();
+  const navigate   = useNavigate();
   const base       = getApiBaseUrl();
   const authFetch  = useAuthFetch();
   const [route, setRoute] = useState<RouteId>('today');
@@ -1272,6 +1361,11 @@ export default function PanditDashboard() {
               </nav>
             </div>
           ))}
+
+          <button className="pcrm-btn pcrm-btn-ghost pcrm-btn-sm" style={{width:'100%',justifyContent:'center',marginBottom:8,gap:6,fontSize:12}}
+            onClick={() => navigate('/')}>
+            <LayoutDashboard size={13}/> Switch to User View
+          </button>
 
           <div className="pcrm-user-card">
             <div className="pcrm-avatar">{initials}</div>

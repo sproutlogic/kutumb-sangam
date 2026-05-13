@@ -132,9 +132,11 @@ interface Props {
   defaultMonth?: number;
   /** Show the eco-detail panel below the calendar. Default true. */
   showDetail?: boolean;
+  /** Called whenever the user clicks a date in the calendar. */
+  onDateSelect?: (dateStr: string) => void;
 }
 
-export default function PanchangCalendarView({ defaultYear = 2026, defaultMonth = 4, showDetail = true }: Props) {
+export default function PanchangCalendarView({ defaultYear = 2026, defaultMonth = 4, showDetail = true, onDateSelect }: Props) {
   const today = todayStr();
 
   const [viewMode, setViewMode] = useState<"week" | "month">("month");
@@ -284,7 +286,7 @@ export default function PanchangCalendarView({ defaultYear = 2026, defaultMonth 
           windowStart={windowStart}
           today={today}
           selectedDate={selectedDate}
-          onSelectDate={setSelectedDate}
+          onSelectDate={d => { setSelectedDate(d); onDateSelect?.(d); }}
         />
       ) : (
         <MonthView
@@ -292,7 +294,7 @@ export default function PanchangCalendarView({ defaultYear = 2026, defaultMonth 
           currentMonth={currentMonth}
           today={today}
           selectedDate={selectedDate}
-          onSelectDate={setSelectedDate}
+          onSelectDate={d => { setSelectedDate(d); onDateSelect?.(d); }}
         />
       )}
 

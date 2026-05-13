@@ -716,7 +716,7 @@ export default function EcoPanchangPage() {
             windowStart={windowStart}
             today={today}
             selectedDate={selectedDate}
-            onSelectDate={setSelectedDate}
+            onSelectDate={d => { setSelectedDate(d); setEvtDate(d); }}
             articleDates={articleDates}
           />
         ) : (
@@ -725,9 +725,26 @@ export default function EcoPanchangPage() {
             currentMonth={currentMonth}
             today={today}
             selectedDate={selectedDate}
-            onSelectDate={setSelectedDate}
+            onSelectDate={d => { setSelectedDate(d); setEvtDate(d); }}
             articleDates={articleDates}
           />
+        )}
+
+        {/* Add Event for selected date — shown after date is clicked */}
+        {appUser && selectedDate && (
+          <div className="flex items-center gap-3 p-3 rounded-xl border border-border/50 bg-card/60">
+            <span className="text-sm text-muted-foreground flex-1">
+              {new Date(selectedDate + "T00:00:00").toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long" })}
+            </span>
+            <button onClick={() => { setIsAnnouncement(false); setShowEventModal(true); }}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary/10 text-primary text-xs font-semibold hover:bg-primary/20 transition-colors">
+              <Plus className="w-3.5 h-3.5" /> Add Event
+            </button>
+            <button onClick={() => { setIsAnnouncement(true); setShowEventModal(true); }}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 text-xs font-semibold hover:opacity-80 transition-colors">
+              <Megaphone className="w-3.5 h-3.5" /> Announce
+            </button>
+          </div>
         )}
 
         {/* Detail panel + Blog preview + Social Media (two-column on large screens) */}
