@@ -575,7 +575,7 @@ const overrides: Record<string, TranslationEntry> = {
   members: { en: "Members", hi: "सदस्य" },
   generations: { en: "Generations", hi: "पीढ़ियाँ" },
   pendingInvites: { en: "Pending Invites", hi: "लंबित आमंत्रण" },
-  viewTree: { en: "View Tree", hi: "वृक्ष देखें" },
+  viewTree: { en: "Vanshavali", hi: "वंशावली" },
   addMember: { en: "Add Member", hi: "सदस्य जोड़ें" },
   pendingReviews: { en: "Pending Reviews", hi: "समीक्षा लंबित" },
   correctionProposed: { en: "Correction proposed", hi: "सुधार प्रस्तावित" },

@@ -33,7 +33,7 @@ const AppHeader = () => {
 
   const navItems = [
     { icon: Home, labelKey: 'dashboardTitle' as const, path: '/dashboard' },
-    { icon: TreePine, labelKey: 'viewTree' as const, path: '/tree' },
+    { icon: TreePine, labelKey: 'viewTree' as const, path: '/vanshavali' },
     { icon: UserPlus, labelKey: 'inviteRelative' as const, path: '/invite' },
     { icon: ShieldCheck, labelKey: 'verification' as const, path: '/verification' },
     { icon: Search, labelKey: 'discovery' as const, path: '/discovery' },

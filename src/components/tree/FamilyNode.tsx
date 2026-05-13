@@ -144,14 +144,19 @@ const FamilyNode: React.FC<NodeProps> = ({ id, data, selected }) => {
 
       {/* ── Pandit-verified badge ─────────────────────────────── */}
       {d.isPanditVerified && (
-        <div title="Verified by Pandit ji" style={{
-          position: "absolute", top: -10, right: -10,
-          width: 20, height: 20, borderRadius: "50%",
-          background: "linear-gradient(135deg,#f97316,#dc2626)",
+        <div title="Verified by Pandit Ji" style={{
+          position: "absolute", top: -8, right: -8,
+          width: 18, height: 18, borderRadius: "50%",
+          background: "#16a34a",
           display: "flex", alignItems: "center", justifyContent: "center",
-          fontSize: 11, boxShadow: "0 1px 4px rgba(249,115,22,0.5)",
+          boxShadow: "0 1px 4px rgba(22,163,74,0.5)",
           zIndex: 30, pointerEvents: "none",
-        }}>🔱</div>
+          border: "2px solid #fff",
+        }}>
+          <svg width="10" height="10" viewBox="0 0 12 12" fill="none">
+            <path d="M2 6l3 3 5-5" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
+        </div>
       )}
 
     </div>

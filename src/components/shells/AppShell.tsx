@@ -40,7 +40,7 @@ function saveSosContacts(ids: string[]) {
 /* ── Nav links ────────────────────────────────────────────────────────────── */
 const NAV_LINKS = [
   { label: 'Dashboard',    path: '/dashboard' },
-  { label: 'Tree',         path: '/tree' },
+  { label: 'Vanshavali',   path: '/vanshavali' },
   { label: 'Time Bank',    path: '/time-bank' },
   { label: 'Eco Panchang', path: '/eco-panchang' },
   { label: 'Settings',     path: '/settings' },

@@ -10,9 +10,11 @@
  */
 import React, { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { ArrowLeft, Save, Shield, MapPin, BookOpen } from "lucide-react";
+import { ArrowLeft, Save, Shield, MapPin, BookOpen, Copy, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
+import { useTree } from "@/contexts/TreeContext";
+import { requestPanditVerification } from "@/services/api";
 import { CityAutocomplete } from "@/components/ui/CityAutocomplete";
 import {
   getPersonProfile,
@@ -280,12 +282,16 @@ const KutumbIDProfilePage: React.FC = () => {
   const navigate = useNavigate();
   const { appUser } = useAuth();
 
+  const { state, requestVerification } = useTree();
+
   const [tab, setTab] = useState<"vyakti" | "kul">("vyakti");
   const [person, setPerson] = useState<PersonV2 | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
+  const [codeCopied, setCodeCopied] = useState(false);
+  const [verifying, setVerifying] = useState(false);
 
   const [isSelf, setIsSelf] = useState(false);
   const [isAlive, setIsAlive] = useState(true);
@@ -383,6 +389,42 @@ const KutumbIDProfilePage: React.FC = () => {
     }
   }
 
+  const inviteCode = isSelf ? (appUser?.kutumb_id ?? person?.kutumb_id) : person?.kutumb_id;
+
+  function copyInviteCode() {
+    if (!inviteCode) return;
+    void navigator.clipboard.writeText(String(inviteCode));
+    setCodeCopied(true);
+    setTimeout(() => setCodeCopied(false), 2000);
+  }
+
+  async function handleRequestVerification() {
+    if (!nodeId || !person) return;
+    const alreadyPending = state.pendingActions.some(
+      a => a.nodeId === nodeId && a.type === "verify-request" && a.status === "pending"
+    );
+    if (alreadyPending) return;
+    setVerifying(true);
+    try {
+      await requestPanditVerification({
+        vansha_id: person.vansha_id,
+        node_id: nodeId,
+        requested_by: appUser?.id ?? undefined,
+      });
+      requestVerification(nodeId);
+    } catch {
+      /* non-fatal — tree context already shows toasts */
+    } finally {
+      setVerifying(false);
+    }
+  }
+
+  const isVerified = !!(person as Record<string, unknown> | null)?.pandit_verified;
+  const verifiedPanditId = (person as Record<string, unknown> | null)?.verified_by_pandit_id as string | undefined;
+  const verifyPending = nodeId
+    ? state.pendingActions.some(a => a.nodeId === nodeId && a.type === "verify-request" && a.status === "pending")
+    : false;
+
   const f = (field: keyof ProfilePatch) => (form[field] as string) ?? "";
   const pp = { privacy, onTogglePrivacy: isOwner ? togglePrivacy : undefined };
 
@@ -446,6 +488,94 @@ const KutumbIDProfilePage: React.FC = () => {
                 readOnly={!isOwner}
                 placeholder="e.g. Son, Daughter, Uncle…"
               />
+            </div>
+
+            {/* KutumbID & Verification card */}
+            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+              <div className="p-4 border-b border-gray-100 bg-gradient-to-r from-orange-50 to-amber-50 flex items-center gap-3">
+                <div className="p-2 rounded-lg bg-white shadow-sm">
+                  <Shield size={16} className="text-orange-600" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-gray-900 leading-none mb-0.5">KutumbID &amp; Verification</h3>
+                  <p className="text-[10px] text-gray-500 uppercase font-semibold tracking-widest">Invitation Code · Pandit Status · Referral</p>
+                </div>
+              </div>
+              <div className="p-5 space-y-4">
+
+                {/* Invitation code */}
+                {inviteCode && (
+                  <div>
+                    <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5">
+                      {isSelf ? "Your Invitation Code (permanent)" : "KutumbID"}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono text-sm font-bold tracking-widest text-gray-800 flex-1 bg-gray-50 border border-gray-100 rounded-lg px-3 py-2">
+                        {isSelf ? String(inviteCode) : `****${String(inviteCode).slice(-4)}`}
+                      </span>
+                      {isSelf && (
+                        <button
+                          onClick={copyInviteCode}
+                          className="p-2 rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50 transition-colors"
+                          title="Copy invite code"
+                        >
+                          {codeCopied ? <Check size={14} className="text-emerald-500" /> : <Copy size={14} />}
+                        </button>
+                      )}
+                    </div>
+                    {isSelf && (
+                      <p className="text-[10px] text-gray-400 mt-1">Share this code to invite family members — it never changes.</p>
+                    )}
+                  </div>
+                )}
+
+                {/* Pandit verification */}
+                <div>
+                  <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5">Pandit Verification</div>
+                  {isVerified ? (
+                    <div className="flex flex-col gap-1">
+                      <div className="flex items-center gap-1.5">
+                        <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-emerald-100 text-emerald-700 text-xs font-bold">
+                          <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
+                            <circle cx="6" cy="6" r="6" fill="#16a34a"/>
+                            <path d="M3 6l2 2 4-4" stroke="#fff" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                          </svg>
+                          Verified by Pandit Ji
+                        </span>
+                      </div>
+                      {verifiedPanditId && (
+                        <div className="text-[10px] text-gray-500">
+                          Pandit ID: <span className="font-mono font-semibold text-gray-700">{verifiedPanditId}</span>
+                        </div>
+                      )}
+                    </div>
+                  ) : verifyPending ? (
+                    <p className="text-xs text-amber-600 font-medium">⏳ Verification request pending — awaiting Pandit Ji</p>
+                  ) : isOwner ? (
+                    <button
+                      onClick={() => void handleRequestVerification()}
+                      disabled={verifying}
+                      className="text-xs px-3 py-1.5 rounded-lg border border-amber-400 text-amber-700 hover:bg-amber-50 font-semibold transition-colors disabled:opacity-50"
+                    >
+                      {verifying ? "Sending request…" : "🔱 Request Pandit Ji Verification"}
+                    </button>
+                  ) : (
+                    <span className="text-xs text-gray-400">Not yet verified</span>
+                  )}
+                </div>
+
+                {/* Referral network — own profile only */}
+                {isSelf && inviteCode && (
+                  <div>
+                    <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5">Referral Network</div>
+                    <div className="text-xs text-gray-500 bg-gray-50 rounded-lg px-3 py-2 space-y-1">
+                      <p>Share your code <span className="font-mono font-bold text-gray-700">{String(inviteCode)}</span> to invite family members.</p>
+                      <p className="text-[10px] text-gray-400">Members who join using your code will appear here once the feature is live.</p>
+                    </div>
+                  </div>
+                )}
+
+              </div>
             </div>
 
             {/* Person-state toggles */}

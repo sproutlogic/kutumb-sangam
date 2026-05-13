@@ -2,7 +2,7 @@ import { BrowserRouter, Routes, Route, Navigate, useParams } from "react-router-
 
 function NodePageRedirect() {
   const { id } = useParams<{ id: string }>();
-  return id ? <Navigate to={`/profile/${id}`} replace /> : <Navigate to="/tree-v2" replace />;
+  return id ? <Navigate to={`/profile/${id}`} replace /> : <Navigate to="/vanshavali" replace />;
 }
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ThemeProvider } from "next-themes";
@@ -102,8 +102,9 @@ const App = () => (
 
                     {/* Protected — any authenticated user */}
                     <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
-                    <Route path="/tree" element={<ProtectedRoute><TreePage /></ProtectedRoute>} />
-                    <Route path="/tree-v2" element={<TreePageV2 />} />
+                    <Route path="/tree" element={<Navigate to="/vanshavali" replace />} />
+                    <Route path="/tree-v2" element={<Navigate to="/vanshavali" replace />} />
+                    <Route path="/vanshavali" element={<TreePageV2 />} />
                     <Route path="/invite" element={<ProtectedRoute><InvitePage /></ProtectedRoute>} />
                     <Route path="/verification" element={<ProtectedRoute><VerificationPage /></ProtectedRoute>} />
                     <Route path="/discovery" element={<ProtectedRoute><DiscoveryPage /></ProtectedRoute>} />
@@ -111,7 +112,7 @@ const App = () => (
                     <Route path="/upgrade" element={<ProtectedRoute><UpgradePage /></ProtectedRoute>} />
                     <Route path="/support" element={<ProtectedRoute><SupportPage /></ProtectedRoute>} />
                     <Route path="/node/:id" element={<ProtectedRoute><NodePageRedirect /></ProtectedRoute>} />
-                    <Route path="/node" element={<Navigate to="/tree-v2" replace />} />
+                    <Route path="/node" element={<Navigate to="/vanshavali" replace />} />
                     <Route path="/profile/:nodeId" element={<ProtectedRoute><KutumbIDProfilePage /></ProtectedRoute>} />
                     <Route path="/v/:vanshCode" element={<ProtectedRoute><PublicTreePage /></ProtectedRoute>} />
                     <Route path="/referral-new-tree" element={<ProtectedRoute><ReferralNewTree /></ProtectedRoute>} />

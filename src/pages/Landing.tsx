@@ -98,11 +98,11 @@ const Landing = () => {
                 हर परिवार एक वृक्ष है।
               </p>
               <h1 className="ds-rise" style={{ animationDelay: '140ms', fontFamily: 'var(--ds-serif)', fontSize: 'clamp(40px,5.5vw,72px)', marginTop: 8, lineHeight: 1.02, color: 'var(--ds-paper)' }}>
-                Your family's <span className="ds-shimmer-gold">Prakriti Score</span>
-                <span style={{ display: 'block', fontStyle: 'italic', fontWeight: 400, color: 'rgba(255,255,255,0.78)' }}>has been waiting.</span>
+                Build your family's <span className="ds-shimmer-gold">Vanshavali</span>
+                <span style={{ display: 'block', fontStyle: 'italic', fontWeight: 400, color: 'rgba(255,255,255,0.78)' }}>— join your Kutumb.</span>
               </h1>
               <p className="ds-rise" style={{ animationDelay: '220ms', marginTop: 24, fontSize: 18, lineHeight: 1.6, color: 'rgba(255,255,255,0.75)', maxWidth: 520 }}>
-                The first digital vanshavali built for Bharat — verified by Pandits, owned by your parivar, recorded in your grandfather's voice. Not a website. A lineage of inheritance.
+                India's first invitation-only digital Vanshavali — Pandit-verified, owned by your parivar, recorded in your grandfather's voice. Build your living family tree and connect with your Kutumb across generations.
               </p>
 
               <div id="claim" className="ds-rise" style={{ animationDelay: '320ms', marginTop: 36, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(212,154,31,0.25)', borderRadius: 14, padding: 6, maxWidth: 520 }}>

@@ -14,6 +14,8 @@ import {
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
 import { getPersonProfile, claimNode, type PersonV2 } from "@/services/treeV2Api";
+import { requestPanditVerification } from "@/services/api";
+import { useTree } from "@/contexts/TreeContext";
 import { toast } from "sonner";
 
 interface Props {
@@ -58,6 +60,7 @@ function canEditNode(person: PersonV2, userId?: string): boolean {
 const NodeProfilePanel: React.FC<Props> = ({ nodeId, onClose, parentNames }) => {
   const navigate = useNavigate();
   const { appUser } = useAuth();
+  const { state, requestVerification } = useTree();
   const [person, setPerson] = useState<PersonV2 | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -67,6 +70,9 @@ const NodeProfilePanel: React.FC<Props> = ({ nodeId, onClose, parentNames }) => 
   const [claimCode, setClaimCode] = useState("");
   const [claiming, setClaiming] = useState(false);
   const [claimError, setClaimError] = useState<string | null>(null);
+
+  // Verify flow
+  const [verifying, setVerifying] = useState(false);
 
   useEffect(() => {
     if (!nodeId) { setPerson(null); setShowClaim(false); return; }
@@ -106,6 +112,28 @@ const NodeProfilePanel: React.FC<Props> = ({ nodeId, onClose, parentNames }) => 
     if (!person?.kutumb_id) return;
     void navigator.clipboard.writeText(String(person.kutumb_id));
     toast.success("Invite code copied!");
+  }
+
+  async function handleRequestVerification() {
+    if (!nodeId || !person) return;
+    const alreadyPending = state.pendingActions.some(
+      a => a.nodeId === nodeId && a.type === "verify-request" && a.status === "pending"
+    );
+    if (alreadyPending) { toast.info("Verification request already pending."); return; }
+    setVerifying(true);
+    try {
+      await requestPanditVerification({
+        vansha_id: person.vansha_id,
+        node_id: nodeId,
+        requested_by: appUser?.id ?? undefined,
+      });
+      requestVerification(nodeId);
+      toast.success("Verification request sent to Pandit Ji!");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Request failed");
+    } finally {
+      setVerifying(false);
+    }
   }
 
   return (
@@ -153,6 +181,38 @@ const NodeProfilePanel: React.FC<Props> = ({ nodeId, onClose, parentNames }) => 
                 {parentNames.father && <Field label="Father" value={parentNames.father} />}
                 {parentNames.mother && <Field label="Mother" value={parentNames.mother} />}
               </div>
+            )}
+
+            {/* Pandit verification status */}
+            {(person as Record<string, unknown>).pandit_verified ? (
+              <div className="border rounded-md px-3 py-2.5 bg-emerald-50 space-y-1">
+                <div className="flex items-center gap-1.5">
+                  <svg width="13" height="13" viewBox="0 0 12 12" fill="none">
+                    <circle cx="6" cy="6" r="6" fill="#16a34a"/>
+                    <path d="M3 6l2 2 4-4" stroke="#fff" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
+                  <span className="text-[10px] font-bold uppercase tracking-wide text-emerald-700">Pandit Ji Verified</span>
+                </div>
+                {(person as Record<string, unknown>).verified_by_pandit_id && (
+                  <div className="text-[10px] text-emerald-600">
+                    Pandit ID: <span className="font-mono font-semibold">{String((person as Record<string, unknown>).verified_by_pandit_id)}</span>
+                  </div>
+                )}
+              </div>
+            ) : (
+              canEdit && (
+                <div className="border rounded-md px-3 py-2.5 bg-gray-50 space-y-1.5">
+                  <div className="text-[9px] font-bold uppercase tracking-wide text-gray-500">Pandit Verification</div>
+                  {state.pendingActions.some(a => a.nodeId === nodeId && a.type === "verify-request" && a.status === "pending") ? (
+                    <p className="text-[10px] text-amber-600 font-medium">⏳ Request pending — awaiting Pandit Ji</p>
+                  ) : (
+                    <Button size="sm" variant="outline" className="w-full h-7 text-xs border-amber-400 text-amber-700 hover:bg-amber-50"
+                      disabled={verifying} onClick={() => void handleRequestVerification()}>
+                      {verifying ? "Sending…" : "🔱 Request Pandit Verification"}
+                    </Button>
+                  )}
+                </div>
+              )
             )}
 
             {/* Invite code — shown to creator of unclaimed nodes */}
