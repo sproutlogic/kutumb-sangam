@@ -7,7 +7,7 @@ import {
   CheckCircle2, XCircle, Lock, TrendingUp, Clock, LogOut,
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
-import { getApiBaseUrl, fetchPanchangCalendar, fetchTodayPanchang, type PanchangCalendarRow, type TodayPanchang } from '@/services/api';
+import { getApiBaseUrl, fetchTodayPanchang, type TodayPanchang } from '@/services/api';
 import { useToast } from '@/hooks/use-toast';
 import PanchangCalendarView from '@/components/PanchangCalendarView';
 
@@ -53,11 +53,7 @@ const NAV = [
 ] as const;
 type RouteId = typeof NAV[number]['id'];
 
-// ── Fallback data ────────────────────────────────────────────────────
-function isoOffset(days: number) {
-  const d = new Date(); d.setDate(d.getDate() + days);
-  return d.toISOString().slice(0, 10);
-}
+// ── Utility ───────────────────────────────────────────────────────────
 function timeAgo(iso: string) {
   const ms = Date.now() - new Date(iso).getTime();
   const days = Math.floor(ms / 86400000);
@@ -76,73 +72,6 @@ function relativeWhen(iso: string) {
   return dt.toLocaleDateString('en-IN', { month: 'short', day: 'numeric' });
 }
 
-const FB_EVENTS: CalendarEvent[] = [
-  { id:'ev1', vansha_id:'V-8821', title:'Aarav Sharma · 7th birthday',       event_date:isoOffset(0), event_type:'birthday',    description:'Sharma Parivar · +91 98200 11223', recurs_yearly:true },
-  { id:'ev2', vansha_id:'V-6633', title:'Verma Ji · 25th Anniversary',        event_date:isoOffset(0), event_type:'anniversary', description:'Verma Vansha · +91 91230 77889',  recurs_yearly:true },
-  { id:'ev3', vansha_id:'V-4410', title:'Late Mohanlal Patel · Pitru Tithi',  event_date:isoOffset(0), event_type:'event',       description:'Patel Kutumb · Ashwin Krishna 7 · +91 99870 44556', recurs_yearly:true },
-  { id:'ev6', vansha_id:'V-8821', title:'Griha Pravesh · Sharma',             event_date:isoOffset(0), event_type:'event',       description:'4:30 PM · Sec-12, Noida · ₹11,000', recurs_yearly:false },
-  { id:'ev7', vansha_id:'V-2207', title:'Satyanarayan Katha · Joshi',         event_date:isoOffset(1), event_type:'event',       description:'9:00 AM · Vasant Vihar · ₹5,100',  recurs_yearly:false },
-  { id:'ev8', vansha_id:'V-6633', title:'Mundan Sanskar · Verma',             event_date:isoOffset(5), event_type:'event',       description:'7:00 AM · Ashok Nagar · ₹7,500',   recurs_yearly:false },
-];
-const FB_QUEUE: VerifyRequest[] = [
-  { id:'rq-01', node_id:'n-iyer',    status:'pending', created_at:'2026-05-02T09:00:00Z', vansha_id:'V-9921', notes:'Has scanned old vahi pages. 4 elder voice notes.', generations:6, members:42, city:'Chennai',   person:{ first_name:'Krishna',last_name:'Iyer',    verification_tier:'self-claimed', gotra:'Bharadwaj', date_of_birth:'1972-04-15' } },
-  { id:'rq-02', node_id:'n-banerjee',status:'pending', created_at:'2026-04-30T11:00:00Z', vansha_id:'V-7715', notes:'Awaiting one missing DOB confirmation.',           generations:5, members:31, city:'Kolkata',   person:{ first_name:'Aniket', last_name:'Banerjee',verification_tier:'self-claimed', gotra:'Shandilya', date_of_birth:'1985-11-02' } },
-  { id:'rq-03', node_id:'n-reddy',   status:'pending', created_at:'2026-04-27T08:00:00Z', vansha_id:'V-3344', notes:'Cross-verified via temple records.',               generations:7, members:58, city:'Hyderabad', person:{ first_name:'Sailaja',last_name:'Reddy',   verification_tier:'self-claimed', gotra:'Vasishtha', date_of_birth:'1968-07-19' } },
-];
-const FB_TXN: TransactionsResponse = {
-  total: 6,
-  current_subscription: { plan_id:'mool', status:'active', start_date:'2026-01-01', end_date:'2027-01-01' },
-  transactions: [
-    { id:'p1', created_at:'2026-05-03', description:'Greh Pravesh — Sharma Parivar',    base_amount_paise:1100000, igst_paise:0, status:'captured', payment_type:'service',      invoices:{ invoice_number:'KS-2026-1043' } },
-    { id:'p2', created_at:'2026-05-01', description:'Verification fee — Verma Vansha',  base_amount_paise:199900,  igst_paise:0, status:'captured', payment_type:'service',      invoices:{ invoice_number:'KS-2026-1041' } },
-    { id:'p3', created_at:'2026-04-29', description:'Subscription — Joshi Kul',         base_amount_paise:49900,   igst_paise:0, status:'captured', payment_type:'subscription', invoices:{ invoice_number:'KS-2026-1037' } },
-    { id:'p4', created_at:'2026-04-27', description:'Namkaran — Mishra Parivar',        base_amount_paise:650000,  igst_paise:0, status:'created',  payment_type:'service',      invoices:null },
-    { id:'p5', created_at:'2026-04-25', description:'Direct Dakshina — Patel Kutumb',   base_amount_paise:210000,  igst_paise:0, status:'captured', payment_type:'service',      invoices:{ invoice_number:'KS-2026-1029' } },
-    { id:'p6', created_at:'2026-04-22', description:'Verification fee — Reddy Vansha',  base_amount_paise:199900,  igst_paise:0, status:'captured', payment_type:'service',      invoices:{ invoice_number:'KS-2026-1024' } },
-  ],
-};
-const FB_PEERS: PeerPandit[] = [
-  { id:'p-hari', full_name:'Pt. Hari Mishra',     status:'active',    deva:'काशी',     city:'Kashi (Varanasi)', spec:'Pitru Karma',    verified:true  },
-  { id:'p-gov',  full_name:'Pt. Govind Tripathi', status:'active',    deva:'वृन्दावन', city:'Vrindavan',        spec:'Bhagwat Katha',  verified:true  },
-  { id:'p-dev',  full_name:'Pt. Devdatt Joshi',   status:'active',    deva:'हरिद्वार', city:'Haridwar',         spec:'Asthi Visarjan', verified:true  },
-  { id:'p-ana',  full_name:'Pt. Anand Sharma',    status:'verifying', deva:'उज्जैन',   city:'Ujjain',           spec:'Kaal Sarp Dosh', verified:false },
-];
-const TITHI_NAMES = ['Pratipada','Dwitiya','Tritiya','Chaturthi','Panchami','Shashthi','Saptami','Ashtami','Navami','Dashami','Ekadashi','Dwadashi','Trayodashi','Chaturdashi','Purnima'];
-function makeFbPanchang(): PanchangCalendarRow[] {
-  const now = new Date();
-  const y = now.getFullYear(); const m = now.getMonth();
-  const days = new Date(y, m + 1, 0).getDate();
-  const mm = String(m + 1).padStart(2, '0');
-  return Array.from({ length: days }, (_, i) => ({
-    id: `fb-${i}`,
-    gregorian_date: `${y}-${mm}-${String(i+1).padStart(2,'0')}`,
-    tithi_id: (i * 3) % 15 + 1,
-    tithis: { id: (i*3)%15+1, name: TITHI_NAMES[(i*3)%15], sanskrit_name: TITHI_NAMES[(i*3)%15], paksha: i<15?'shukla':'krishna', lord: '', eco_action: '', eco_score_delta: 0, description: '', suitable_for: [] },
-    paksha: (i < 15 ? 'shukla' : 'krishna') as 'shukla'|'krishna',
-    nakshatra: null, yoga: null, masa_name: null, samvat_year: null,
-    special_flag: null, is_kshaya: false, is_adhika: false,
-    sunrise_ts: null, sunset_ts: null, ref_lat: 23.18, ref_lon: 75.78,
-  }));
-}
-const FB_PANCHANG = makeFbPanchang();
-const YAJMAN_MARKERS = [
-  { lat: 28.6139, lng: 77.2090, label: 'Sharma · Noida' },
-  { lat: 28.5355, lng: 77.3910, label: 'Joshi · Vasant Vihar' },
-  { lat: 28.6692, lng: 77.4538, label: 'Verma · Ashok Nagar' },
-  { lat: 25.5941, lng: 85.1376, label: 'Patel · Patna' },
-  { lat: 19.0760, lng: 72.8777, label: 'Mishra · Mumbai' },
-  { lat: 17.3850, lng: 78.4867, label: 'Reddy · Hyderabad' },
-];
-const TODO_ITEMS = [
-  { id:1, text:'Prepare Samagri for Sharma Greh Pravesh', priority:'high', done:false },
-  { id:2, text:'Call Verma Ji to confirm Barsi timings',  priority:'med',  done:false },
-  { id:3, text:'Order fresh marigold mala (4 sets)',      priority:'med',  done:true  },
-  { id:4, text:'Print Sankalp slokas for Mishra Namkaran',priority:'low',  done:false },
-];
-const REFERRALS_OUT = [
-  { family:'Sharma Parivar', toCity:'Kashi',     toPandit:'Pt. Hari Mishra',     purpose:'Asthi Visarjan', status:'in_progress', date:'Apr 28' },
-  { family:'Goyal Kutumb',   toCity:'Vrindavan', toPandit:'Pt. Govind Tripathi', purpose:'Bhagwat Katha',  status:'completed',   date:'Apr 12' },
-];
 
 // ── Adapters ─────────────────────────────────────────────────────────
 function adaptMilestones(events: CalendarEvent[]): Milestone[] {
@@ -225,6 +154,19 @@ function adaptPeers(rows: PeerPandit[]): PeerRow[] {
   }));
 }
 
+// ── Local todo state (no backend — persisted in sessionStorage) ───────
+interface TodoItem { id: number; text: string; priority: 'high'|'med'|'low'; done: boolean; }
+function useTodos() {
+  const [todos, setTodos] = useState<TodoItem[]>(() => {
+    try { return JSON.parse(sessionStorage.getItem('pcrm-todos') ?? 'null') ?? []; } catch { return []; }
+  });
+  const save = (next: TodoItem[]) => { setTodos(next); try { sessionStorage.setItem('pcrm-todos', JSON.stringify(next)); } catch { /* ignore */ } };
+  const toggle = (id: number) => save(todos.map(t => t.id === id ? { ...t, done: !t.done } : t));
+  const add = (text: string) => { if (!text.trim()) return; save([...todos, { id: Date.now(), text: text.trim(), priority: 'med', done: false }]); };
+  const remove = (id: number) => save(todos.filter(t => t.id !== id));
+  return { todos, toggle, add, remove };
+}
+
 // ── Shared hooks / components ─────────────────────────────────────────
 function useAuthFetch() {
   const { session } = useAuth();
@@ -279,6 +221,8 @@ interface PageProps { base: string; authFetch: ReturnType<typeof useAuthFetch>; 
 
 function TodayPage({ base, authFetch, onNav }: PageProps) {
   const today = new Date().toLocaleDateString('en-IN', { weekday:'long', day:'numeric', month:'long' });
+  const { todos, toggle, add, remove } = useTodos();
+  const [newTodo, setNewTodo] = useState('');
 
   const { data: rawEvents, isLoading: evLoad, isError: evErr, isFetched: evFetched, refetch: evRefetch } =
     useQuery<CalendarEvent[]>({
@@ -303,11 +247,11 @@ function TodayPage({ base, authFetch, onNav }: PageProps) {
     retry: 1, staleTime: 60_000,
   });
 
-  const events = rawEvents ?? FB_EVENTS;
+  const events = rawEvents ?? [];
   const milestones = useMemo(() => adaptMilestones(events), [events]);
   const bookings   = useMemo(() => adaptBookings(events),   [events]);
-  const queue      = adaptQueue(rawQueue ?? FB_QUEUE);
-  const txns       = adaptTransactions(rawTxn ?? FB_TXN);
+  const queue      = adaptQueue(rawQueue ?? []);
+  const txns       = adaptTransactions(rawTxn ?? null);
   const monthNet   = txns.filter(t => t.status === 'paid').reduce((s, t) => s + t.net, 0);
   const live       = evFetched && !evErr;
 
@@ -397,13 +341,19 @@ function TodayPage({ base, authFetch, onNav }: PageProps) {
                 </div>
               </div>
             ))}
-            {TODO_ITEMS.slice(0,3).map(t => (
+            {todos.slice(0,3).map(t => (
               <div key={t.id} className="pcrm-row" style={{padding:'10px 0',borderBottom:'1px dashed var(--pcrm-hair)'}}>
-                <input type="checkbox" defaultChecked={t.done} style={{width:16,height:16,accentColor:'var(--pcrm-saffron)'}}/>
+                <input type="checkbox" checked={t.done} onChange={() => toggle(t.id)} style={{width:16,height:16,accentColor:'var(--pcrm-saffron)'}}/>
                 <div className="pcrm-grow pcrm-text-sm" style={{textDecoration:t.done?'line-through':'none',color:t.done?'var(--pcrm-ink-mute)':undefined}}>{t.text}</div>
                 {t.priority === 'high' && <span className="pcrm-tag pcrm-tag-red">Priority</span>}
+                <button onClick={() => remove(t.id)} style={{background:'none',border:'none',cursor:'pointer',color:'var(--pcrm-ink-faint)',padding:'0 2px',fontSize:14}}>×</button>
               </div>
             ))}
+            {todos.length === 0 && <div className="pcrm-muted pcrm-text-xs" style={{padding:'6px 0'}}>No tasks — add one below.</div>}
+            <div className="pcrm-flex pcrm-gap-2 pcrm-mt-2">
+              <input value={newTodo} onChange={e => setNewTodo(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') { add(newTodo); setNewTodo(''); } }} placeholder="Add task…" className="pcrm-input" style={{flex:1,fontSize:12,padding:'5px 8px'}}/>
+              <button className="pcrm-btn pcrm-btn-ghost pcrm-btn-sm" onClick={() => { add(newTodo); setNewTodo(''); }}>Add</button>
+            </div>
           </section>
 
           <section className="pcrm-lineage-seal">
@@ -454,6 +404,10 @@ function TodayPage({ base, authFetch, onNav }: PageProps) {
 }
 
 function CalendarPage({ base, authFetch }: PageProps) {
+  const { todos, toggle, add, remove } = useTodos();
+  const [newTodo, setNewTodo] = useState('');
+  const nowDate = new Date();
+
   const { data: todayPanchang } = useQuery<TodayPanchang | null>({
     queryKey: ['pcrm-panchang-today'],
     queryFn: () => fetchTodayPanchang(),
@@ -466,7 +420,7 @@ function CalendarPage({ base, authFetch }: PageProps) {
     retry: 1, staleTime: 60_000,
   });
 
-  const events   = rawEvents ?? FB_EVENTS;
+  const events   = rawEvents ?? [];
   const bookings = useMemo(() => adaptBookings(events), [events]);
 
   return (
@@ -499,7 +453,7 @@ function CalendarPage({ base, authFetch }: PageProps) {
           <div className="pcrm-card-head">
             <div className="pcrm-card-title">Panchang</div>
           </div>
-          <PanchangCalendarView defaultYear={2026} defaultMonth={4} showDetail={false} />
+          <PanchangCalendarView defaultYear={nowDate.getFullYear()} defaultMonth={nowDate.getMonth() + 1} showDetail={false} />
         </section>
 
         <aside className="pcrm-stack">
@@ -532,14 +486,20 @@ function CalendarPage({ base, authFetch }: PageProps) {
             <div className="pcrm-card-head">
               <div className="pcrm-card-title">Daily To-Do</div>
             </div>
-            {TODO_ITEMS.map(t => (
+            {todos.map(t => (
               <div key={t.id} className="pcrm-row" style={{padding:'10px 0'}}>
-                <input type="checkbox" defaultChecked={t.done} style={{width:16,height:16,accentColor:'var(--pcrm-saffron)'}}/>
+                <input type="checkbox" checked={t.done} onChange={() => toggle(t.id)} style={{width:16,height:16,accentColor:'var(--pcrm-saffron)'}}/>
                 <div className="pcrm-grow pcrm-text-sm" style={{textDecoration:t.done?'line-through':'none',color:t.done?'var(--pcrm-ink-mute)':undefined}}>{t.text}</div>
                 {t.priority === 'high' && <span className="pcrm-tag pcrm-tag-red">High</span>}
                 {t.priority === 'med'  && <span className="pcrm-tag pcrm-tag-saffron">Med</span>}
+                <button onClick={() => remove(t.id)} style={{background:'none',border:'none',cursor:'pointer',color:'var(--pcrm-ink-faint)',padding:'0 2px',fontSize:14}}>×</button>
               </div>
             ))}
+            {todos.length === 0 && <div className="pcrm-muted pcrm-text-xs" style={{padding:'6px 0'}}>No tasks yet.</div>}
+            <div className="pcrm-flex pcrm-gap-2 pcrm-mt-2">
+              <input value={newTodo} onChange={e => setNewTodo(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') { add(newTodo); setNewTodo(''); } }} placeholder="Add task…" className="pcrm-input" style={{flex:1,fontSize:12,padding:'5px 8px'}}/>
+              <button className="pcrm-btn pcrm-btn-ghost pcrm-btn-sm" onClick={() => { add(newTodo); setNewTodo(''); }}>Add</button>
+            </div>
           </section>
         </aside>
       </div>
@@ -556,7 +516,12 @@ function AuthorityPage({ base, authFetch }: PageProps) {
     queryFn: () => authFetch(`${base}/api/margdarshak/queue`).then(r => { if (!r.ok) throw new Error(r.status.toString()); return r.json(); }),
     retry: 1, staleTime: 30_000,
   });
-  const queue = adaptQueue(rawQueue ?? FB_QUEUE);
+  const { data: verifiedFamilies } = useQuery<VerifiedFamily[]>({
+    queryKey: ['pcrm-verified'],
+    queryFn: () => authFetch(`${base}/api/margdarshak/verified`).then(r => r.ok ? r.json() : []),
+    retry: 1, staleTime: 120_000,
+  });
+  const queue = adaptQueue(rawQueue ?? []);
   const live  = isFetched && !isError;
 
   const [decisions, setDecisions] = useState<Record<string, 'approved'|'rejected'|'submitting'>>({});
@@ -599,14 +564,14 @@ function AuthorityPage({ base, authFetch }: PageProps) {
           <div className="pcrm-kpi-trend flat">awaiting review</div>
         </div>
         <div className="pcrm-kpi">
-          <div className="pcrm-kpi-label">Verified · This month</div>
-          <div className="pcrm-kpi-value">{Object.values(decisions).filter(d=>d==='approved').length + 12}</div>
-          <div className="pcrm-kpi-trend">this month</div>
+          <div className="pcrm-kpi-label">Sealed · This session</div>
+          <div className="pcrm-kpi-value">{Object.values(decisions).filter(d=>d==='approved').length}</div>
+          <div className="pcrm-kpi-trend">this session</div>
         </div>
         <div className="pcrm-kpi">
           <div className="pcrm-kpi-label">Lifetime verified</div>
-          <div className="pcrm-kpi-value">187</div>
-          <div className="pcrm-kpi-trend flat">lifetime</div>
+          <div className="pcrm-kpi-value">{verifiedFamilies?.length ?? '—'}</div>
+          <div className="pcrm-kpi-trend flat">all time</div>
         </div>
       </div>
 
@@ -815,12 +780,12 @@ function EarningsPage({ base, authFetch }: PageProps) {
     retry: 1, staleTime: 60_000,
   });
 
-  const resp = rawTxn ?? FB_TXN;
+  const resp = rawTxn ?? null;
   const txns  = useMemo(() => adaptTransactions(resp), [resp]);
   const total = txns.reduce((s, t) => s + t.net, 0);
-  const ytd   = 218400 + Math.round(total);
+  const ytd   = Math.round(total);
   const target = 600000;
-  const pct   = Math.min(100, Math.round((ytd / target) * 100));
+  const pct   = target > 0 ? Math.min(100, Math.round((ytd / target) * 100)) : 0;
   const live  = isFetched && !isError;
 
   return (
@@ -838,7 +803,7 @@ function EarningsPage({ base, authFetch }: PageProps) {
         <div className="pcrm-kpi accent">
           <div className="pcrm-kpi-label">May Net Earned</div>
           <div className="pcrm-kpi-value"><span className="pcrm-rupee">₹</span>{total.toLocaleString('en-IN')}</div>
-          <div className="pcrm-kpi-trend">{txns.length} txns · {resp.current_subscription?.plan_id ?? '—'}</div>
+          <div className="pcrm-kpi-trend">{txns.length} txns · {resp?.current_subscription?.plan_id ?? '—'}</div>
         </div>
         <div className="pcrm-kpi">
           <div className="pcrm-kpi-label">Platform Fee · 10%</div>
@@ -851,9 +816,9 @@ function EarningsPage({ base, authFetch }: PageProps) {
           <div className="pcrm-kpi-trend flat"><Clock size={11}/> {txns.filter(t=>t.status==='pending').length} pending</div>
         </div>
         <div className="pcrm-kpi">
-          <div className="pcrm-kpi-label">Lifetime · 24 mo</div>
-          <div className="pcrm-kpi-value"><span className="pcrm-rupee">₹</span>4.18 L</div>
-          <div className="pcrm-kpi-trend">{resp.total} payments</div>
+          <div className="pcrm-kpi-label">Total Payments</div>
+          <div className="pcrm-kpi-value">{resp?.total ?? '—'}</div>
+          <div className="pcrm-kpi-trend flat">all time</div>
         </div>
       </div>
 
@@ -907,17 +872,16 @@ function EarningsPage({ base, authFetch }: PageProps) {
 
           <section className="pcrm-card">
             <div className="pcrm-card-head">
-              <div className="pcrm-card-title">Last 14 days</div>
-              <span className="pcrm-mono pcrm-text-xs pcrm-muted">net · ₹</span>
+              <div className="pcrm-card-title">Recent Activity</div>
             </div>
-            <div className="pcrm-sparkbars">
-              {[28,35,18,42,52,30,68,75,48,62,80,58,72,90].map((h, i) => (
-                <div key={i} className={`b${i<7?' dim':''}`} style={{height:`${h}%`}}/>
-              ))}
-            </div>
-            <div className="pcrm-flex pcrm-between pcrm-mt-2 pcrm-mono pcrm-text-xs pcrm-muted">
-              <span>Apr 21</span><span>May 5</span>
-            </div>
+            <ApiState loading={isLoading} empty={!isLoading && !txns.length} emptyText="No transactions yet."/>
+            {txns.slice(0, 5).map(t => (
+              <div key={t.id} className="pcrm-flex pcrm-between pcrm-center" style={{padding:'6px 0',borderBottom:'1px solid var(--pcrm-hair)'}}>
+                <div className="pcrm-mono pcrm-text-xs pcrm-muted">{t.date}</div>
+                <div className="pcrm-text-sm pcrm-grow" style={{padding:'0 8px',overflow:'hidden',whiteSpace:'nowrap',textOverflow:'ellipsis'}}>{t.kind}</div>
+                <div className="pcrm-mono" style={{fontWeight:600,fontSize:12,color:'var(--pcrm-saffron-dk)'}}>₹{t.net.toLocaleString('en-IN')}</div>
+              </div>
+            ))}
           </section>
         </aside>
       </div>
@@ -931,7 +895,7 @@ function NetworkPage({ base, authFetch }: PageProps) {
     queryFn: () => authFetch(`${base}/api/margdarshak/family`).then(r => { if (!r.ok) throw new Error(r.status.toString()); return r.json(); }),
     retry: 1, staleTime: 120_000,
   });
-  const peers = adaptPeers(rawPeers ?? FB_PEERS);
+  const peers = adaptPeers(rawPeers ?? []);
   const live  = isFetched && !isError;
 
   return (
@@ -973,21 +937,8 @@ function NetworkPage({ base, authFetch }: PageProps) {
           <section className="pcrm-card">
             <div className="pcrm-card-head">
               <div className="pcrm-card-title">Active Referrals</div>
-              <span className="pcrm-mono pcrm-text-xs pcrm-muted">{REFERRALS_OUT.length} families</span>
             </div>
-            {REFERRALS_OUT.map((r, i) => (
-              <div key={i} className="pcrm-row" style={{alignItems:'flex-start'}}>
-                <div className="pcrm-row-avatar" style={{background:'var(--pcrm-saffron-tint)'}}>
-                  <Network size={16} color="var(--pcrm-saffron-dk)"/>
-                </div>
-                <div className="pcrm-grow">
-                  <div className="pcrm-row-name">{r.family}</div>
-                  <div className="pcrm-row-meta">→ {r.toPandit} · {r.toCity}</div>
-                  <div className="pcrm-text-xs pcrm-muted pcrm-mt-2">{r.purpose} · {r.date}</div>
-                </div>
-                <StatusTag status={r.status}/>
-              </div>
-            ))}
+            <ApiState empty emptyText="No active referrals yet. Use 'Refer a family' to get started."/>
           </section>
 
           <section className="pcrm-card tinted">
@@ -1008,19 +959,11 @@ function NetworkPage({ base, authFetch }: PageProps) {
   );
 }
 
-function HeritagePage({ base, authFetch }: PageProps) {
-  const { isFetched, isError } = useQuery({
-    queryKey: ['pcrm-tree'],
-    queryFn: () => authFetch(`${base}/api/tree/00000000-0000-0000-0000-000000000000`).then(r => { if (!r.ok) throw new Error(r.status.toString()); return r.json(); }),
-    retry: 1, staleTime: 120_000,
-  });
-  const live = isFetched && !isError;
-
+function HeritagePage(_: PageProps) {
   return (
     <>
       <PageHead eyebrow="Logistics & Heritage" deva="यजमान" title="Map & Vahi Archive"
         subtitle="Yajman locations and Vahi photo archive"
-        actions={<SourceBadge live={live} loading={false} error={isError?'unreachable':null} endpoint="/api/tree/{vansha_id}"/>}
       />
 
       <div className="pcrm-cols-2">
@@ -1031,22 +974,7 @@ function HeritagePage({ base, authFetch }: PageProps) {
             </div>
           </div>
           <div className="pcrm-stack" style={{gap:8, minHeight:280}}>
-            {YAJMAN_MARKERS.map((m, i) => (
-              <a key={i}
-                href={`https://www.google.com/maps/search/?api=1&query=${m.lat},${m.lng}`}
-                target="_blank" rel="noopener noreferrer"
-                className="pcrm-row"
-                style={{padding:'10px 12px', textDecoration:'none', border:'1px solid var(--pcrm-hair)', borderRadius:8, color:'inherit'}}>
-                <div className="pcrm-row-avatar" style={{background:'var(--pcrm-saffron-tint)'}}>
-                  <Map size={16} color="var(--pcrm-saffron-dk)"/>
-                </div>
-                <div className="pcrm-grow">
-                  <div className="pcrm-row-name">{m.label}</div>
-                  <div className="pcrm-row-meta pcrm-mono" style={{fontSize:11}}>{m.lat.toFixed(4)}, {m.lng.toFixed(4)}</div>
-                </div>
-                <span className="pcrm-tag pcrm-tag-saffron" style={{fontSize:11}}>Open ↗</span>
-              </a>
-            ))}
+            <ApiState empty emptyText="No yajman locations yet. Locations will appear here as families are onboarded."/>
           </div>
           <div className="pcrm-flex pcrm-gap-2 pcrm-mt-3">
             <button className="pcrm-btn pcrm-btn-ghost pcrm-btn-sm">Today's route</button>
@@ -1088,7 +1016,7 @@ export default function PanditDashboard() {
     queryFn: () => authFetch(`${base}/api/margdarshak/queue`).then(r => { if (!r.ok) throw new Error(r.status.toString()); return r.json(); }),
     retry: 1, staleTime: 30_000,
   });
-  const queueCount = (rawQueue ?? FB_QUEUE).length;
+  const queueCount = (rawQueue ?? []).length;
 
   const sections = [...new Set(NAV.map(n => n.section))];
   const vikramYear = new Date().getFullYear() + 57;
