@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Home, Calendar, Shield, Users, Map, BarChart3, Network,
   Search, Bell, Settings, RefreshCw, Plus, Phone, Copy,
-  CheckCircle2, XCircle, Lock, TrendingUp, Clock, LogOut,
+  CheckCircle2, XCircle, Lock, TrendingUp, Clock, LogOut, Link2, Trash2,
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { getApiBaseUrl, fetchTodayPanchang, type TodayPanchang } from '@/services/api';
@@ -50,6 +50,7 @@ const NAV = [
   { id: 'heritage',  label: 'Heritage',   deva: 'यजमान',       Icon: Map,      section: 'Lineage' },
   { id: 'earnings',  label: 'Earnings',   deva: 'आय-व्यय',     Icon: BarChart3,section: 'Practice' },
   { id: 'network',   label: 'Network',    deva: 'मण्डल',       Icon: Network,  section: 'Practice' },
+  { id: 'referrals', label: 'Referrals',  deva: 'आमंत्रण',     Icon: Link2,    section: 'Practice' },
 ] as const;
 type RouteId = typeof NAV[number]['id'];
 
@@ -1004,6 +1005,158 @@ function HeritagePage(_: PageProps) {
   );
 }
 
+// ── Referrals Page ────────────────────────────────────────────────────
+interface InviteCode {
+  id: string; code: string; created_for: string | null;
+  used_by: string | null; used_at: string | null;
+  status: 'active' | 'used' | 'revoked'; created_at: string;
+}
+
+function ReferralsPage({ base, authFetch }: PageProps) {
+  const qc = useQueryClient();
+  const { toast } = useToast();
+  const [label, setLabel] = useState('');
+  const [generating, setGenerating] = useState(false);
+
+  const { data: codes = [], isLoading, isError, refetch } = useQuery<InviteCode[]>({
+    queryKey: ['pcrm-my-codes'],
+    queryFn: () => authFetch(`${base}/api/referral/mine`).then(r => { if (!r.ok) throw new Error(r.status.toString()); return r.json(); }),
+    retry: 1, staleTime: 30_000,
+  });
+
+  async function generate() {
+    setGenerating(true);
+    try {
+      const r = await authFetch(`${base}/api/referral/generate`, {
+        method: 'POST',
+        body: JSON.stringify({ created_for: label.trim() || null }),
+      });
+      if (!r.ok) { const e = await r.json().catch(() => ({})) as { detail?: string }; throw new Error((e as { detail?: string }).detail ?? r.status.toString()); }
+      setLabel('');
+      await qc.invalidateQueries({ queryKey: ['pcrm-my-codes'] });
+      toast({ title: 'Invite code generated!' });
+    } catch (e) {
+      toast({ title: 'Failed', description: (e as Error).message, variant: 'destructive' });
+    } finally { setGenerating(false); }
+  }
+
+  async function revoke(id: string) {
+    try {
+      const r = await authFetch(`${base}/api/referral/revoke/${id}`, { method: 'POST' });
+      if (!r.ok) { const e = await r.json().catch(() => ({})) as { detail?: string }; throw new Error((e as { detail?: string }).detail ?? 'Failed'); }
+      await qc.invalidateQueries({ queryKey: ['pcrm-my-codes'] });
+      toast({ title: 'Code revoked.' });
+    } catch (e) {
+      toast({ title: 'Error', description: (e as Error).message, variant: 'destructive' });
+    }
+  }
+
+  function copyLink(code: string) {
+    const url = `${window.location.origin}/?ref=${code}`;
+    void navigator.clipboard.writeText(url);
+    toast({ title: 'Invite link copied!' });
+  }
+
+  const active  = codes.filter(c => c.status === 'active').length;
+  const used    = codes.filter(c => c.status === 'used').length;
+
+  return (
+    <>
+      <PageHead eyebrow="आमंत्रण · Invite" deva="आमंत्रण" title="Referral Codes"
+        subtitle="Generate one-time invite links to bring families onto the platform."
+        actions={<>
+          <SourceBadge live={!isError && !isLoading} loading={isLoading} error={isError ? 'unreachable' : null} endpoint="/api/referral/mine"/>
+          <button className="pcrm-btn pcrm-btn-ghost pcrm-btn-sm" onClick={() => refetch()}><RefreshCw size={13}/></button>
+        </>}
+      />
+
+      <div className="pcrm-kpi-row" style={{gridTemplateColumns:'repeat(3,1fr)'}}>
+        <div className="pcrm-kpi accent">
+          <div className="pcrm-kpi-label">Total Generated</div>
+          <div className="pcrm-kpi-value">{codes.length}</div>
+          <div className="pcrm-kpi-trend flat">all time</div>
+        </div>
+        <div className="pcrm-kpi">
+          <div className="pcrm-kpi-label">Active</div>
+          <div className="pcrm-kpi-value">{active}</div>
+          <div className="pcrm-kpi-trend flat">unused</div>
+        </div>
+        <div className="pcrm-kpi">
+          <div className="pcrm-kpi-label">Used</div>
+          <div className="pcrm-kpi-value"><span className="pcrm-shimmer-gold">{used}</span></div>
+          <div className="pcrm-kpi-trend"><CheckCircle2 size={11}/> accepted</div>
+        </div>
+      </div>
+
+      <div className="pcrm-cols-2">
+        <section className="pcrm-card">
+          <div className="pcrm-card-head">
+            <div className="pcrm-card-title">Generate New Code</div>
+          </div>
+          <label className="pcrm-label">For whom? <span className="pcrm-muted" style={{textTransform:'none',letterSpacing:0}}>(optional label)</span></label>
+          <input className="pcrm-input" placeholder="e.g. Sharma Parivar" value={label}
+            onChange={e => setLabel(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter') void generate(); }}
+          />
+          <button className="pcrm-btn pcrm-btn-primary pcrm-btn-sm pcrm-mt-3" style={{width:'100%'}}
+            disabled={generating} onClick={() => void generate()}>
+            <Plus size={14}/> {generating ? 'Generating…' : 'Generate Invite Code'}
+          </button>
+          <p className="pcrm-text-xs pcrm-muted pcrm-mt-3">
+            Each code is single-use. Share the link — when someone registers via it, the code is marked as used and attributed to you.
+          </p>
+        </section>
+
+        <section className="pcrm-card">
+          <div className="pcrm-card-head">
+            <div className="pcrm-card-title">My Codes</div>
+            <span className="pcrm-tag pcrm-tag-mute">{codes.length} total</span>
+          </div>
+          <ApiState loading={isLoading} error={isError ? 'unreachable' : null} empty={!isLoading && !codes.length} emptyText="No codes yet — generate your first one."/>
+          <div className="pcrm-scroll-x">
+            <table className="pcrm-tbl">
+              <thead>
+                <tr><th>Code</th><th>For</th><th>Status</th><th>Date</th><th></th></tr>
+              </thead>
+              <tbody>
+                {codes.map(c => (
+                  <tr key={c.id}>
+                    <td className="pcrm-mono" style={{fontWeight:700,letterSpacing:'0.08em',color:'var(--pcrm-saffron-dk)'}}>{c.code}</td>
+                    <td className="pcrm-muted" style={{fontSize:12}}>{c.created_for ?? '—'}</td>
+                    <td>
+                      {c.status === 'active' && <span className="pcrm-tag pcrm-tag-saffron">Active</span>}
+                      {c.status === 'used'   && <span className="pcrm-tag pcrm-tag-green"><CheckCircle2 size={10}/> Used</span>}
+                      {c.status === 'revoked'&& <span className="pcrm-tag pcrm-tag-mute">Revoked</span>}
+                    </td>
+                    <td className="pcrm-mono pcrm-muted" style={{fontSize:11}}>
+                      {new Date(c.created_at).toLocaleDateString('en-IN', { day:'numeric', month:'short' })}
+                    </td>
+                    <td>
+                      <div className="pcrm-flex pcrm-gap-2">
+                        {c.status === 'active' && (
+                          <>
+                            <button className="pcrm-btn pcrm-btn-ghost pcrm-btn-sm" title="Copy invite link" onClick={() => copyLink(c.code)}>
+                              <Copy size={12}/>
+                            </button>
+                            <button className="pcrm-btn pcrm-btn-ghost pcrm-btn-sm" title="Revoke"
+                              style={{color:'var(--pcrm-red)'}} onClick={() => void revoke(c.id)}>
+                              <Trash2 size={12}/>
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      </div>
+    </>
+  );
+}
+
 // ── Main Dashboard ────────────────────────────────────────────────────
 export default function PanditDashboard() {
   const { appUser, signOut } = useAuth();
@@ -1105,6 +1258,7 @@ export default function PanditDashboard() {
             {route === 'heritage'  && <HeritagePage  base={base} authFetch={authFetch}/>}
             {route === 'earnings'  && <EarningsPage  base={base} authFetch={authFetch}/>}
             {route === 'network'   && <NetworkPage   base={base} authFetch={authFetch}/>}
+            {route === 'referrals' && <ReferralsPage base={base} authFetch={authFetch}/>}
           </div>
         </main>
       </div>

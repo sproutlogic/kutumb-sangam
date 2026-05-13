@@ -15,7 +15,7 @@ from routers import (
     admin, admin_plans, approval, auth_router, calendar, content, eco_services, eco_sewa,
     entitlement, gaurav_gatha, green_legacy,
     kutumb_pro, legacy_box, matrimony,
-    node_claim, node_relation_labels, notifications, pandit, panchang, payments, person, prakriti, radar, sachets,
+    node_claim, node_relation_labels, notifications, pandit, panchang, payments, person, prakriti, radar, referral, sachets,
     sales, time_bank, tree, tree_subscriptions, tree_v2, union, verification,
 )
 from workers.care_reminder import create_care_reminder_scheduler
@@ -103,6 +103,9 @@ app.include_router(entitlement.router)
 app.include_router(tree_subscriptions.router)
 app.include_router(sachets.router)
 app.include_router(admin_plans.router)
+
+# Referral / invite codes
+app.include_router(referral.router)
 
 
 @app.api_route("/health", methods=["GET", "HEAD"])

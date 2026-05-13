@@ -18,12 +18,12 @@ import {
   ChevronDown, ChevronUp, ToggleLeft, ToggleRight, Tag, TreePine, Droplets,
   IndianRupee, AlertCircle, Settings2, BadgeIndianRupee,
   Loader2, CheckCircle2, XCircle, Send, RefreshCw, Instagram, Youtube,
-  ShieldAlert, Menu, X, LogOut,
+  ShieldAlert, Menu, X, LogOut, Link2, Copy, Trash2, ChevronRight,
 } from "lucide-react";
 
 // ─── Tab config ───────────────────────────────────────────────────────────────
 
-type AdminTabId = "users" | "sales" | "pricing" | "content" | "transactions" | "payouts" | "kyc-support";
+type AdminTabId = "users" | "sales" | "pricing" | "content" | "transactions" | "payouts" | "kyc-support" | "referrals";
 
 const TAB_CONFIG: { id: AdminTabId; label: string; icon: React.ReactNode; roles: UserRole[] }[] = [
   { id: "users",        label: "Users",         icon: <Users className="w-4 h-4" />,        roles: ["superadmin"] },
@@ -33,6 +33,7 @@ const TAB_CONFIG: { id: AdminTabId; label: string; icon: React.ReactNode; roles:
   { id: "transactions", label: "Transactions",  icon: <Receipt className="w-4 h-4" />,      roles: ["superadmin", "finance"] },
   { id: "payouts",      label: "Payouts",       icon: <Landmark className="w-4 h-4" />,     roles: ["superadmin", "finance"] },
   { id: "kyc-support",  label: "KYC & Support", icon: <ShieldCheck className="w-4 h-4" />, roles: ["superadmin", "admin", "office"] },
+  { id: "referrals",    label: "Referrals",     icon: <Link2 className="w-4 h-4" />,        roles: ["superadmin", "admin"] },
 ];
 
 const ALLOWED_ROLES: Set<UserRole> = new Set(["superadmin", "admin", "office", "finance"]);
@@ -842,6 +843,227 @@ function KYCSupportTab({ token }: { token: string }) {
   );
 }
 
+// ─── ReferralsTab ─────────────────────────────────────────────────────────────
+
+interface InviteCodeRow {
+  id: string; code: string; created_for: string | null;
+  status: "active" | "used" | "revoked"; created_at: string;
+  used_at: string | null;
+  creator: { id?: string; full_name?: string | null; role?: string; phone?: string | null } | null;
+  user_info: { id?: string; full_name?: string | null; role?: string } | null;
+}
+interface ReferralStats { total: number; used: number; active: number; revoked: number; unique_generators: number; }
+interface UserHistory {
+  profile: { id: string; full_name: string | null; role: string; phone: string | null; kutumb_id: string | null; created_at: string } | null;
+  codes_created: InviteCodeRow[];
+  joined_via: InviteCodeRow | null;
+  referral_events: { id: string; event_type: string; created_at: string; kutumb_id_used: string }[];
+}
+
+function ReferralsTab({ token }: { token: string }) {
+  const base = getApiBaseUrl();
+  const { toast } = useToast();
+  const [drillUserId, setDrillUserId] = useState<string | null>(null);
+
+  const headers = { Authorization: `Bearer ${token}`, "Content-Type": "application/json" };
+
+  const { data: stats, isLoading: sLoad } = useQuery<ReferralStats>({
+    queryKey: ["admin-ref-stats"],
+    queryFn: () => fetch(`${base}/api/referral/admin/stats`, { headers }).then(r => { if (!r.ok) throw new Error(r.status.toString()); return r.json(); }),
+    staleTime: 30_000,
+  });
+
+  const { data: allData, isLoading: cLoad, refetch } = useQuery<{ codes: InviteCodeRow[]; total: number }>({
+    queryKey: ["admin-ref-all"],
+    queryFn: () => fetch(`${base}/api/referral/admin/all?limit=300`, { headers }).then(r => { if (!r.ok) throw new Error(r.status.toString()); return r.json(); }),
+    staleTime: 30_000,
+  });
+
+  const { data: history, isLoading: hLoad } = useQuery<UserHistory>({
+    queryKey: ["admin-ref-user", drillUserId],
+    queryFn: () => fetch(`${base}/api/referral/admin/user/${drillUserId!}`, { headers }).then(r => { if (!r.ok) throw new Error(r.status.toString()); return r.json(); }),
+    enabled: !!drillUserId,
+    staleTime: 30_000,
+  });
+
+  const codes = allData?.codes ?? [];
+
+  function copyLink(code: string) {
+    void navigator.clipboard.writeText(`${window.location.origin}/?ref=${code}`);
+    toast({ title: "Invite link copied!" });
+  }
+
+  const statusBadge = (s: string) => {
+    if (s === "active")  return <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-700">Active</span>;
+    if (s === "used")    return <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-700"><CheckCircle2 size={9}/> Used</span>;
+    return                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-gray-100 text-gray-500">Revoked</span>;
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Stats row */}
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+        {[
+          { label: "Total Generated", value: stats?.total ?? "—" },
+          { label: "Used",            value: stats?.used    ?? "—", accent: true },
+          { label: "Active",          value: stats?.active  ?? "—" },
+          { label: "Revoked",         value: stats?.revoked ?? "—" },
+          { label: "Unique Generators", value: stats?.unique_generators ?? "—" },
+        ].map(k => (
+          <div key={k.label} className={`rounded-xl border p-4 ${k.accent ? "border-emerald-200 bg-emerald-50" : "border-border bg-card"}`}>
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{k.label}</p>
+            <p className={`text-2xl font-bold mt-1 ${k.accent ? "text-emerald-700" : ""}`}>{sLoad ? "…" : String(k.value)}</p>
+          </div>
+        ))}
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* All codes table */}
+        <div className="lg:col-span-2 rounded-xl border border-border bg-card overflow-hidden">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-border/50">
+            <p className="font-semibold text-sm">All Invite Codes</p>
+            <button onClick={() => void refetch()} className="p-1.5 rounded hover:bg-muted text-muted-foreground"><RefreshCw size={13}/></button>
+          </div>
+          {cLoad ? (
+            <div className="flex justify-center py-10"><Loader2 className="w-5 h-5 animate-spin text-muted-foreground"/></div>
+          ) : codes.length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center py-10">No codes generated yet.</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-border/50 bg-muted/30">
+                    {["Code", "For", "Creator", "Status", "Date", ""].map(h => (
+                      <th key={h} className="px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {codes.map(c => (
+                    <tr key={c.id} className="border-b border-border/30 hover:bg-muted/20 transition-colors">
+                      <td className="px-3 py-2 font-mono text-xs font-bold text-amber-700 tracking-widest">{c.code}</td>
+                      <td className="px-3 py-2 text-xs text-muted-foreground">{c.created_for ?? "—"}</td>
+                      <td className="px-3 py-2">
+                        <button
+                          onClick={() => setDrillUserId(c.creator?.id ?? null)}
+                          className="flex items-center gap-1 text-xs hover:text-primary transition-colors"
+                        >
+                          {c.creator?.full_name ?? c.creator?.phone ?? "—"}
+                          {c.creator?.id && <ChevronRight size={11} className="text-muted-foreground"/>}
+                        </button>
+                        <p className="text-[10px] text-muted-foreground capitalize">{c.creator?.role}</p>
+                      </td>
+                      <td className="px-3 py-2">{statusBadge(c.status)}</td>
+                      <td className="px-3 py-2 font-mono text-[10px] text-muted-foreground">
+                        {new Date(c.created_at).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}
+                      </td>
+                      <td className="px-3 py-2">
+                        {c.status === "active" && (
+                          <button onClick={() => copyLink(c.code)} title="Copy invite link"
+                            className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground">
+                            <Copy size={12}/>
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+
+        {/* User drill-down panel */}
+        <div className="rounded-xl border border-border bg-card overflow-hidden">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-border/50">
+            <p className="font-semibold text-sm">Node History</p>
+            {drillUserId && (
+              <button onClick={() => setDrillUserId(null)} className="text-xs text-muted-foreground hover:text-foreground">Clear</button>
+            )}
+          </div>
+          {!drillUserId ? (
+            <div className="flex flex-col items-center justify-center py-14 gap-2 text-muted-foreground">
+              <Link2 size={28} strokeWidth={1.5}/>
+              <p className="text-sm">Click a creator name to view their referral history.</p>
+            </div>
+          ) : hLoad ? (
+            <div className="flex justify-center py-10"><Loader2 className="w-5 h-5 animate-spin text-muted-foreground"/></div>
+          ) : !history ? (
+            <p className="text-sm text-muted-foreground text-center py-10">Not found.</p>
+          ) : (
+            <div className="divide-y divide-border/30 text-sm">
+              {/* Profile */}
+              <div className="px-4 py-3 space-y-1">
+                <p className="font-semibold">{history.profile?.full_name ?? "—"}</p>
+                <p className="text-xs text-muted-foreground capitalize">{history.profile?.role} · {history.profile?.phone ?? "no phone"}</p>
+                {history.profile?.kutumb_id && (
+                  <p className="font-mono text-[10px] text-muted-foreground">KM ID: {history.profile.kutumb_id}</p>
+                )}
+                <p className="text-[10px] text-muted-foreground">
+                  Joined {history.profile?.created_at ? new Date(history.profile.created_at).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }) : "—"}
+                </p>
+              </div>
+
+              {/* Joined via */}
+              <div className="px-4 py-3">
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground mb-1">Joined via</p>
+                {history.joined_via ? (
+                  <span className="font-mono text-xs font-bold text-amber-700">{history.joined_via.code}</span>
+                ) : (
+                  <span className="text-xs text-muted-foreground">Direct / unknown</span>
+                )}
+              </div>
+
+              {/* Codes created */}
+              <div className="px-4 py-3">
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground mb-2">
+                  Codes Generated ({history.codes_created.length})
+                </p>
+                {history.codes_created.length === 0 ? (
+                  <p className="text-xs text-muted-foreground">None yet.</p>
+                ) : (
+                  <div className="space-y-1.5 max-h-48 overflow-y-auto">
+                    {history.codes_created.map(c => (
+                      <div key={c.id} className="flex items-center justify-between">
+                        <span className="font-mono text-xs font-bold text-amber-700">{c.code}</span>
+                        <div className="flex items-center gap-1.5">
+                          {statusBadge(c.status)}
+                          {c.user_info?.full_name && (
+                            <span className="text-[10px] text-muted-foreground">→ {c.user_info.full_name}</span>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Referral events */}
+              {history.referral_events.length > 0 && (
+                <div className="px-4 py-3">
+                  <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground mb-2">
+                    Referral Events ({history.referral_events.length})
+                  </p>
+                  <div className="space-y-1 max-h-36 overflow-y-auto">
+                    {history.referral_events.map(e => (
+                      <div key={e.id} className="flex items-center justify-between text-xs">
+                        <span className="text-muted-foreground capitalize">{e.event_type.replace(/_/g, " ")}</span>
+                        <span className="font-mono text-[10px] text-muted-foreground">
+                          {new Date(e.created_at).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Main AdminDashboard ──────────────────────────────────────────────────────
 
 export default function AdminDashboard() {
@@ -952,6 +1174,7 @@ export default function AdminDashboard() {
           {activeTab === "transactions" && <AllTransactionsTab token={token} />}
           {activeTab === "payouts"      && <PayoutsTab token={token} />}
           {activeTab === "kyc-support"  && <KYCSupportTab token={token} />}
+          {activeTab === "referrals"    && <ReferralsTab token={token} />}
         </main>
       </div>
     </div>
