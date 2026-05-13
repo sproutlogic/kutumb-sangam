@@ -1,5 +1,5 @@
 import { Navigate, useLocation } from "react-router-dom";
-import { useAuth } from "@/contexts/AuthContext";
+import { useAuth, hasMinRole } from "@/contexts/AuthContext";
 import type { UserRole } from "@/contexts/AuthContext";
 
 interface Props {
@@ -39,7 +39,7 @@ export default function ProtectedRoute({ children, requiredRole }: Props) {
     return <Navigate to="/onboarding" replace />;
   }
 
-  if (requiredRole && appUser?.role !== requiredRole && appUser?.role !== "admin") {
+  if (requiredRole && !hasMinRole(appUser, requiredRole)) {
     return <Navigate to="/dashboard" replace />;
   }
 

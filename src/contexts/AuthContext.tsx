@@ -5,6 +5,22 @@ import { getApiBaseUrl } from "@/services/api";
 
 export type UserRole = "user" | "margdarshak" | "admin" | "superadmin" | "np" | "zp" | "rp" | "cp" | "se" | "office" | "finance";
 
+// Numeric privilege level for each role. Higher = more access.
+// Use hasMinRole() instead of role === 'x' comparisons.
+export const ROLE_LEVEL: Record<UserRole, number> = {
+  user: 0,
+  np: 0, zp: 0, rp: 0, cp: 0, se: 0,
+  office: 1, finance: 1,
+  margdarshak: 1,
+  admin: 2,
+  superadmin: 3,
+};
+
+export function hasMinRole(user: AppUser | null | undefined, minRole: UserRole): boolean {
+  if (!user) return false;
+  return (ROLE_LEVEL[user.role] ?? 0) >= (ROLE_LEVEL[minRole] ?? 0);
+}
+
 export interface AppUser {
   id: string;
   role: UserRole;
