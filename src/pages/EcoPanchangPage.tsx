@@ -463,7 +463,7 @@ export default function EcoPanchangPage() {
             <div>
               <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
                 <TreePine className="w-5 h-5 opacity-80" />
-                <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", opacity: 0.65 }}>Eco-Panchang · Prakriti Calendar</span>
+                <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", opacity: 0.65 }}>{appUser?.first_name ? `${appUser.first_name} Panchang` : "Prakriti Panchang"} · Prakriti Calendar</span>
               </div>
               <h1 className="font-heading" style={{ fontSize: "clamp(24px,3vw,36px)", fontWeight: 700, lineHeight: 1.1 }}>
                 {todayPanchang

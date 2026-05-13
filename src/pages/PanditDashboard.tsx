@@ -263,7 +263,7 @@ function StatusTag({ status }: { status: string }) {
 
 function SourceBadge({ live, loading, error, endpoint }: { live: boolean; loading: boolean; error: string | null; endpoint: string }) {
   if (loading) return <span className="pcrm-tag pcrm-tag-mute"><span className="pcrm-dot"></span> Loading…</span>;
-  if (live)    return <span className="pcrm-tag pcrm-tag-green"><span className="pcrm-dot live"></span> Live · {endpoint}</span>;
+  if (live)    return <span className="pcrm-tag pcrm-tag-green" title={endpoint}><span className="pcrm-dot live"></span> Live</span>;
   return <span className="pcrm-tag pcrm-tag-mute" title={error ?? 'offline'}><span className="pcrm-dot"></span> Offline · cached</span>;
 }
 
@@ -326,17 +326,17 @@ function TodayPage({ base, authFetch, onNav }: PageProps) {
         <div className="pcrm-kpi accent">
           <div className="pcrm-kpi-label">Today's Network</div>
           <div className="pcrm-kpi-value">{milestones.length} <span style={{fontSize:14,color:'var(--pcrm-ink-mute)',fontWeight:400}}>milestones</span></div>
-          <div className="pcrm-kpi-trend"><TrendingUp size={11}/> from /api/calendar/events</div>
+          <div className="pcrm-kpi-trend"><TrendingUp size={11}/> from your calendar</div>
         </div>
         <div className="pcrm-kpi">
           <div className="pcrm-kpi-label">Bookings This Week</div>
           <div className="pcrm-kpi-value">{bookings.length}</div>
-          <div className="pcrm-kpi-trend flat"><Clock size={11}/> event_type=event</div>
+          <div className="pcrm-kpi-trend flat"><Clock size={11}/> from your calendar</div>
         </div>
         <div className="pcrm-kpi">
           <div className="pcrm-kpi-label">Pending Verifications</div>
           <div className="pcrm-kpi-value"><span className="pcrm-shimmer-gold">{queue.length}</span></div>
-          <div className="pcrm-kpi-trend flat"><Shield size={11}/> /api/margdarshak/queue</div>
+          <div className="pcrm-kpi-trend flat"><Shield size={11}/> awaiting review</div>
         </div>
         <div className="pcrm-kpi">
           <div className="pcrm-kpi-label">Verified Families</div>
@@ -346,7 +346,7 @@ function TodayPage({ base, authFetch, onNav }: PageProps) {
         <div className="pcrm-kpi">
           <div className="pcrm-kpi-label">May Earnings · Net</div>
           <div className="pcrm-kpi-value"><span className="pcrm-rupee">₹</span>{monthNet.toLocaleString('en-IN')}</div>
-          <div className="pcrm-kpi-trend">/api/payments/transactions</div>
+          <div className="pcrm-kpi-trend">from ledger</div>
         </div>
       </div>
 
@@ -355,7 +355,7 @@ function TodayPage({ base, authFetch, onNav }: PageProps) {
           <div className="pcrm-card-head">
             <div>
               <div className="pcrm-card-title">Today · {today}</div>
-              <div className="pcrm-card-sub pcrm-mono">GET /api/calendar/events · today + tomorrow</div>
+              <div className="pcrm-card-sub">Upcoming milestones &amp; occasions</div>
             </div>
             <span className="pcrm-tag pcrm-tag-gold"><span className="pcrm-dot gold"></span> Live</span>
           </div>
@@ -472,7 +472,7 @@ function CalendarPage({ base, authFetch }: PageProps) {
   return (
     <>
       <PageHead eyebrow="Ritual Calendar" deva="पञ्चाङ्ग" title="Bookings & Sankalp"
-        subtitle="Lunar tithis from /api/panchang/calendar (Prokerala) · bookings from /api/calendar/events"
+        subtitle="Lunar tithis &amp; your upcoming bookings"
         actions={<>
           <SourceBadge live={!eErr} loading={eLoad} error={eErr ? 'unreachable' : null} endpoint="panchang + calendar"/>
           <button className="pcrm-btn pcrm-btn-primary pcrm-btn-sm"><Plus size={14}/> New booking</button>
@@ -497,7 +497,7 @@ function CalendarPage({ base, authFetch }: PageProps) {
       <div className="pcrm-cols-2">
         <section className="pcrm-card">
           <div className="pcrm-card-head">
-            <div className="pcrm-card-title">Eco Panchang</div>
+            <div className="pcrm-card-title">Panchang</div>
           </div>
           <PanchangCalendarView defaultYear={2026} defaultMonth={4} showDetail={false} />
         </section>
@@ -585,7 +585,7 @@ function AuthorityPage({ base, authFetch }: PageProps) {
   return (
     <>
       <PageHead eyebrow="Lineage Authority" deva="स्वर्ण मुहर" title="Gold Seal Verification"
-        subtitle="Slide the toggle → fires POST /api/margdarshak/review with action='approved'."
+        subtitle="Review pending lineage verification requests and apply your Gold Seal."
         actions={<>
           <SourceBadge live={live} loading={isLoading} error={isError ? 'unreachable' : null} endpoint="/api/margdarshak/queue"/>
           <button className="pcrm-btn pcrm-btn-ghost pcrm-btn-sm" onClick={() => refetch()}><RefreshCw size={13}/></button>
@@ -596,24 +596,24 @@ function AuthorityPage({ base, authFetch }: PageProps) {
         <div className="pcrm-kpi accent">
           <div className="pcrm-kpi-label">Awaiting your seal</div>
           <div className="pcrm-kpi-value">{queue.length}</div>
-          <div className="pcrm-kpi-trend flat">status='pending'</div>
+          <div className="pcrm-kpi-trend flat">awaiting review</div>
         </div>
         <div className="pcrm-kpi">
           <div className="pcrm-kpi-label">Verified · This month</div>
           <div className="pcrm-kpi-value">{Object.values(decisions).filter(d=>d==='approved').length + 12}</div>
-          <div className="pcrm-kpi-trend">verification_audit</div>
+          <div className="pcrm-kpi-trend">this month</div>
         </div>
         <div className="pcrm-kpi">
           <div className="pcrm-kpi-label">Lifetime verified</div>
           <div className="pcrm-kpi-value">187</div>
-          <div className="pcrm-kpi-trend flat">expert-verified</div>
+          <div className="pcrm-kpi-trend flat">lifetime</div>
         </div>
       </div>
 
       <section className="pcrm-card">
         <div className="pcrm-card-head">
           <div className="pcrm-card-title">Verification Requests</div>
-          <div className="pcrm-card-sub pcrm-mono">verification_requests JOIN persons ON node_id</div>
+          <div className="pcrm-card-sub">Verification requests from Yajman families</div>
         </div>
         <ApiState loading={isLoading} error={isError&&!queue.length?'unreachable':null} empty={!isLoading&&!queue.length} emptyText="Queue empty — all caught up."/>
         <div className="pcrm-stack" style={{gap:14}}>
@@ -714,7 +714,7 @@ function OnboardPage({ base, authFetch }: PageProps) {
   return (
     <>
       <PageHead eyebrow="Vanshavali Onboarding" deva="वंशावली" title="Seed a New Lineage"
-        subtitle="Calls POST /api/tree/bootstrap. Inherits Gold-standard verification."
+        subtitle="Seed a new family tree and invite the head of family to claim it."
       />
 
       <div className="pcrm-stepper">
@@ -787,11 +787,19 @@ function OnboardPage({ base, authFetch }: PageProps) {
               <span className="pcrm-deva">नमस्ते</span>, {familyName || 'Patel'} Ji — your family lineage is ready. Tap to claim:
             </div>
             <div className="pcrm-mono pcrm-text-xs pcrm-mt-3" style={{padding:'10px 12px',background:'var(--pcrm-bg-soft)',borderRadius:7,border:'1px solid var(--pcrm-hair)',color:'var(--pcrm-saffron-dk)',wordBreak:'break-all'}}>
-              kutumb.app/claim?v={result?.vansha_id ?? 'V-NEW-7821'}
+              {window.location.origin}/claim?v={result?.vansha_id ?? 'V-NEW-7821'}
             </div>
             <div className="pcrm-flex pcrm-gap-2 pcrm-mt-3">
-              <button className="pcrm-btn pcrm-btn-ghost pcrm-btn-sm pcrm-grow"><Copy size={13}/> Copy link</button>
-              <button className="pcrm-btn pcrm-btn-primary pcrm-btn-sm pcrm-grow">Send via WhatsApp</button>
+              <button className="pcrm-btn pcrm-btn-ghost pcrm-btn-sm pcrm-grow" onClick={() => {
+                const link = `${window.location.origin}/claim?v=${result?.vansha_id ?? ''}`;
+                void navigator.clipboard.writeText(link);
+                toast({ title: 'Link copied!' });
+              }}><Copy size={13}/> Copy link</button>
+              <button className="pcrm-btn pcrm-btn-primary pcrm-btn-sm pcrm-grow" onClick={() => {
+                const link = `${window.location.origin}/claim?v=${result?.vansha_id ?? ''}`;
+                const msg = encodeURIComponent(`नमस्ते ${familyName || ''} Ji — your family lineage is ready. Tap to claim: ${link}`);
+                window.open(`https://wa.me/?text=${msg}`, '_blank');
+              }}>Send via WhatsApp</button>
             </div>
           </section>
         </aside>
@@ -929,7 +937,7 @@ function NetworkPage({ base, authFetch }: PageProps) {
   return (
     <>
       <PageHead eyebrow="Purohit Network" deva="पुरोहित मण्डल" title="Refer & Collaborate"
-        subtitle="Verified pandits from /api/margdarshak/family across linked vanshas."
+        subtitle="Pandits in your network across linked vanshas — refer and collaborate."
         actions={<>
           <SourceBadge live={live} loading={isLoading} error={isError?'unreachable':null} endpoint="/api/margdarshak/family"/>
           <button className="pcrm-btn pcrm-btn-primary pcrm-btn-sm"><Plus size={14}/> Refer a family</button>
@@ -988,7 +996,7 @@ function NetworkPage({ base, authFetch }: PageProps) {
               <div>
                 <div className="pcrm-serif" style={{fontWeight:600,fontSize:15}}>Collaborative rituals</div>
                 <div className="pcrm-text-xs pcrm-muted pcrm-mt-2">
-                  For yagyas / pind-daan, request a panel of fellow pandits. Endpoint: <span className="pcrm-mono">POST /api/margdarshak/panel-request</span> (proposed).
+                  For yagyas / pind-daan, request a panel of fellow pandits.
                 </div>
               </div>
             </div>
@@ -1011,7 +1019,7 @@ function HeritagePage({ base, authFetch }: PageProps) {
   return (
     <>
       <PageHead eyebrow="Logistics & Heritage" deva="यजमान" title="Map & Vahi Archive"
-        subtitle="Yajman pins from /api/tree/{vansha_id} · vahi photos from Supabase Storage"
+        subtitle="Yajman locations and Vahi photo archive"
         actions={<SourceBadge live={live} loading={false} error={isError?'unreachable':null} endpoint="/api/tree/{vansha_id}"/>}
       />
 
@@ -1020,7 +1028,6 @@ function HeritagePage({ base, authFetch }: PageProps) {
           <div className="pcrm-card-head">
             <div>
               <div className="pcrm-card-title">Yajman Map</div>
-              <div className="pcrm-card-sub pcrm-mono">persons[].current_residence → Google Maps</div>
             </div>
           </div>
           <div className="pcrm-stack" style={{gap:8, minHeight:280}}>
@@ -1052,7 +1059,6 @@ function HeritagePage({ base, authFetch }: PageProps) {
           <div className="pcrm-card-head">
             <div>
               <div className="pcrm-card-title">Vahi Photo Archive</div>
-              <div className="pcrm-card-sub pcrm-mono">supabase.storage 'vahi-archive'</div>
             </div>
           </div>
           <div className="pcrm-coming-soon">
