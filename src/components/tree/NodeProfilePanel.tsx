@@ -175,6 +175,13 @@ const NodeProfilePanel: React.FC<Props> = ({ nodeId, onClose, parentNames }) => 
               <Field label="Birthday" value={dobDayMonth(person.date_of_birth as string)} />
             </div>
 
+            {/* Email — visible only to owner/creator */}
+            {canEdit && person.email && (
+              <div className="flex items-center gap-2">
+                <Field label="Email / Gmail" value={person.email as string} />
+              </div>
+            )}
+
             {/* Parent names from canvas graph */}
             {(parentNames?.father || parentNames?.mother) && (
               <div className="grid grid-cols-2 gap-3">

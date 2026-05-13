@@ -154,6 +154,7 @@ export interface PersonV2 {
   mool_niwas_village?: string | null;
   mool_niwas_city?: string;
   nanighar?: string;
+  email?: string | null;
   // Kul profile fields
   vansh_label?: string;
   pravara?: string;

@@ -97,6 +97,7 @@ class ProfilePatch(BaseModel):
     mool_niwas_village: Optional[str] = None
     mool_niwas_city: Optional[str] = None
     nanighar: Optional[str] = None
+    email: Optional[str] = None
     # Relation label (how this node appears in the tree to others)
     relation: Optional[str] = None
     # Per-field privacy map: {"field_name": "public" | "private"}

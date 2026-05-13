@@ -158,6 +158,7 @@ const NodePage = () => {
     marriageAnniversary: '',
     swargwasDate: '',
     importantDatesPrivacy: 'private',
+    email: '',
   });
 
   // currentResidence is optional — deceased members may not have one
@@ -204,6 +205,7 @@ const NodePage = () => {
         marriageAnniversary: (existingNode as Record<string, unknown>).marriage_anniversary as string ?? '',
         swargwasDate: (existingNode as Record<string, unknown>).swargwas_date as string ?? '',
         importantDatesPrivacy: 'private',
+        email: (existingNode as Record<string, unknown>).email as string ?? '',
       });
     }
   }, [existingNode]);
@@ -391,6 +393,7 @@ const NodePage = () => {
             title: form.title.trim() || undefined,
             marriage_anniversary: form.marriageAnniversary || undefined,
             swargwas_date: form.swargwasDate || undefined,
+            email: form.email.trim() || undefined,
           });
           const data = await fetchVanshaTree(effectiveVanshaId);
           loadTreeState(backendPayloadToTreeState(data));
@@ -756,6 +759,20 @@ const NodePage = () => {
               onChange={v => set('currentResidence', v)}
               className={inputClass}
               placeholder="e.g. Mumbai, Maharashtra"
+            />
+          </div>
+
+          {/* Email / Gmail */}
+          <div>
+            <label className="block text-sm font-semibold font-body mb-1">
+              Email / Gmail <span className="ml-2 text-[10px] text-muted-foreground font-normal">optional · only visible to you</span>
+            </label>
+            <input
+              type="email"
+              value={form.email}
+              onChange={e => set('email', e.target.value)}
+              placeholder="e.g. name@gmail.com"
+              className="w-full px-3 py-2.5 rounded-lg border border-border bg-background text-sm font-body focus:outline-none focus:ring-2 focus:ring-primary/30"
             />
           </div>
 
