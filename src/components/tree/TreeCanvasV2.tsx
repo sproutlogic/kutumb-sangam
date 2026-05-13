@@ -127,7 +127,7 @@ function computeAutoLayout(
 ): Map<string, { x: number; y: number }> {
   const g = new dagre.graphlib.Graph();
   g.setGraph({
-    rankdir: "TB",
+    rankdir: "BT",
     nodesep: NODE_SEP,
     ranksep: RANK_SEP,
     marginx: 60,
@@ -411,7 +411,6 @@ const TreeCanvasV2: React.FC<Props> = ({ vanshaId, readOnly = false }) => {
         const hasOffset = ox !== null && ox !== undefined && oy !== null && oy !== undefined;
         const position = hasOffset ? { x: Number(ox), y: Number(oy) } : auto;
         const g = generations.get(p.node_id) ?? 0;
-        const name = personName(p);
         return {
           id: p.node_id,
           type: "familyNode",
@@ -419,7 +418,7 @@ const TreeCanvasV2: React.FC<Props> = ({ vanshaId, readOnly = false }) => {
           dragHandle: ".fn-drag-handle",
           data: {
             nodeId: p.node_id,
-            name,
+            name: (p.first_name ?? "").trim() || "(unnamed)",
             gender: p.gender,
             relation: p.relation,
             kutumbId: p.kutumb_id as string | null | undefined,
@@ -691,17 +690,28 @@ const TreeCanvasV2: React.FC<Props> = ({ vanshaId, readOnly = false }) => {
     [vanshaId],
   );
 
+  // Returns the live on-screen position of a node (rfNodes first, then autoLayout fallback).
+  const getAnchorPos = useCallback(
+    (anchorId: string): { x: number; y: number } => {
+      const live = rfNodes.find((n) => n.id === anchorId);
+      if (live) return live.position;
+      return autoLayout.get(anchorId) ?? { x: 0, y: 0 };
+    },
+    [rfNodes, autoLayout],
+  );
+
   const submitAddChild = useCallback(
     async (firstName: string, lastName: string, dob: string, gender: "male" | "female" | "other", subtype: EdgeSubtype) => {
       if (!pendingAdd?.anchorId) return;
       const { anchorId, spouseId } = pendingAdd;
       const child = await createPersonAndEdge(firstName, lastName, dob, gender, anchorId, null, "parent_of", subtype);
       if (!child) return;
-      // Sticky position: child above anchor (150px up in canvas coords)
-      const anchor = persons.find((p) => p.node_id === anchorId);
-      if (anchor && anchor.canvas_offset_x != null && anchor.canvas_offset_y != null) {
-        await setNodeOffset(child.node_id, anchor.canvas_offset_x, anchor.canvas_offset_y - 150);
-      }
+      // Sticky position: child above anchor (150px up — BT layout, children go upward)
+      const { x: ax, y: ay } = getAnchorPos(anchorId);
+      await setNodeOffset(child.node_id, ax, ay - 150);
+      setPersons((ps) => ps.map((p) =>
+        p.node_id === child.node_id ? { ...p, canvas_offset_x: ax, canvas_offset_y: ay - 150 } : p,
+      ));
       // wire child to anchor parent
       try {
         const r1 = await createRelationship({ vansha_id: vanshaId, from_node_id: anchorId, to_node_id: child.node_id, type: "parent_of", subtype });
@@ -717,7 +727,7 @@ const TreeCanvasV2: React.FC<Props> = ({ vanshaId, readOnly = false }) => {
       setPendingAdd(null);
       toast.success(`${[firstName, lastName].filter(Boolean).join(" ")} added`);
     },
-    [pendingAdd, vanshaId, persons, createPersonAndEdge],
+    [pendingAdd, vanshaId, getAnchorPos, createPersonAndEdge],
   );
 
   const submitAddParents = useCallback(
@@ -727,20 +737,24 @@ const TreeCanvasV2: React.FC<Props> = ({ vanshaId, readOnly = false }) => {
     ) => {
       if (!pendingAdd?.anchorId) return;
       const { anchorId } = pendingAdd;
-      const anchor = persons.find((p) => p.node_id === anchorId);
-      const baseX = anchor?.canvas_offset_x ?? 0;
-      const baseY = anchor?.canvas_offset_y ?? 0;
+      const { x: baseX, y: baseY } = getAnchorPos(anchorId);
       const jobs = [
         father ? createPersonAndEdge(father.firstName, father.lastName, father.dob, "male", null, anchorId, "parent_of", "biological") : Promise.resolve(null),
         mother ? createPersonAndEdge(mother.firstName, mother.lastName, mother.dob, "female", null, anchorId, "parent_of", "biological") : Promise.resolve(null),
       ];
       const [fPerson, mPerson] = await Promise.all(jobs);
-      // Sticky positions: parents below anchor (150px down), side-by-side
-      if (fPerson && anchor && baseX != null && baseY != null) {
+      // Sticky positions: parents below anchor (150px down — BT layout, parents go downward), side-by-side
+      if (fPerson) {
         await setNodeOffset(fPerson.node_id, baseX - 100, baseY + 150);
+        setPersons((ps) => ps.map((p) =>
+          p.node_id === fPerson.node_id ? { ...p, canvas_offset_x: baseX - 100, canvas_offset_y: baseY + 150 } : p,
+        ));
       }
-      if (mPerson && anchor && baseX != null && baseY != null) {
+      if (mPerson) {
         await setNodeOffset(mPerson.node_id, baseX + 100, baseY + 150);
+        setPersons((ps) => ps.map((p) =>
+          p.node_id === mPerson.node_id ? { ...p, canvas_offset_x: baseX + 100, canvas_offset_y: baseY + 150 } : p,
+        ));
       }
       if (fPerson) {
         try {
@@ -757,21 +771,22 @@ const TreeCanvasV2: React.FC<Props> = ({ vanshaId, readOnly = false }) => {
       setPendingAdd(null);
       toast.success("Parents added");
     },
-    [pendingAdd, vanshaId, persons, createPersonAndEdge],
+    [pendingAdd, vanshaId, getAnchorPos, createPersonAndEdge],
   );
 
   const submitAddSpouse = useCallback(
     async (firstName: string, lastName: string, dob: string, gender: "male" | "female" | "other") => {
       if (!pendingAdd?.anchorId) return;
       const { anchorId } = pendingAdd;
-      const anchor = persons.find((p) => p.node_id === anchorId);
       const sp = await createPersonAndEdge(firstName, lastName, dob, gender, anchorId, null, "spouse_of", "biological");
       if (!sp) return;
-      // Sticky position: female left (-120px), male right (+120px) of anchor
-      if (anchor && anchor.canvas_offset_x != null && anchor.canvas_offset_y != null) {
-        const offset = gender === "female" ? -120 : 120;
-        await setNodeOffset(sp.node_id, anchor.canvas_offset_x + offset, anchor.canvas_offset_y);
-      }
+      // Sticky position: female always left (-120px), male/other right (+120px) of anchor
+      const { x: ax, y: ay } = getAnchorPos(anchorId);
+      const spX = ax + (gender === "female" ? -120 : 120);
+      await setNodeOffset(sp.node_id, spX, ay);
+      setPersons((ps) => ps.map((p) =>
+        p.node_id === sp.node_id ? { ...p, canvas_offset_x: spX, canvas_offset_y: ay } : p,
+      ));
       try {
         const r = await createRelationship({ vansha_id: vanshaId, from_node_id: anchorId, to_node_id: sp.node_id, type: "spouse_of", subtype: "biological" });
         setRels((rs) => [...rs, r]);
@@ -779,7 +794,7 @@ const TreeCanvasV2: React.FC<Props> = ({ vanshaId, readOnly = false }) => {
       setPendingAdd(null);
       toast.success(`${[firstName, lastName].filter(Boolean).join(" ")} added as spouse`);
     },
-    [pendingAdd, vanshaId, persons, createPersonAndEdge],
+    [pendingAdd, vanshaId, getAnchorPos, createPersonAndEdge],
   );
 
   const submitAddStandalone = useCallback(
